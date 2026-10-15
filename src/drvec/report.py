@@ -565,7 +565,20 @@ def _report_fit(res, sofar):
     o += level_irf_fevd(res, fv, 10 if fv.rd.n < 40 else 20)
     o += residual_diagnostics(res, fv)
     o += operator_roots(res, fv)
+    o += diagnose_ybar(res, fv)
     return o
+
+
+def diagnose_ybar(res, fv):
+    """diagnose_ybar (drvec.c:7763): the residuals are Ybar's, [nabla Y2 ; W],
+    labelled with the Y2 names and ec1..ecr; dated from the first estimated
+    observation (BUG-37)."""
+    from .diagnose import diagnose
+    spec, data = res.spec, res.data
+    s = spec.s
+    names = list(data.names[:s]) + ["ec%d" % (j + 1) for j in range(spec.r)]
+    return diagnose(fv.a, names, data.freq, data.start, data.nobs_raw - fv.rd.n,
+                    diag_npar_ser(spec))
 
 
 def _vecm_block(res, fv, ro):

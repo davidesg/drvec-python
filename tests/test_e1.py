@@ -41,6 +41,16 @@ def test_the_fit(fit):
         assert abs(p.se - se) <= (5.01e-7 if EXACT else TOL_SE), p.label
 
 
+def test_the_out_file(fit):
+    """e1fit.out, byte for byte after golden.sh's filter (with GSL: the losing
+    starts' rows of the search table need GSL's Johansen seed)."""
+    mine = golden_filter(fit.out_text("e1fit"))
+    if EXACT and GSL:
+        assert mine == golden_filter(FIT_OUT)
+    else:
+        assert len(mine.splitlines()) == len(golden_filter(FIT_OUT).splitlines())
+
+
 def test_the_search_table(fit):
     block = FIT_OUT.split("\nSearch:")[1].split("The SPREAD")[0]
     mine = fit.search.table().split("\nSearch:")[1].split("The SPREAD")[0]

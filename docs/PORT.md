@@ -142,9 +142,49 @@ DATE on the intersection of their samples (6810-6840; drvarma's ladder requires 
 common last date instead). Not read: the ARMA, the mean. Refused, where the C
 carries on: deterministic variables (BUG-40 pending) and D > 0 (the C ignores it).
 
-## 8. Not yet ported
+## 8. The .out writer — `report.py`, `diagnose.py`
 
-The .out writer beyond the numbers the tests read, the CLI, `-fdhess`, the
-diagnostics, IRF/FEVD, forecasting, every option but `-case 1|2|3` and the MA
+The aim is byte identity with the oracle after tools/golden.sh's filter (the
+`Program : DRVEC` line and the `.boot` banner dropped, `/tmp` paths removed). On
+Linux x86_64 with libgsl, **every line** of the four milestone outputs is
+byte-identical: `proute.out` (805 lines), `rankboot.out`, `e1fit.out` (1290),
+`e1boot.out`, and the `.boot` files `rankboot.boot` (20 of 20 replications) and
+`e1boot.boot` (40 of 40). The first line names the port (`DRVEC <version>
+(python)`), which is the line the filter drops.
+
+What it takes, beyond the numbers being bit-identical:
+
+* the C's own `chisq()` (nlatools.c:772-885, Wilson-Hilferty above 30 df) for the
+  p-values of Hosking's portmanteau and Jarque-Bera: scipy's exact tail prints
+  0.7452 where the C prints 0.7456 (`nla.chisq`);
+* GSL's `gsl_eigen_nonsymm` for the eigenvalues of Pi and the operator roots,
+  because the ORDER in which they are printed is GSL's (`_gsl.eigen_nonsymm`);
+* choldcp's determinant in mantissa and exponent for `|Sigma|` (`nla.choldcp_det`);
+* the transcription of diagnose.c's ASCII plot, histogram, ACF/PACF and CCF,
+  with `round_local` and the C's string surgery.
+
+Where the port computes the same quantity another way and only the printed
+digits are compared (all byte-identical on the four outputs): the Wald tests (a
+pseudo-inverse by numpy's SVD, where the C uses svdcp), their p-values (scipy's
+chi2 where the C calls `gsl_cdf_chisq_Q`), `par_row`'s p-values (erfc for GSL's
+ugaussian_Q), Granger's rank condition (numpy's QR and SVD; the smallest singular
+value does not depend on the basis of Lambda_perp), the null vector of the MA
+boundary block (numpy's SVD; printed in absolute value), Hosking's C0 inverse and
+Jarque-Bera's S^(-1/2) (numpy). A p-value or a fourth decimal could round the
+other way on another data set; none does on these four.
+
+Without libgsl (scipy's eigh for Johansen, numpy's eigvals for Pi and the
+roots): the losing `johansen` row of a search table can differ, and the order
+of printed eigenvalues may differ. The `.boot` replications where the Johansen
+start wins move in the last digits (2 of 20 on rankboot, ~1e-13; on E1 up to
+3.5e-5): the tests then compare the LR* numerically and the line count of the
+.out files.
+
+Not written yet: the options of the remaining PRE_CASES (§9), `-f` forecasts,
+`-fdhess`, `-specs`, `-rungs`, `-multistart`, the `-warma` and `-alpha` blocks.
+
+## 9. Not yet ported
+
+The CLI, `-fdhess`, forecasting, every option but `-case 1|2|3` and the MA
 classes the search needs, `-multistart`, the -lrtest internal rescaling is ported
 but not exercised (no fixture triggers it).

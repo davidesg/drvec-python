@@ -5,7 +5,7 @@ the search -- and the 24 est() calls in the C's order."""
 import pytest
 
 from conftest import EXACT, PRE, TOL_EST, TOL_LL, TOL_SE, fragile
-from oracle import est_pairs, number_after, out_text, param_table
+from oracle import est_pairs, golden_filter, number_after, out_text, param_table
 
 import drvec
 from drvec._gsl import backend
@@ -126,3 +126,13 @@ def test_the_search_table(fit):
     table = res.search.table()
     block = OUT.split("\nSearch:")[1].split("The SPREAD")[0]
     assert table.split("\nSearch:")[1].split("The SPREAD")[0] == block
+
+
+def test_the_out_file(fit):
+    """proute.out, all 805 lines, byte for byte after golden.sh's filter."""
+    res, _ = fit
+    mine = golden_filter(res.out_text("proute"))
+    if EXACT:
+        assert mine == golden_filter(OUT)
+    else:
+        assert len(mine.splitlines()) == len(golden_filter(OUT).splitlines())
