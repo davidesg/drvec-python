@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drvec"
+version = "0.1.0.dev0"
+description = "VARMA-VEC cointegration models by exact maximum likelihood (Mauricio 2006): the Python port of drvec, on drvarma's exact VARMA likelihood and fue's univariate models"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-2.0-or-later"
+authors = [
+    { name = "David E. Guerrero", email = "davidesg@ucm.es" },
+]
+keywords = [
+    "cointegration", "VECM", "VARMA", "error correction", "Johansen",
+    "exact maximum likelihood", "time series", "econometrics", "Box-Jenkins",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+# Pure Python. The numerics that need to be fast live in the dependencies:
+# drvarma's compiled exact likelihood (AS 311) and its optimiser, and fue's
+# reader of the .pre files. drvarma >=0.2.0: the first release whose binary
+# wheels carry the engine on every platform, Windows included (BUG-0022).
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "fue>=0.1.17",
+    "drvarma>=0.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/davidesg/drvec-python"
+Repository = "https://github.com/davidesg/drvec-python"
+Issues = "https://github.com/davidesg/drvec-python/issues"
+Changelog = "https://github.com/davidesg/drvec-python/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "slow: a parametric bootstrap or a long search",
+]

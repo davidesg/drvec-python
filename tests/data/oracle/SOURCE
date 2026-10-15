@@ -1,0 +1,6 @@
+Oracle: atsw-gui tag drvec-v0.12 (4a89c00), engines/drvec, built with
+gcc and the system GSL on Linux; bin/drvec sha256 9cf9d8ea01c3fd37...
+Commands, run in a directory holding the two fixtures:
+  drvec mmpre.muskrat.pre mmpre.mink.pre 2 1 1 -mean -case 2 -name proute
+  drvec mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -lrtest -bootstrap 20 -name rankboot
+Golden hashes (engines/drvec/tests/golden/hashes.txt): preroute, rankboot.out, rankboot.boot.
