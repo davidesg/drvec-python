@@ -34,6 +34,8 @@ class FitResult:
     search: object      # fit.SearchResult
     seed_info: object   # fit.Profile (r >= 1) or fit.Ladder (r = 0)
     ma_min_modulus: float
+    data: object = None     # the data as read (the .out's header and diagnostics)
+    cov: object = None      # the BFGS covariance of the winner (npar x npar)
 
     @property
     def npar(self):
@@ -63,6 +65,11 @@ class FitResult:
         return [Param(lab, kind, sg * v, se)
                 for (lab, kind, sg), v, se in zip(labs, self.x, self.se)]
 
+    def out_text(self, base):
+        """<base>.out, as the C writes it (report.fit_out)."""
+        from .report import fit_out
+        return fit_out(self, base)
+
     def param(self, label):
         for p in self.params:
             if p.label == label:
@@ -90,7 +97,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False, lo
     e = res.best.est
     return FitResult(spec, list(data.names), rd.n, list(res.x), res.ll, res.s2,
                      e.termcode, e.iters, e.fk, list(e.dev), res, info,
-                     ma_min_modulus(theta))
+                     ma_min_modulus(theta), data, e.cov)
 
 
 def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,

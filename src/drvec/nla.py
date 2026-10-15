@@ -144,3 +144,56 @@ def choldcp(S):
 def chol_ok(S):
     """Only choldcp's verdict: True when S passes."""
     return choldcp(S)[1] == 0
+
+
+def choldcp_det(S):
+    """choldcp with its determinant (nlatools.c:124-210): -> (L, d1, d2, ifault),
+    det = d1 * 2^d2, d1 kept in [1/16, 1) as the C keeps it."""
+    n = len(S)
+    mat = [row[:] for row in S]
+    d1, d2 = 1.0, 0.0
+    sqrteps = math.sqrt(MACHEPS)
+    maxoffl = 0.0
+    for j in range(n):
+        v = math.sqrt(abs(mat[j][j]))
+        if v > maxoffl:
+            maxoffl = v
+    if maxoffl * maxoffl <= sqrteps:
+        return zeros(n, n), d1, d2, 0
+    minl = 0.0
+    minl2 = sqrteps * maxoffl
+    for j in range(n):
+        s1 = mat[j][j]
+        for i in range(j):
+            s1 -= mat[j][i] * mat[j][i]
+        if s1 != abs(s1) and abs(s1) > minl2:
+            return None, d1, d2, 1
+        mat[j][j] = s1
+        minljj = 0.0
+        for i in range(j + 1, n):
+            s1 = mat[j][i]
+            for k in range(j):
+                s1 -= mat[i][k] * mat[j][k]
+            mat[i][j] = s1
+            if abs(s1) > minljj:
+                minljj = abs(s1)
+        minljj = minljj / maxoffl if (minljj / maxoffl) > minl else minl
+        if mat[j][j] > minljj * minljj:
+            mat[j][j] = math.sqrt(mat[j][j])
+        else:
+            if minljj < minl2:
+                minljj = minl2
+            mat[j][j] = minljj
+        d1 *= mat[j][j] * mat[j][j]
+        while abs(d1) >= 1.0:
+            d1 *= 0.0625
+            d2 += 4.0
+        while abs(d1) < 0.0625:
+            d1 *= 16.0
+            d2 -= 4.0
+        for i in range(j + 1, n):
+            mat[i][j] /= mat[j][j]
+    for j in range(1, n):
+        for i in range(j):
+            mat[i][j] = 0.0
+    return mat, d1, d2, 0

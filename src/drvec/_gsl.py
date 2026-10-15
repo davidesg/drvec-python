@@ -115,3 +115,60 @@ def gensymmv_desc(A, B):
         g.gsl_matrix_free(V)
         g.gsl_matrix_free(Bg)
         g.gsl_matrix_free(Ag)
+
+
+class _VecC(ctypes.Structure):
+    _fields_ = [("size", ctypes.c_size_t), ("stride", ctypes.c_size_t),
+                ("data", ctypes.POINTER(ctypes.c_double)), ("block", ctypes.c_void_p),
+                ("owner", ctypes.c_int)]
+
+
+def _nonsymm_ready(g):
+    if getattr(g, "_nonsymm", False):
+        return True
+    try:
+        P, S = ctypes.c_void_p, ctypes.c_size_t
+        g.gsl_vector_complex_alloc.restype = ctypes.POINTER(_VecC)
+        g.gsl_vector_complex_alloc.argtypes = [S]
+        g.gsl_vector_complex_free.restype = None
+        g.gsl_vector_complex_free.argtypes = [ctypes.POINTER(_VecC)]
+        g.gsl_eigen_nonsymm_alloc.restype = P
+        g.gsl_eigen_nonsymm_alloc.argtypes = [S]
+        g.gsl_eigen_nonsymm_free.restype = None
+        g.gsl_eigen_nonsymm_free.argtypes = [P]
+        g.gsl_eigen_nonsymm_params.restype = None
+        g.gsl_eigen_nonsymm_params.argtypes = [ctypes.c_int, ctypes.c_int, P]
+        g.gsl_eigen_nonsymm.restype = ctypes.c_int
+        g.gsl_eigen_nonsymm.argtypes = [P, ctypes.POINTER(_VecC), P]
+    except AttributeError:
+        return False
+    g._nonsymm = True
+    return True
+
+
+def eigen_nonsymm(A):
+    """eigenqr (nlatools.c:270): the eigenvalues of a real general matrix in
+    GSL's order (balanced, gsl_eigen_nonsymm), as (wr, wi) lists. Without libgsl,
+    numpy's eigvals: the same values to rounding, possibly in another order."""
+    M = len(A)
+    g = _lib if backend() == "gsl" else None
+    if g is None or not _nonsymm_ready(g):
+        ev = np.linalg.eigvals(np.array(A, float))
+        return [float(e.real) for e in ev], [float(e.imag) for e in ev]
+    Ag = g.gsl_matrix_alloc(M, M)
+    ev = g.gsl_vector_complex_alloc(M)
+    w = g.gsl_eigen_nonsymm_alloc(M)
+    try:
+        for i in range(M):
+            for j in range(M):
+                g.gsl_matrix_set(Ag, i, j, float(A[i][j]))
+        g.gsl_eigen_nonsymm_params(0, 1, w)
+        g.gsl_eigen_nonsymm(Ag, ev, w)
+        v = ev.contents
+        wr = [v.data[2 * i * v.stride] for i in range(M)]
+        wi = [v.data[2 * i * v.stride + 1] for i in range(M)]
+        return wr, wi
+    finally:
+        g.gsl_eigen_nonsymm_free(w)
+        g.gsl_vector_complex_free(ev)
+        g.gsl_matrix_free(Ag)

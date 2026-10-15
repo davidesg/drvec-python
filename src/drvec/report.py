@@ -345,3 +345,419 @@ def rank_test_out(t, data, base):
         out += "\n  Every replication, with its LR*, is in %s.boot.\n" % base
         out += _BOOT_TAIL % (N, math.sqrt(0.05 * 0.95 / N), 1.0 / (N + 1))
     return out
+
+
+# --------------------------------------------------------------------------- #
+#  the report of one fit (report_fit, drvec.c:7797-9045)                       #
+# --------------------------------------------------------------------------- #
+
+DASHBAR = "-" * 72
+
+
+def banner(title):
+    return "\n\n%s\n  %s\n%s\n" % (BAR, title, BAR)
+
+
+def _sig(p):
+    return ("***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05
+            else "." if p < 0.10 else " ")
+
+
+def par_row(label, est, se):
+    """par_row (drvec.c:2874): 2 Q(|t|) is GSL's ugaussian_Q, here erfc."""
+    if se > 0.0:
+        t = est / se
+        pv = math.erfc(abs(t) / math.sqrt(2.0))
+        return "%-28s %13.6f %12.6f %8.3f %7.4f %s\n" % (label, est, se, t, pv, _sig(pv))
+    return "%-28s %13.6f %12s %8s %7s\n" % (label, est, "-", "-", "-")
+
+
+_CONV = {1: ("clean convergence, on the scaled gradient", None),
+         2: ("stopped on steptol, NOT on the gradient",
+             "the step collapsed while the gradient may still be appreciable; "
+             "treat the standard errors with caution"),
+         3: ("NOT a convergence: the line search failed to improve",
+             "the estimates are a stationary-ish point, not a demonstrated "
+             "maximum.  See docs/CONVERGENCE.md"),
+         4: ("NOT a convergence: the optimiser gave up",
+             "every criterion derived from this fit -- standard errors, "
+             "AIC/BIC, any LR -- is unreliable"),
+         5: ("NOT a convergence: the optimiser gave up",
+             "every criterion derived from this fit -- standard errors, "
+             "AIC/BIC, any LR -- is unreliable")}
+
+
+def _termcode_from_text(text):
+    """termcode_from_out (drvec.c:2598): the LAST criterion line written so far."""
+    code = 0
+    for line in text.split("\n"):
+        if "Convergence criterion:" not in line:
+            continue
+        code = (1 if "gradtol" in line else 2 if "steptol" in line else
+                3 if "lower point" in line else 4 if "iteration limit" in line else
+                5 if "maximum length" in line else code)
+    return code
+
+
+class _Fit:
+    """The final structures report_fit reads, in the C's 1-based layout where it
+    matters (Lam_m, F_m, Th_m, Qm internal; B2m, mu_m in the .inp's order)."""
+
+    def __init__(self, res):
+        from .cast import shootx, unpack
+        spec = res.spec
+        self.spec = spec
+        rd = res.data.at(spec.r)
+        self.rd = rd
+        self.mu, self.phi, self.theta, self.qq, self.w, _ = shootx(spec, rd, res.x)
+        mu, Lam, F, Th, S, B2 = unpack(spec, res.x)
+        self.Lam, self.F, self.Th, self.Q, self.B2 = Lam, F, Th, S, B2
+        nmean, nlam, _nmid, _nt = spec.blocks()
+        self.mu_m = list(res.x[:nmean])
+
+
+def fit_out(res, base):
+    """The whole <base>.out of a single fit."""
+    data, spec = res.data, res.spec
+    out = header(data, spec, base + ".out")
+    out += seed_block(spec, res.seed_info)
+    out += search_block(res.search)
+    out += _report_fit(res, out)
+    return out
+
+
+def _report_fit(res, sofar):
+    spec, data = res.spec, res.data
+    M, r, s, q = spec.M, spec.r, spec.s, spec.q
+    names = data.names
+    from .params import RowOrder
+    ro = RowOrder(M, r)
+    i2l, l2i = ro.inp2lam, ro.lam2inp
+    fv = _Fit(res)
+    x, dev = res.x, res.se
+    n = fv.rd.n
+    npar = len(x)
+    code = _termcode_from_text(sofar)
+    head, note = _CONV.get(code, ("the termination criterion could not be read", None))
+    o = "Convergence      : %s\n" % head
+    if note:
+        o += "  ! %s\n" % note
+    o += "sigma2           : %15.10f\n" % res.sigma2
+    o += "logelf           : %15.10f\n" % res.loglik
+    o += "npar             : %d\n" % npar
+    o += "AIC              : %15.10f   (-2logL + 2k, /n)\n" % ((-2.0 * res.loglik + 2.0 * npar) / n)
+    o += "BIC              : %15.10f   (-2logL + k log n, /n)\n" % (
+        (-2.0 * res.loglik + npar * math.log(n)) / n)
+
+    # the walk, with the index of every slot (ix_* of report_fit)
+    labs_idx = 0
+    nmean, nlam, _nmid, _nt = spec.blocks()
+    ix_mu = list(range(nmean))
+    ix_lam = {}
+    idx = nmean
+    for i in range(M):
+        for j in range(r):
+            ix_lam[(i, j)] = idx; idx += 1
+    ix_F = {}
+    for k in range(spec.nf):
+        for i in range(M):
+            for j in range(M):
+                if spec.f_free(i, j):
+                    ix_F[(k, i, j)] = idx; idx += 1
+    ix_Th = {}
+    cls = spec.theta_class()
+    for k in range(q):
+        if cls == "diag":
+            cells = [(i, i) for i in range(M)]
+        elif cls in ("marow", "matri"):
+            cells = [(i, j) for i in range(r) for j in range(M)]
+            if cls == "matri":
+                cells += [(i, j) for i in range(r, M) for j in range(r, M)]
+        else:
+            cells = [(i, j) for i in range(M) for j in range(M)]
+        for (i, j) in cells:
+            ix_Th[(k, i, j)] = idx; idx += 1
+    ix_q0 = idx
+    idx += spec.nsig()
+    ix_B2 = {}
+    for j in range(r):
+        for i in range(s):
+            ix_B2[(i, j)] = idx; idx += 1
+    del labs_idx
+
+    o += banner("Estimated Parameters and Standard Deviations")
+    o += ("\n  Gamma(L) (nabla Y_t - delta) = alpha (beta'Y_{t-1} - E[W]) + Theta(L) A_t,"
+          "  delta = E[nabla Y]\n" if spec.case == 3 else
+          "\n  nabla Y_t = alpha (beta'Y_{t-1} - E[W]) + Gamma_1 nabla Y_{t-1} + ... "
+          "+ Theta(L) A_t\n")
+    o += ("  with Pi = alpha beta' of rank r, and beta = [I_r ; beta_2] normalised on Y1.\n"
+          "  Johansen's notation throughout: a NEGATIVE alpha is error-correcting.\n")
+    o += ("  Rows read `equation <- regressor`; D.x is nabla x, A.x its innovation,\n"
+          "  and ec%s the equilibrium error%s beta'Y_{t-1}.\n" % (
+              " is" if r == 1 else "1..ec%d are", "" if r == 1 else "s"))
+    o += "\n%-28s %13s %12s %8s %7s\n" % ("Parameter", "Estimate", "Std.Error", "t-stat", "p-val")
+    o += DASHBAR + "\n"
+    if nmean > 0:
+        o += "\n%s\n" % ("Means: of the drift in nabla Y2, and of the equilibrium error"
+                         if spec.case == 3 else
+                         "Mean of the equilibrium error (the constant restricted to the relation)")
+        for a in range(nmean):
+            if spec.case == 3 and a < s:
+                lb = "  E[D.%s]" % names[a]
+            else:
+                lb = "  E[ec%d]" % ((a - s + 1) if spec.case == 3 else a + 1)
+            o += par_row(lb, x[ix_mu[a]], dev[ix_mu[a]])
+    if r > 0:
+        o += "\nAdjustment coefficients, alpha (M x r)   [negative = error-correcting]\n"
+        for a in range(M):
+            for b in range(r):
+                ii = ix_lam[(i2l(a), b)]
+                o += par_row("  D.%s <- ec%d" % (names[a], b + 1), -x[ii], dev[ii])
+    if r > 0 and s > 0:
+        o += "\nCointegrating vectors, beta = [I_r ; beta_2], normalised on the Y1 block\n"
+        for b in range(r):
+            for a in range(s):
+                ii = ix_B2[(a, b)]
+                o += par_row("  %s in ec%d" % (names[a], b + 1), x[ii], dev[ii])
+    if spec.nf > 0:
+        o += "\nShort-run dynamics, Gamma(k) on nabla Y_{t-k}\n"
+        for k in range(spec.nf):
+            for a in range(M):
+                for b in range(M):
+                    key = (k, i2l(a), i2l(b))
+                    if key in ix_F:
+                        ii = ix_F[key]
+                        o += par_row("  D.%s <- D.%s(-%d)" % (names[a], names[b], k + 1),
+                                     x[ii], dev[ii])
+    if q > 0:
+        bnd = res.ma_on_boundary
+        o += "\nMoving average on the innovations, Theta(k)%s\n" % (
+            "   [an MA root is ON the unit circle: s.e. not defined, see the roots below]"
+            if bnd else "")
+        for k in range(q):
+            for a in range(M):
+                for b in range(M):
+                    key = (k, i2l(a), i2l(b))
+                    if key in ix_Th:
+                        ii = ix_Th[key]
+                        o += par_row("  D.%s <- A.%s(-%d)" % (names[a], names[b], k + 1),
+                                     x[ii], 0.0 if bnd else dev[ii])
+    nm = lambda a: names[l2i(a)]          # noqa: E731
+    o += "\nInnovation covariance up to scale, Q (Sigma = sigma2 * Q, var %s = 1)\n" % nm(0)
+    qi = ix_q0
+    Q = fv.Q
+    for a in range(1, M):
+        o += par_row("  var %s" % nm(a), Q[a][a], dev[qi]); qi += 1
+    if not spec.diag_cov:
+        for a in range(1, M):
+            for b in range(a):
+                o += par_row("  cov %s, %s" % (nm(a), nm(b)), Q[a][b], dev[qi]); qi += 1
+    o += DASHBAR + "\n"
+    o += "Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n"
+    o += ("  ! standard errors from the BFGS-accumulated factor; -fdhess uses the Hessian "
+          "at the optimum\n")
+    o += _vecm_block(res, fv, ro)
+    o += _coint_block(res, fv, ro)
+    return o
+
+
+def _vecm_block(res, fv, ro):
+    spec, data = res.spec, res.data
+    M, r, s, q = spec.M, spec.r, spec.s, spec.q
+    names = data.names
+    i2l, l2i = ro.inp2lam, ro.lam2inp
+    Lam, F, Th, Q, B2 = fv.Lam, fv.F, fv.Th, fv.Q, fv.B2
+    o = banner("Vector Error Correction Model")
+    if spec.case == 3:
+        o += ("\n  Gamma(L) (nabla Y_t - delta) = alpha (beta'Y_{t-1} - E[W]) + Theta(L) A_t\n"
+              "  Gamma(L) = I - Gamma_1 L - ...,  Theta(L) = I - Theta1 L - ... - Theta_q L^q,"
+              "   Pi = alpha beta'\n"
+              "  delta = E[nabla Y], the drift: E[nabla Y2] on the Y2 block, -beta_2' "
+              "E[nabla Y2] on Y1\n\n")
+    else:
+        o += ("\n  nabla Y_t = alpha (beta'Y_{t-1} - E[W]) + Gamma_1 nabla Y_{t-1} + ... "
+              "+ Theta(L) A_t\n"
+              "  Theta(L) = I - Theta1 L - ... - Theta_q L^q,   Pi = alpha beta'\n\n")
+    mu_m = fv.mu_m
+    if mu_m:
+        o += "%s vector:\n" % ("E[nablaY2] and E[W]" if spec.case == 3 else "E[W]")
+        for v in mu_m:
+            o += "  %12.6f\n" % v
+    if spec.case == 3 and len(mu_m) >= s:
+        o += "delta = E[nabla Y] (M), rows in the .inp's order:\n"
+        for a in range(M):
+            if a < s:
+                d = mu_m[a]
+            else:
+                d = 0.0
+                for i3 in range(s):
+                    d -= B2[i3][a - s] * mu_m[i3]
+            o += "  %12.6f\n" % d
+    o += "alpha matrix (M x r), rows in the .inp's order:\n"
+    for a in range(M):
+        o += "  " + "".join("%12.6f" % -Lam[i2l(a)][b] for b in range(r)) + "\n"
+    for k in range(spec.nf):
+        o += "Gamma(%d) matrix, rows and columns in the .inp's order:\n" % (k + 1)
+        for a in range(M):
+            o += "  " + "".join("%12.6f" % F[k][i2l(a)][i2l(b)] for b in range(M)) + "\n"
+    cls = spec.theta_class()
+    for k in range(q):
+        o += "theta(%d) matrix%s:\n" % (k + 1, (
+            "   (the equilibrium errors do not enter the nabla Y2 equations with a lag)"
+            if cls == "matri" else
+            "   (the nabla Y2 block carries no MA of its own)" if cls == "marow" else ""))
+        for a in range(M):
+            o += "  " + "".join("%12.6f" % Th[k][i2l(a)][i2l(b)] for b in range(M)) + "\n"
+    o += "beta_2 matrix (s x r):\n"
+    for a in range(s):
+        o += "  " + "".join("%12.6f" % B2[a][b] for b in range(r)) + "\n"
+    o += "beta matrix (M x r), rows in the .inp's order:\n"
+    for row in range(M):
+        o += "  " + "".join("%12.6f" % (B2[row][c] if row < s else (1.0 if row - s == c else 0.0))
+                            for c in range(r)) + "\n"
+    if r > 0:
+        Pi = [[0.0] * M for _ in range(M)]
+        for a in range(M):
+            for b in range(M):
+                acc = 0.0
+                for j in range(r):
+                    Bbj = B2[b][j] if b < s else (1.0 if b - s == j else 0.0)
+                    acc -= Lam[i2l(a)][j] * Bbj
+                Pi[a][b] = acc
+        o += "Pi = alpha beta' matrix (M x M), the long run:\n"
+        for a in range(M):
+            o += "  " + "".join("%12.6f" % Pi[a][b] for b in range(M)) + "\n"
+        from ._gsl import eigen_nonsymm
+        wr, wi = eigen_nonsymm(Pi)
+        o += "  eigenvalues of Pi:"
+        for a in range(M):
+            o += ("  %.6f" % wr[a]) if abs(wi[a]) < 1.0e-12 else ("  %.6f%+.6fi" % (wr[a], wi[a]))
+        o += "\n"
+        o += ("  ! Pi has rank r by construction: the %d zero eigenvalue%s prove%s nothing "
+              "about r (use -lrtest)\n" % (M - r, "" if M - r == 1 else "s",
+                                           "s" if M - r == 1 else ""))
+
+    def qin(a, b):
+        return Q[a][b] if a >= b else Q[b][a]
+    s2 = res.sigma2
+    o += ("Q matrix (lower triangle, rows and columns in the .inp's order; var %s = 1 by "
+          "normalisation):\n" % names[l2i(0)])
+    for a in range(M):
+        o += "  " + "".join("%12.6f" % qin(i2l(a), i2l(b)) for b in range(a + 1)) + "\n"
+    o += "Sigma = sigma2 * Q, in the .inp's order:\n"
+    for a in range(M):
+        o += "  " + "".join("%12.6f" % (s2 * qin(i2l(a), i2l(b))) for b in range(a + 1)) + "\n"
+    from .nla import choldcp_det
+    Sm = [[s2 * (Q[i][j] if j <= i else Q[j][i]) for j in range(M)] for i in range(M)]
+    _L, d1, d2, ifd = choldcp_det(Sm)
+    if ifd == 0:
+        logdet = math.log(abs(d1)) + d2 * math.log(2.0)
+        o += "  |Sigma| = %s      log|Sigma| = %.6f\n" % (cg(math.exp(logdet), 10), logdet)
+    else:
+        o += "  |Sigma|: not computed (Sigma is not positive definite here)\n"
+    Sg = [[s2 * qin(i2l(a), i2l(b)) for b in range(M)] for a in range(M)]
+    P = [[1.0 if a == b else 0.0 for b in range(M)] for a in range(M)]
+    D = [0.0] * M
+    ok = True
+    for b in range(M):
+        acc = Sg[b][b]
+        for k in range(b):
+            acc -= P[b][k] * P[b][k] * D[k]
+        D[b] = acc
+        if D[b] <= 0.0:
+            ok = False
+            break
+        for a in range(b + 1, M):
+            t = Sg[a][b]
+            for k in range(b):
+                t -= P[a][k] * P[b][k] * D[k]
+            P[a][b] = t / D[b]
+    if ok:
+        o += "P matrix (Sigma = P D P', P unit lower triangular):\n"
+        for a in range(M):
+            o += "  " + "".join("%12.6f" % P[a][b] for b in range(a + 1)) + "\n"
+        o += "D vector:\n  " + "".join("%12.6f" % d for d in D) + "\n"
+        o += "  own share D_i/Sigma_ii:\n  " + "".join(
+            "%11.1f%%" % (100.0 * D[a] / Sg[a][a]) for a in range(M)) + "\n"
+        o += "  ! the ordering is the .inp's column order: another order gives another P\n"
+    else:
+        o += "P, D: not computed (Sigma is not positive definite at the optimum)\n"
+    return o
+
+
+RANKADM_TOL = 0.2
+GRANGER_ZERO = 1.0e-6
+
+
+def granger_smin(Lam, Th, M, r, q):
+    """granger_smin (drvec.c:422): the smallest singular value of
+    Lambda_perp' Theta(1). Invariant to the orthonormal basis of Lambda_perp,
+    so numpy's QR and SVD stand in for GSL's (to rounding)."""
+    import numpy as np
+    s = M - r
+    if r <= 0 or s <= 0:
+        return -1.0
+    L = np.array([[Lam[i][j] for j in range(r)] for i in range(M)], float)
+    Qf, _R = np.linalg.qr(L, mode="complete")
+    T1 = np.eye(M)
+    for k in range(q):
+        T1 = T1 - np.array(Th[k], float)
+    Gt = T1.T @ Qf[:, r:]
+    sv = np.linalg.svd(Gt, compute_uv=False)
+    return float(sv[-1])
+
+
+def _coint_block(res, fv, ro):
+    spec = res.spec
+    M, r, s, q = spec.M, spec.r, spec.s, spec.q
+    o = banner("Cointegration Diagnostics")
+    if r > 0 and q > 0:
+        g = granger_smin(fv.Lam, fv.Th, M, r, q)
+        if g >= 0.0:
+            o += "\nRank condition (Granger): sigma_s(alpha_perp' Theta(1)) = %.3e\n" % g
+            if g < RANKADM_TOL:
+                o += ("  *** %s the floor %.2f (a convention; -rankadm sets it).\n"
+                      "  That matrix is what makes the long-run impact\n"
+                      "  C(1) = B_perp (Lambda_perp' Gamma B_perp)^-1 Lambda_perp'\n"
+                      "  Theta(1) have rank M-r.  Where it degenerates the FITTED\n"
+                      "  model denies the rank it was estimated at -- it says r and\n"
+                      "  its parameters leave no stochastic trend.  The estimate is\n"
+                      "  then on the edge of the region the model class allows, so\n"
+                      "  standard errors and LR statistics do not have their usual\n"
+                      "  distributions there.  -rankadm refuses such points; -mawarma\n"
+                      "  makes them unreachable by construction.  See\n"
+                      "  docs/HOMOLOGATION.md 4h.\n" % (
+                          "ZERO to working precision, under" if g < GRANGER_ZERO
+                          else "Not zero, but below", RANKADM_TOL))
+            else:
+                o += "  admissible (tolerance %.2f)\n" % RANKADM_TOL
+    if r > 0 and s > 0:
+        rd = fv.rd
+        n = rd.n
+        sdY2 = []
+        for a in range(s):
+            m1 = 0.0
+            for t in range(n):
+                m1 += rd.y2[t][a]
+            m1 /= n
+            v = 0.0
+            for t in range(n):
+                v += (rd.y2[t][a] - m1) * (rd.y2[t][a] - m1)
+            sdY2.append(math.sqrt(v / (n - 1 if n > 1 else 1)))
+        o += "\nNormalisation, share of the weight carried by the Y1 block:\n"
+        for j in range(r):
+            m1 = 0.0
+            for t in range(n):
+                m1 += rd.dm[t][s + j]
+            m1 /= n
+            v = 0.0
+            for t in range(n):
+                v += (rd.dm[t][s + j] - m1) * (rd.dm[t][s + j] - m1)
+            w1 = math.sqrt(v / (n - 1 if n > 1 else 1))
+            w2 = 0.0
+            for a in range(s):
+                w2 += abs(fv.B2[a][j]) * sdY2[a]
+            share = w1 / (w1 + w2) if w1 + w2 > 0.0 else 1.0
+            o += "  relation %d: the Y1 block carries %5.1f%% of the weight" % (j + 1, 100.0 * share)
+            o += "   <-- DUBIOUS\n" if share < 0.05 else "\n"
+    return o
