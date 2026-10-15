@@ -60,7 +60,7 @@ def test_the_out_file(label):
 def test_fixb2row_lr_against_the_free_model():
     res = _fit("fixb2row")
     out = out_text("fixb2row.out")
-    assert abs(res.lr_free - number_after(out, "logL H(r)  free        :")) < 1e-6
+    assert abs(res.lr_free - number_after(out, "logL H(r)  free        :")) < (1e-6 if EXACT else TOL_LL)
     assert res.spec.npar() == 13
 
 

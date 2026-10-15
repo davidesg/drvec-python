@@ -6,7 +6,17 @@ On this case the four starts of the fit end between 760.5 and 773.1 (all tc-3
 stops on a flat surface) and the winner is `nested`: the search is only
 reproduced start by start if Johansen's eigenproblem is GSL's (drvec._gsl);
 with scipy's the `johansen` start ends at 760.07 instead of 760.54 (it does not
-win) and one bootstrap LR* moves by 3.5e-5."""
+win) and one bootstrap LR* moves by 3.5e-5.
+
+THE FIT IS NOT A MAXIMUM, AND IT IS PLATFORM-DEPENDENT. Every start stops on
+criterion 3 (the line search found no lower point), and the C says so in the
+.out: "NOT a convergence ... not a demonstrated maximum". Off the oracle's
+platform the same `nested` start stops elsewhere on the ridge: CI run
+38744569511 gave 773.4646 on macOS (ABOVE the C's 773.1128) and 772.3638 on
+Windows, with scipy and without GSL; on Linux x86_64 scipy gives the C's
+773.1128. So the number is reproducible only where the oracle runs, and what
+must hold everywhere is the declaration. Studying the ridge is TODO.md's
+"E1 is ill-defined"."""
 import os
 
 import pytest
@@ -27,6 +37,16 @@ def fit():
     return drvec.fit(E1, 2, 1, 1, case=2)
 
 
+def test_the_fit_declares_it_is_not_a_maximum(fit):
+    """Everywhere: the winner stopped on criterion 3, and the .out says so."""
+    assert fit.termcode == 3
+    out = fit.out_text("e1fit")
+    assert "NOT a convergence: the line search failed to improve" in out
+    assert "not a demonstrated maximum" in out
+
+
+@pytest.mark.skipif(not EXACT, reason="a criterion-3 stop on a ridge: the point is "
+                    "reproducible only on the oracle's platform (see the docstring)")
 def test_the_fit(fit):
     assert fit.search.best.label == "nested"
     assert fit.npar == 29
@@ -41,6 +61,8 @@ def test_the_fit(fit):
         assert abs(p.se - se) <= (5.01e-7 if EXACT else TOL_SE), p.label
 
 
+@pytest.mark.skipif(not EXACT, reason="a criterion-3 stop on a ridge: the point is "
+                    "reproducible only on the oracle's platform (see the docstring)")
 def test_the_out_file(fit):
     """e1fit.out, byte for byte after golden.sh's filter (with GSL: the losing
     starts' rows of the search table need GSL's Johansen seed)."""

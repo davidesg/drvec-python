@@ -44,6 +44,33 @@
 - [ ] The goldens on the `.inp` route (base2, case1, ... in golden.sh's CASES) are
       out of the port's scope (the .pre route only).
 
+## E1 is ill-defined: a ridge, not a maximum (2026-10-15)
+
+- [ ] **Study the E1 fit `2 1 1 -mean -case 2`.** Every start stops on criterion
+      3 and the C's .out says "NOT a convergence ... not a demonstrated maximum".
+      CI run 38744569511 shows what that means: the same `nested` start ends at
+      773.1128 on Linux x86_64 (the C's), 773.4646 on macOS -- ABOVE the C -- and
+      772.3638 on Windows. The compiled likelihood rounds differently there, and
+      the optimiser stops elsewhere on the ridge. It is not Johansen's
+      eigensolver: on Linux x86_64 scipy gives 773.1128 too. To find out: does
+      the ridge keep rising (restart from macOS's point), is an MA root near
+      the wall (min modulus 1.005 at the C's point), and what the analyst gets
+      told -- sima's `study_estimation` does this for drvarma. The C would
+      behave the same way built on macOS or Windows.
+- [x] Tests: off Linux x86_64 E1 checks the declaration (termcode 3 and the
+      .out's warning), not the point; the BFGS s.e. of case 1 are compared only
+      on the oracle's platform (they follow the trajectory; `-fdhess` is the
+      path-independent one, not ported yet).
+
+## Johansen's eigensolver: GSL everywhere through drvarma (decided 2026-10-15)
+
+- [ ] Today drvec uses GSL through ctypes when libgsl is installed, scipy
+      otherwise. Decided with the user: the next drvarma release exposes GSL's
+      `gsl_eigen_gensymmv` (+ `_sort`) from its compiled engine, which already
+      links GSL on every wheel platform; drvec then calls it and drops `_gsl.py`'s
+      system lookup. A secondary fix: it removes one source of platform
+      difference, not the E1 ridge above.
+
 ## Option (b): the measurement (milestone 2, 2026-10-15)
 
 `python tools/time_bootstrap.py 20 --case e1` (and `--case mm`), on Lutkepohl's E1
