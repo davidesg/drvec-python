@@ -197,3 +197,70 @@ def choldcp_det(S):
         for i in range(j):
             mat[i][j] = 0.0
     return mat, d1, d2, 0
+
+
+# --------------------------------------------------------------------------- #
+#  the C's own chi-square (nlatools.c:772-885): what its diagnostics print     #
+# --------------------------------------------------------------------------- #
+
+_GCOEF = (76.18009172947146, -86.50532032941677, 24.01409824083091,
+          -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5)
+
+
+def _gamma_func(x):
+    ser = 1.000000000190015
+    tmp = x + 5.5
+    tmp -= (x + 0.5) * math.log(tmp)
+    for j in range(6):
+        ser += _GCOEF[j] / (x + j + 1)
+    return math.exp(-tmp + math.log(2.5066282746310005 * ser / x))
+
+
+def _gammap(a, x):
+    if x < a + 1.0:
+        ap = a
+        dl = 1.0 / a
+        sm = dl
+        for _n in range(1, 101):
+            ap += 1.0
+            dl *= x / ap
+            sm += dl
+            if abs(dl) < abs(sm) * 1e-10:
+                break
+        return sm * math.exp(-x + a * math.log(x) - math.log(_gamma_func(a)))
+    b = x + 1.0 - a
+    c = 1.0 / 1e-30
+    d = 1.0 / b
+    h = d
+    for i in range(1, 101):
+        an = -i * (i - a)
+        b += 2.0
+        d = an * d + b
+        if abs(d) < 1e-30:
+            d = 1e-30
+        c = b + an / c
+        if abs(c) < 1e-30:
+            c = 1e-30
+        d = 1.0 / d
+        dl = d * c
+        h *= dl
+        if abs(dl - 1.0) < 1e-10:
+            break
+    return 1.0 - math.exp(-x + a * math.log(x) - math.log(_gamma_func(a))) * h
+
+
+def chisq(x, df):
+    """nlatools.c:chisq, the CDF (series / continued fraction below 30 df,
+    Wilson-Hilferty with Abramowitz-Stegun above). Not scipy's: the C's
+    diagnostics print 1 - chisq(), ~1e-4 off the exact tail at df >= 30."""
+    if df <= 0 or x <= 0.0:
+        return 0.0
+    if df < 30:
+        return _gammap(df / 2.0, x / 2.0)
+    z = (pow(x / df, 1.0 / 3.0) - (1.0 - 2.0 / (9.0 * df))) / math.sqrt(2.0 / (9.0 * df))
+    t = 1.0 / (1.0 + 0.2316419 * abs(z))
+    d = 0.3989423 * math.exp(-z * z / 2.0)
+    prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.7814779 + t * (-1.821256 + t * 1.330274))))
+    if z > 0:
+        prob = 1.0 - prob
+    return prob

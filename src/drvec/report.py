@@ -414,6 +414,9 @@ class _Fit:
         self.Lam, self.F, self.Th, self.Q, self.B2 = Lam, F, Th, S, B2
         nmean, nlam, _nmid, _nt = spec.blocks()
         self.mu_m = list(res.x[:nmean])
+        from .loglik import elf
+        _f1, _f2, a, _ifa = elf(spec, rd, res.x, atf=True)
+        self.a = [[float(a[t, i]) for i in range(1, spec.M + 1)] for t in range(1, rd.n + 1)]
 
 
 def fit_out(res, base):
@@ -560,6 +563,8 @@ def _report_fit(res, sofar):
     o += _coint_block(res, fv, ro)
     o += _hypothesis_block(res, ro, ix_lam, ix_B2, ix_F, ix_Th)
     o += level_irf_fevd(res, fv, 10 if fv.rd.n < 40 else 20)
+    o += residual_diagnostics(res, fv)
+    o += operator_roots(res, fv)
     return o
 
 
@@ -1094,4 +1099,250 @@ def level_irf_fevd(res, fv, K):
                 tot += acc[j]
             o += "%5d" % (k + 1) + "".join(
                 " %10.1f%%" % (100.0 * acc[j] / tot if tot > 0.0 else 0.0) for j in range(M)) + "\n"
+    return o
+
+
+# --------------------------------------------------------------------------- #
+#  the residuals and the roots (drvec.c:1738-2160, lib/diagmv/diagmv.c)        #
+# --------------------------------------------------------------------------- #
+
+def diag_k(spec):
+    """diag_k (drvec.c): the dynamic coefficients, Lambda, F and Theta."""
+    _nmean, nlam, nmid, _nt = spec.blocks()
+    M = spec.M
+    return nlam + nmid - ((M if spec.diag_cov else M * (M + 1) // 2) - 1)
+
+
+def diag_npar_ser(spec):
+    M, r, s, nf, q = spec.M, spec.r, spec.s, spec.nf, spec.q
+    out = []
+    for i in range(M):
+        row = r + i if i < s else i - s
+        w_row = row < r
+        n = sum(1 for _k in range(nf) if spec.f_free(row, row))
+        if spec.theta_class() == "marow" and not w_row:
+            out.append(n)
+            continue
+        out.append(n + q)
+    return out
+
+
+def _centred(a, n, m):
+    x = [[0.0] * m for _ in range(n)]
+    for j in range(m):
+        mu = 0.0
+        for t in range(n):
+            mu += a[t][j]
+        mu /= n
+        for t in range(n):
+            x[t][j] = a[t][j] - mu
+    return x
+
+
+def multivariate_diagnostics(a, n, m, freq, k):
+    import numpy as np
+    from .nla import chisq
+    s = (freq + 2) if freq > 1 else 10
+    if s > n - 2:
+        s = n - 2
+    if s < 1:
+        s = 1
+    x = _centred(a, n, m)
+    X = np.array(x)
+    C0 = (X.T @ X) / n
+    C0i = np.linalg.inv(C0)
+    Q = 0.0
+    for r in range(1, s + 1):
+        Cr = (X[:n - r].T @ X[r:]) / n
+        Q += float(np.trace(Cr.T @ C0i @ Cr @ C0i))
+    Q *= n
+    df = m * m * s - k
+    pQ = 1.0 - chisq(Q, df) if df >= 1 else float("nan")
+    w, V = np.linalg.eigh(C0)
+    JB = sk = ku = pJB = float("nan")
+    if np.all(w > 1e-12 * w.max()):
+        R = (V / np.sqrt(w)) @ V.T
+        v = X @ R.T
+        b1 = (v ** 3).sum(axis=0) / n
+        b2 = (v ** 4).sum(axis=0) / n - 3.0
+        sk = float((b1 ** 2).sum() * (n / 6.0))
+        ku = float((b2 ** 2).sum() * (n / 24.0))
+        JB = sk + ku
+        pJB = 1.0 - chisq(JB, 2 * m)
+    o = "\n\n" + BAR + "\n           MULTIVARIATE RESIDUAL DIAGNOSTICS                \n" + BAR + "\n"
+    o += "\nHosking's Multivariate Portmanteau Test (lag %d):\n" % s
+    if df >= 1:
+        o += "  Q(%d) = %.4f, p-value = %.4f\n" % (df, Q, pQ)
+        o += "  df = m^2 s - k = %d - %d, k = dynamic coefficients estimated\n" % (m * m * s, k)
+        o += ("  *** REJECT H0: residuals are not white noise.\n" if pQ < 0.05 else
+              "  Cannot reject H0: residuals appear white noise.\n")
+    else:
+        o += ("  Q = %.4f; df = m^2 s - k = %d - %d < 1: too few lags for the parameters, "
+              "no p-value.\n" % (Q, m * m * s, k))
+    o += ("\nMultivariate Jarque-Bera Test (normality; Lutkepohl, symmetric square root of "
+          "Sigma):\n")
+    if math.isfinite(JB):
+        o += "  JB(%d) = %.4f, p-value = %.4f\n" % (2 * m, JB, pJB)
+        o += "  skewness %.4f, kurtosis %.4f, each chi2(%d)\n" % (sk, ku, m)
+        o += ("  *** REJECT H0: residuals are not normally distributed.\n" if pJB < 0.05 else
+              "  Cannot reject H0: residuals appear normal.\n")
+    else:
+        o += "  not computed: the residual covariance is singular.\n"
+    o += BAR + "\n"
+    return o
+
+
+def residual_diagnostics(res, fv):
+    spec = res.spec
+    a, n, M = fv.a, fv.rd.n, spec.M
+    if n < 20 or M < 1:
+        return ""
+    K = min(n // 4, 12)
+    if K < 1:
+        return ""
+    band = 2.0 / math.sqrt(n)
+    mean = []
+    for i in range(M):
+        sm = 0.0
+        for t in range(n):
+            sm += a[t][i]
+        mean.append(sm / n)
+    C = []
+    for k in range(K + 1):
+        Ck = [[0.0] * M for _ in range(M)]
+        for i in range(M):
+            for j in range(M):
+                sm = 0.0
+                for t in range(k, n):
+                    sm += (a[t][i] - mean[i]) * (a[t - k][j] - mean[j])
+                Ck[i][j] = sm / n
+        C.append(Ck)
+    o = multivariate_diagnostics(a, n, M, res.data.freq, diag_k(spec))
+    o += "\n  residual sd:" + "".join(" %10.6f" % math.sqrt(C[0][i][i]) for i in range(M))
+    o += "\n  band = 2/sqrt(n) = %.4f;  * marks |r| > band\n" % band
+    o += "\nResidual cross-correlation matrices, R(k)[i][j] = corr(a_i(t), a_j(t-k)):\n"
+
+    def corr(k, i, j):
+        return C[k][i][j] / math.sqrt(C[0][i][i] * C[0][j][j])
+    for k in range(K + 1):
+        o += "  k=%-2d " % k
+        for i in range(M):
+            if i > 0:
+                o += "\n       "
+            for j in range(M):
+                rr = corr(k, i, j)
+                o += "%8.3f%s" % (rr, "*" if abs(rr) > band else " ")
+        o += "\n"
+    worst, wk, wi, wj, anyx = 0.0, -1, 0, 0, False
+    for k in range(1, K + 1):
+        for i in range(M):
+            for j in range(M):
+                if i == j:
+                    continue
+                rr = corr(k, i, j)
+                if abs(rr) > band:
+                    anyx = True
+                if abs(rr) > abs(worst):
+                    worst, wk, wi, wj = rr, k, i + 1, j + 1
+    r0 = 0.0
+    for i in range(M):
+        for j in range(i):
+            rr = corr(0, i, j)
+            if abs(rr) > abs(r0):
+                r0 = rr
+    o += "\n  Contemporaneous correlation, largest |r| at k=0: %+.3f%s\n" % (
+        r0, "   ! -diagcov forces Sigma diagonal: an imposed restriction the data do not "
+            "support" if (spec.diag_cov and abs(r0) > band) else "   (Sigma carries it)")
+    o += "  Cross dynamics left at k >= 1: "
+    o += ("none beyond the band\n" if not anyx else
+          "YES, largest is equation %d against the innovation of %d at lag %d, r = %+.3f\n"
+          % (wi, wj, wk, worst))
+    return o
+
+
+def report_operator_roots(label, A, m, k, quiet=False):
+    """-> (text, minmod)."""
+    from ._gsl import eigen_nonsymm
+    if k <= 0:
+        return "", 1.0e12
+    mk = m * k
+    Cm = [[0.0] * mk for _ in range(mk)]
+    for l in range(k):
+        for i in range(m):
+            for j in range(m):
+                Cm[i][j + l * m] = float(A[l][i][j])
+    for l in range(1, k):
+        for j in range(m):
+            Cm[j + l * m][j + (l - 1) * m] = 1.0
+    wr, wi = eigen_nonsymm(Cm)
+    o = "  %-11s" % label
+    minmod = 1.0e12
+    for i in range(mk):
+        lam = math.sqrt(wr[i] * wr[i] + wi[i] * wi[i])
+        if lam <= 1.0e-12:
+            o += "  %8s " % "inf"
+            continue
+        if 1.0 / lam < minmod:
+            minmod = 1.0 / lam
+        o += "  %8.5f%s" % (1.0 / lam, "*" if 1.0 / lam < 1.0001 else " ")
+    return o + "\n", minmod
+
+
+def operator_roots(res, fv):
+    import numpy as np
+    spec, names = res.spec, res.data.names
+    M, r, s, p, q = spec.M, spec.r, spec.s, spec.p, spec.q
+    if p <= 0 and q <= 0:
+        return ""
+    o = "\nRoots of |phi(B)|=0 and |theta(B)|=0 (moduli; > 1 is stationary/invertible):\n\n"
+    t, min_ar = report_operator_roots("AR (Phi)", fv.phi, M, p)
+    o += t
+    t, min_ma = report_operator_roots("MA (Theta)", fv.theta, M, q)
+    o += t
+    if min_ar < 1.0001:
+        o += ("\n  * A root sits on the unit circle -- an AR root: the system is at\n"
+              "    the edge of stationarity, which is where Lambda -> 0 puts it (the\n"
+              "    rank-r model degenerating into the rank-(r-1) one).\n")
+    if min_ma < 1.0001:
+        T = np.eye(M)
+        for l in range(q):
+            T = T - fv.theta[l].T
+        o += ("\n  * A root sits on the unit circle -- an MA root (modulus %.5f).  The\n"
+              "    likelihood rose towards a non-invertible MA and the optimiser stopped\n"
+              "    at the engine's invertibility gate: this is a CONSTRAINED point, not an\n"
+              "    interior maximum.  The standard errors of the MA are not defined along\n"
+              "    that direction, and no LR that uses this fit has its usual\n"
+              "    distribution (BUG-49).\n" % min_ma)
+        _U, sv, Vt = np.linalg.svd(T)
+        u = Vt[-1]
+        o += ("    The combination the model differences once too often -- the left\n"
+              "    null vector u of Theta*(1), smallest singular value %.2e -- has\n"
+              "    weights (|u|, on Ybar = [nabla Y2 ; W]):\n" % sv[-1])
+        w2 = ww = 0.0
+        for i in range(M):
+            ui = float(u[i])
+            if i < s:
+                w2 += ui * ui
+                o += "      nabla %-12s %8.4f\n" % (names[i], abs(ui))
+            else:
+                ww += ui * ui
+                o += "      W%-17d %8.4f\n" % (i - s + 1, abs(ui))
+        if r == 0 or w2 >= 0.8:
+            o += ("    It lies in the nabla Y2 block (share %.2f): that combination of the\n"
+                  "    common-trend series looks OVER-DIFFERENCED -- stationary in levels.\n"
+                  "    Read it as evidence that the rank is higher than %d, or that the\n"
+                  "    series in that block are not I(1).\n" % (w2, r))
+        elif ww >= 0.8:
+            o += "    It lies in the W block (share %.2f).  %s\n" % (ww, (
+                "An AR root is near one as well: an\n"
+                "    AR/MA near-cancellation, i.e. a near common factor.  Read it as\n"
+                "    evidence that the equilibrium error is barely mean-reverting --\n"
+                "    that the rank may be LOWER than the one fitted.") if min_ar < 1.02 else (
+                "The equilibrium error's own moving\n"
+                "    average is at the boundary: re-examine the MA order of W and the\n"
+                "    deterministic case before reading the estimates."))
+        else:
+            o += ("    It mixes both blocks (nabla Y2 share %.2f, W share %.2f): no single\n"
+                  "    reading; re-examine the rank and the orders before reading the\n"
+                  "    estimates.\n" % (w2, ww))
     return o
