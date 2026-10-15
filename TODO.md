@@ -97,6 +97,11 @@
       the wall (min modulus 1.005 at the C's point), and what the analyst gets
       told -- sima's `study_estimation` does this for drvarma. The C would
       behave the same way built on macOS or Windows.
+      **The gate too** (`-rungs`, e1rungs): the C's own entry gate on E1 is
+      NOT VERIFIED by a hair (joint - sum = -4.120e-06, tolerance 1e-6), and on
+      macOS the port lands on VERIFIED (CI run 38753032614). A gate decision
+      that rounding can flip says the rung-0 fit is not converged to the
+      gate's tolerance: part of the same study.
 - [x] Tests: off Linux x86_64 E1 checks the declaration (termcode 3 and the
       .out's warning), not the point; the BFGS s.e. of case 1 are compared only
       on the oracle's platform (they follow the trajectory; `-fdhess`, ported in
