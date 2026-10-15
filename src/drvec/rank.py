@@ -36,16 +36,17 @@ CV_CONST = [(7.52, 9.24, 12.97), (13.75, 15.67, 20.20), (19.77, 22.00, 26.81),
             (60.25, 63.57, 69.94), (66.02, 69.74, 76.63)]
 
 
-def fit_rank(spec, data, log=None):
+def fit_rank(spec, data, log=None, njitter=1):
     """One rank as the C fits it (run_lrtest's loop body, fit_ll): init_guess,
-    the ladder seed, the search. -> (SearchResult, Profile or Ladder)."""
+    the ladder seed, the search (with -multistart's jitters when njitter > 1).
+    -> (SearchResult, Profile or Ladder)."""
     rd = data.at(spec.r)
     x = init_guess(spec, rd)
     if spec.r > 0:
         x, info = gate_profile_seed(spec, data, x, log)
     else:
         x, info = ladder_seed_r0(spec, data, x, log)
-    return fit_search(spec, rd, x, log=log), info
+    return fit_search(spec, rd, x, njitter=njitter, log=log), info
 
 
 def ma_min_modulus(theta):
@@ -233,7 +234,7 @@ class RankTest:
         return "\n".join(lines) + "\n"
 
 
-def rank_test(data, spec, bootstrap=0, boot_path=None, progress=None):
+def rank_test(data, spec, bootstrap=0, boot_path=None, progress=None, njitter=1):
     """run_lrtest. `spec` gives p, q, case and the class; its r is ignored (the
     test walks r = 0..M-1)."""
     M = spec.M
@@ -256,7 +257,7 @@ def rank_test(data, spec, bootstrap=0, boot_path=None, progress=None):
     fits, infos, npar, ll, bnd = [], [], [], [], []
     for rr in range(M):
         sr = spec.but(r=rr)
-        res, info = fit_rank(sr, ds)
+        res, info = fit_rank(sr, ds, njitter=njitter)      # -multistart (BUG-25)
         fits.append(res); infos.append(info); npar.append(sr.npar())
         ll.append(res.ll if res.ifault == 0 else float("nan"))
         b = False

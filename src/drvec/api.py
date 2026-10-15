@@ -220,7 +220,7 @@ def _drift_mask(data, case, nodrift):
 def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         fixb2row=None, nodrift=None, trend=False, irfboot=0, xsys=None,
         xpre=None, xlink=None, forecast=0, fdhess=False, alpha=None, weakex=None,
-        fixb2=None, estwin=0, log=None):
+        fixb2=None, estwin=0, multistart=0, log=None):
     """Estimate the VARMA-VEC of rank r on the `.pre` files (the C's
     `drvec f1.pre ... p q r -case <case>`), with the C's ladder and search.
 
@@ -236,7 +236,8 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     every entry of B2) or True (-fixb2 alone: B2 held at its static-OLS value).
     forecast: -f H, H steps in levels with their theoretical bands (the .out's
     section and FitResult.forecast_text). estwin: -estwin E, the fit on rows
-    1..E and, with -f H, the rolling-origin evaluation (recursive_text)."""
+    1..E and, with -f H, the rolling-origin evaluation (recursive_text).
+    multistart: -multistart n, n - 1 jittered starts added to the search."""
     if (xpre or xlink) and not (xpre and xlink):
         raise ValueError("-xpre and -xlink go together: the inputs and the\n"
                          "       network of links that says where they enter.")
@@ -402,7 +403,8 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         llb, _s2, ifb = loglik(spec, data.at(r), x0)
         xl_bridge = (llb if ifb == 0 else None)
         from .fit import fit_search
-        res = fit_search(spec, data.at(r), x0, log=log)
+        res = fit_search(spec, data.at(r), x0, njitter=multistart if multistart > 1 else 1,
+                         log=log)
         info = None
     if xs:
         # the free VEC, as the C fits it for the LR of strong exogeneity:
@@ -412,7 +414,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         lr_free = rf.ll if rf.ifault == 0 else None
         xs_df = sf.npar() - spec.npar()
     if not links:
-        res, info = fit_rank(spec, data, log)
+        res, info = fit_rank(spec, data, log, njitter=multistart if multistart > 1 else 1)
     if res.ifault != 0:
         raise RuntimeError(f"ESTIMATION FAILED: ifault = {res.ifault}")
     rd = data.at(r)
@@ -445,7 +447,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
 
 
 def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
-              progress=None, trend=False, xsys=None, xpre=None, xlink=None):
+              progress=None, trend=False, xsys=None, xpre=None, xlink=None, multistart=0):
     """The sequential LR test for the rank (`-lrtest [-bootstrap N]`).
 
     The C declares the rank test with exogenous inputs (-xsys, -xlink) and with
@@ -471,4 +473,5 @@ def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
             "       -rungs, -matest, -artest and -eval (not yet).")
     data = _data(pre_files)
     spec = Spec(data.M, p, q, 0, case, ma)
-    return _rank_test(data, spec, bootstrap, boot_path, progress)
+    return _rank_test(data, spec, bootstrap, boot_path, progress,
+                      njitter=multistart if multistart > 1 else 1)

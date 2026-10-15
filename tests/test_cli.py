@@ -76,7 +76,7 @@ def _err(args):
 def test_usage_and_version():
     rc, out, _ = _err(["-h"])
     assert rc == 0 and "drvec-py s1.pre s2.pre [... sM.pre] p q r [options]" in out
-    assert "-fdhess" in out and "-multistart n*" in out
+    assert "-fdhess" in out and "-specs*" in out and "-multistart n " in out
     rc, out, _ = _err(["--version"])
     assert rc == 0 and out.startswith("drvec-py ")
     rc, _, err = _err(["a.pre"])
@@ -95,7 +95,7 @@ def test_usage_and_version():
     (MM + ["2", "0", "1", "-case", "1", "-mean"], 2, "-case 1 has no deterministic term"),
     (MM + ["2", "0", "1", "-bootstrap", "5"], 2, "-bootstrap calibrates -lrtest"),
     (MM + ["2", "0", "1", "-specs"], 2, "-specs is not ported to drvec-py yet"),
-    (MM + ["2", "0", "1", "-multistart", "4"], 2, "-multistart is not ported"),
+    (MM + ["2", "0", "1", "-rungs"], 2, "-rungs is not ported"),
     (MM + ["2", "0", "1", "-lrtest", "-f", "4"], 2, "-f and -estwin act on a single fit"),
     (MM + ["2", "0", "1", "-interv", "x"], 1, "-interv does nothing on the .pre route"),
     (MM + ["2", "0", "1", "-differenced"], 1, "-differenced does not apply"),

@@ -57,7 +57,7 @@ OPT_TABLE = [
     ("-artest", "int", "N", False),
     ("-alpha", "str", "FILE", True),
     ("-weakex", "int", "i", True),
-    ("-multistart", "int", "n", False),
+    ("-multistart", "int", "n", True),
     ("-eval", "none", None, False),
     ("-fdhess", "none", None, True),
     ("-seed", "str", "pfx", False),
@@ -139,6 +139,7 @@ Modes and products:
                  -f H; per-origin errors to <base>.recursive, or -C FILE)
   -fdhess        standard errors from the finite-difference Hessian at
                  the optimum: use it before quoting a standard error
+  -multistart n  n - 1 jittered starts added to the search (the C's generator)
   -diagar, -diagcov, -diagma, -marow, -matri, -mafree: the structure
 """ + _option_list()
 
@@ -261,7 +262,7 @@ def parse(argv):
              nodrift=[], diag_ar=False, diag_cov=False, ma=None, fixb2=None, fixb2row={},
              xpre=[], xlink=None, xsys=[], lrtest=False, bootstrap=0, irfboot=0,
              forecast=0, estwin=0, csv=None, alpha=None, weakex=0, fdhess=False,
-             name=None, method=1, differenced=False, interv=False, unported=[])
+             name=None, method=1, multistart=0, differenced=False, interv=False, unported=[])
     i = first
     while i < len(argv):
         a = argv[i]
@@ -333,6 +334,8 @@ def parse(argv):
             o["weakex"] = int(nxt)
         elif a == "-fdhess":
             o["fdhess"] = True
+        elif a == "-multistart":
+            o["multistart"] = int(nxt)
         elif a == "-interv":
             o["interv"] = True
         elif a == "-name":
@@ -450,7 +453,8 @@ def _execute(o, out, err):
             t = drvec.rank_test(o["files"], o["p"], o["q"], case=o["case"],
                                 ma=o["ma"] or "free", bootstrap=o["bootstrap"],
                                 boot_path=boot, trend=o["trend"], xsys=o["xsys"] or None,
-                                xpre=o["xpre"] or None, xlink=o["xlink"])
+                                xpre=o["xpre"] or None, xlink=o["xlink"],
+                                multistart=o["multistart"])
             text = t.out_text(base)
             _write(base + ".out", text)
             for rr in range(t.spec.M - 1):
@@ -465,7 +469,8 @@ def _execute(o, out, err):
                         trend=o["trend"], irfboot=o["irfboot"], xsys=o["xsys"] or None,
                         xpre=o["xpre"] or None, xlink=o["xlink"],
                         forecast=o["forecast"], fdhess=o["fdhess"], alpha=o["alpha"],
-                        weakex=o["weakex"] or None, fixb2=o["fixb2"], estwin=o["estwin"])
+                        weakex=o["weakex"] or None, fixb2=o["fixb2"], estwin=o["estwin"],
+                        multistart=o["multistart"])
     except (ValueError, NotImplementedError) as e:
         msg = str(e)
         err.write((msg if msg.startswith("ERROR") else "ERROR: " + msg) + "\n")

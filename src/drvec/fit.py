@@ -228,8 +228,6 @@ def fit_search(spec, rd, seed, njitter=1, log=None):
 
     `log`, when a list, receives every est() call as (label, spec, start, result),
     for the trajectory tests."""
-    if njitter > 1:
-        raise NotImplementedError("-multistart is not in milestone 1")
     cands = []
     best = None
 
@@ -271,6 +269,20 @@ def fit_search(spec, rd, seed, njitter=1, log=None):
         sub = fit_search(lspec, rd, init_guess(lspec, rd), log=log)
         if sub.ifault == 0:
             TRY("nested", embed_ma(sub.x, lspec, spec))
+    if njitter > 1:
+        # -multistart n: n - 1 perturbations of the caller's seed, from the C's
+        # own generator (drvec.c:5202-5218): a 64-bit LCG, as `unsigned long'
+        # is on Linux (32-bit on Windows, where the C's jitters differ)
+        rng = 20260818
+        for k in range(1, njitter):
+            amp = 0.05 * float(1 + (k - 1) % 20)
+            xt = []
+            for v in seed:
+                rng = (rng * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFFFFFFFFFF
+                u = float((rng >> 33) & 0x7FFFFFFF) / 2147483647.0
+                u = 2.0 * u - 1.0
+                xt.append(v + amp * u * (abs(v) if abs(v) > 1.0e-8 else 0.1))
+            TRY("jitter %d" % k, xt)
     if best is None:
         first = cands[0]
         return SearchResult(first.est.ifault if first.est else 6, seed, 0.0, 0.0, None, cands)
