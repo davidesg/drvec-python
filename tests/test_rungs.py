@@ -35,8 +35,13 @@ def test_the_rungs(label):
         # ill-defined"), and its gate is BORDERLINE in the C itself: joint - sum
         # = -4.120e-06 against a tolerance of 1e-6, NOT VERIFIED. CI run
         # 38753032614: macOS lands on the other side (VERIFIED) and Windows
-        # moves rung 2 by 5.8e-3. Only the shape holds off the oracle's platform.
-        assert len(mine.splitlines()) == len(theirs.splitlines())
+        # moves rung 2 by 5.8e-3. Off the oracle's platform what must hold is
+        # that the verdict printed is the one its own gap gives, and the rungs.
+        line = mine.split("crossing identity (joint - sum) =")[1].split("\n")[0]
+        gap, tol = float(line.split()[0]), float(line.split("tolerance")[1].split(")")[0])
+        assert t.ladder.gate.verified == (abs(gap) <= tol)
+        assert ("NOT VERIFIED" in line) == (not t.ladder.gate.verified)
+        assert sum(l.startswith(("  0  F", "  1  Sigma", "  2  F")) for l in mine.splitlines()) == 3
         return
     assert t.ladder.gate.verified == ("VERIFIED" in theirs.split("crossing identity")[1].split("\n")[0].replace("NOT VERIFIED", ""))
     rows = [l for l in theirs.splitlines() if l.startswith(("  0  F", "  1  Sigma", "  2  F"))]
