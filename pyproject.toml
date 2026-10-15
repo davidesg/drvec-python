@@ -34,6 +34,10 @@ dependencies = [
     "drvarma>=0.2.0",
 ]
 
+[project.scripts]
+# NOT `drvec`: that is the C program's name on a system with the ATSW suite
+drvec-py = "drvec.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/davidesg/drvec-python"
 Repository = "https://github.com/davidesg/drvec-python"
