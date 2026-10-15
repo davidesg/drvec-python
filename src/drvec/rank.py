@@ -74,11 +74,8 @@ def simulate_h0(spec, data, x, rng):
     mu, phi, theta, qq, w, _ = shootx(spec, rd, x)
     _lg, f1, f2, _a, ifa = elf_c(M, n, p, q, mu, phi, theta, qq, w, 1.0, XITOL, True)
     sigma2 = f1 / (n * M)
-    B2 = [[0.0] * max(r, 1) for _ in range(s)]
-    idx = len(x) - s * r
-    for j in range(r):
-        for i in range(s):
-            B2[i][j] = x[idx]; idx += 1
+    from .cast import unpack
+    B2 = unpack(spec, x)[5]                     # held rows (-fixb2row) included
     burn = 50 + 10 * p
     T = n + burn
     L, ifc = choldcp([[sigma2 * float(qq[i, j]) for j in range(M)] for i in range(M)])

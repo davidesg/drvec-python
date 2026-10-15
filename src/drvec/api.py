@@ -38,6 +38,14 @@ class FitResult:
     cov: object = None      # the BFGS covariance of the winner (npar x npar)
     drift_how: str = None   # "pre" (-case pre) or "nodrift" when drifts are held
     lr_free: float = None   # -fixb2row: logL of the free model
+    irfboot: object = None  # -irfboot: irfboot.IrfBoot
+
+    def irfboot_text(self, base):
+        """<base>.irfboot, as the C writes it (None without -irfboot)."""
+        if self.irfboot is None:
+            return None
+        from .irfboot import bands_text
+        return bands_text(self.irfboot, self.spec, self.names, base)[1]
 
     @property
     def npar(self):
@@ -109,7 +117,7 @@ def _drift_mask(data, case, nodrift):
 
 
 def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
-        fixb2row=None, nodrift=None, trend=False, log=None):
+        fixb2row=None, nodrift=None, trend=False, irfboot=0, log=None):
     """Estimate the VARMA-VEC of rank r on the `.pre` files (the C's
     `drvec f1.pre ... p q r -case <case>`), with the C's ladder and search.
 
@@ -156,6 +164,9 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
                     ma_min_modulus(theta), data, e.cov)
     out.drift_how = how
     out.lr_free = lr_free
+    if irfboot > 0:
+        from .irfboot import irf_bootstrap
+        out.irfboot = irf_bootstrap(spec, data, out.x, irfboot, 10 if rd.n < 40 else 20)
     return out
 
 

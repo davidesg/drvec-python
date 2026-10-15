@@ -77,3 +77,32 @@ def test_refusals():
         drvec.fit(MM, 2, 0, 1, case=2, fixb2row={2: 0.0})
     with pytest.raises(ValueError, match="-trend"):
         drvec.fit(MM, 2, 0, 1, case=2, trend=True)
+
+
+@pytest.fixture(scope="module")
+def irfboot():
+    return drvec.fit(MM, 2, 0, 1, case=2, irfboot=40)
+
+
+def test_irfboot_out_and_file(irfboot):
+    """-irfboot 40: the .out with its band section and <base>.irfboot, whole."""
+    res = irfboot
+    assert res.irfboot.nok == 40 and res.irfboot.nfail == 0
+    mine = golden_filter(res.out_text("irfboot"))
+    theirs = golden_filter(out_text("irfboot.out"))
+    fb = res.irfboot_text("irfboot")
+    if EXACT:
+        assert mine == theirs
+        assert fb == out_text("irfboot.irfboot")
+    else:
+        rows = [l.split(",") for l in fb.splitlines()[2:]]
+        crow = [l.split(",") for l in out_text("irfboot.irfboot").splitlines()[2:]]
+        assert len(rows) == len(crow)
+        for a, b in zip(rows, crow):
+            assert a[:4] == b[:4]
+            assert max(abs(float(u) - float(v)) for u, v in zip(a[4:], b[4:])) < 1e-4
+
+
+def test_irfboot_refusal():
+    with pytest.raises(ValueError, match="-irfboot bootstraps the responses"):
+        drvec.fit(MU, 2, 0, 1, case="pre", trend=True, irfboot=10)

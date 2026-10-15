@@ -453,6 +453,9 @@ def fit_out(res, base):
     out += seed_block(spec, res.seed_info)
     out += search_block(res.search)
     out += _report_fit(res, out)
+    if getattr(res, "irfboot", None) is not None:
+        from .irfboot import bands_text
+        out += bands_text(res.irfboot, res.spec, res.names, base)[0]
     return out
 
 
