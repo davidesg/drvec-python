@@ -1,0 +1,28 @@
+name: Tests
+
+# The port against its oracle (drvec-v0.12), on the released fue and drvarma:
+# the compiled likelihood arrives with drvarma's binary wheels.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-14, windows-latest]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "${{ matrix.python }}"}
+      - name: Install
+        run: python -m pip install ".[test]"
+      - name: The engine is the compiled one
+        run: python -c "import drvarma._engine as E; b = E.engine_backend(); print('drvarma engine:', b); assert b == 'c', E.engine_load_error()"
+      - name: Tests
+        run: python -m pytest -q
