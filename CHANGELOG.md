@@ -18,3 +18,10 @@
   `fit(..., fixb2row=, nodrift=, case="pre", trend=, xsys=, xpre=, xlink=,
   irfboot=)`; Johansen's seed through GSL (ctypes) when libgsl is present;
   the tests exact on Linux x86_64 and on a tolerance tier elsewhere.
+- Milestone 3: `fit(..., fdhess=True)` (the finite-difference Hessian s.e.),
+  `alpha=`, `weakex=`, `fixb2=` (restrictions with their LR against the free
+  model), `forecast=H` and `estwin=E` (`FitResult.forecast_text`,
+  `recursive_text`), `multistart=n` (also in `rank_test`), `drvec.rungs()`;
+  the command line `drvec-py` (the C's .pre-route syntax and products). Every
+  oracle case byte-identical on Linux x86_64. C defect found: -alpha accepts a
+  rank-deficient A (bugs/drvec-c-alpha-rank).

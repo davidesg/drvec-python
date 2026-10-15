@@ -33,16 +33,56 @@
       test with -xsys, -xlink or -trend, -xlink with -f (and -irfboot with -trend,
       -xlink with case 1).
 
+## Milestone 3 — the rest of the first version's scope (2026-10-15)
+
+- [x] `-fdhess`: the finite-difference Hessian s.e. (fdh201, e1fdh; fdh211 on the
+      MA wall keeps the BFGS ones and says why). Path-independent but NOT
+      bit-stable: an ulp in x moves an s.e. by up to 4.5e-3 relative; off the
+      oracle's platform the relative tier TOL_FDSE_REL = 2e-2 (tests/conftest.py).
+- [x] `-alpha FILE`, `-weakex i`, `-fixb2 [v]` with their LRs, alone and with
+      `-fixb2row` (the joint LR): weakex1/2, e1alpha, fixb2v, fixb2s, wxfix, wxrow.
+- [x] `-f H` and `-estwin E`: the .out's sections, `<base>.forecast` and
+      `<base>.recursive` (fc201, fc211, fcpre, ewin, e1fc).
+- [x] The CLI `drvec-py` ([project.scripts]), end to end against fc201.
+- [x] `-multistart n` (ms201, ms211, msrank) and `-rungs` (rungs, e1rungs, rungs3).
+- Every case above is byte-identical to the oracle on Linux x86_64 with GSL
+  (tests/data/oracle/SOURCE, milestone 3).
+
 ## Next
 
-- [ ] The CLI (`drvec f1.pre f2.pre p q r [options]`), writing <base>.out/.boot/.irfboot.
-- [ ] -f (forecast) and -estwin, -fdhess, -alpha/-weakex (the alpha = A psi
-      machinery is in place for -xsys), -fixb2, -multistart, -specs, -rungs.
+- [ ] `-specs`: it fits -warma and -mawarma, neither of which is ported (the
+      -warma branch of vec_shootx and init_guess, the -mawarma MA class).
+- [ ] The rank test with `-alpha`/`-weakex`/`-fixb2`, `-nodrift`/`-case pre`,
+      `-diagar`/`-diagcov` (the C has them; drvec-py refuses them, named).
+- [ ] `-m 2` (the xi sequence not truncated), `-matest`, `-artest`, `-eval`,
+      `-seed*`, `-noladder`, `-seedjoh`, `-seedb2`, `-rankadm`, `-writeinp`,
+      `-writeres`, `-warma`/`-mawarma`: refused by drvec-py, named.
+- [ ] `-irfboot` with `-fixb2` (no value): the C re-reads B2_fixed from each
+      replication's static OLS (init_guess's side effect); not checked.
 - [ ] -xlink: the backcast of an input WITH an ARMA model (xl_backcast with
       expand_ar_factors/expand_ma_factors; refused today), inputs with
       deterministic variables.
 - [ ] The goldens on the `.inp` route (base2, case1, ... in golden.sh's CASES) are
       out of the port's scope (the .pre route only).
+- [ ] Run the suite once off Linux x86_64 and measure the milestone-3 tiers
+      (TOL_FDSE_REL above all, and the 1e-3 relative of the forecasts).
+
+## C defects found in milestone 3 (not patched; for the lead)
+
+- [ ] **-alpha accepts an A of deficient rank** (`bugs/drvec-c-alpha-rank`,
+      `repro.py` exits 1 while open). load_alpha_A checks the rank with
+      choldcp(A'A), which only faults on a negative pivot: A = [1 1; 1 1; 0 0]
+      passes, psi's seed divides by zero, the .out carries logL = nan and the
+      program dies with SIGSEGV. The port refuses it with the C's own message
+      (a rank check added, docs/PORT.md §11).
+- [ ] **-estwin dates its header wrong** (cosmetic): `Sample : 50 observations
+      from 1862` for a fit on 1851..1900 -- ObsToDate(nobs_raw - nobs + 1)
+      assumes the trim is the first difference; the per-series diagnosis is
+      offset the same way (nobs_raw - nobs). The port reproduces it.
+- [ ] **-fdhess's step is below the objective's noise**: eta = macheps assumes an
+      objective exact to an ulp, and AS 311's is ~1e-14 relative (E1, |Sigma| ~
+      1e-11), so the printed s.e. carry ~0.1-0.5 % of numerical noise (fourth
+      significant digit). Not a crash; a matter for the article's quoted s.e.
 
 ## E1 is ill-defined: a ridge, not a maximum (2026-10-15)
 
@@ -59,8 +99,8 @@
       behave the same way built on macOS or Windows.
 - [x] Tests: off Linux x86_64 E1 checks the declaration (termcode 3 and the
       .out's warning), not the point; the BFGS s.e. of case 1 are compared only
-      on the oracle's platform (they follow the trajectory; `-fdhess` is the
-      path-independent one, not ported yet).
+      on the oracle's platform (they follow the trajectory; `-fdhess`, ported in
+      milestone 3, is path-independent but has a noise floor of ~1e-3 relative).
 
 ## Johansen's eigensolver: GSL everywhere through drvarma (decided 2026-10-15)
 
@@ -133,6 +173,11 @@ What this says:
 - C defect candidate, not filed: the bootstrap generator's `unsigned long`
   (drvec.c:2203) is 32-bit on Windows, so the C's bootstrap stream (and its
   `.boot` goldens) are platform-dependent. The port computes the 64-bit stream.
+- Milestone 3's tiers are reasoned, not measured off-platform: -fdhess s.e. on
+  TOL_FDSE_REL = 2e-2 (4x the measured ulp-level floor), forecasts and rolling
+  errors to 1e-3 relative, and line counts for the .out. ms201's winner
+  (`jitter 1`) is a 1e-10 near-tie, asserted on the oracle's platform only.
+- -multistart's jitters use the 64-bit LCG; on Windows the C's are 32-bit (D4).
 - The suite was run against drvarma 0.2.0 and fue 0.1.17.dev0 installed as
   EDITABLE dev trees; re-run against the released wheels.
 
@@ -142,4 +187,5 @@ Cases 1-4, the `.pre` route with `-case pre`/`-nodrift`, the rank test,
 the impulse responses and variance decomposition with `-irfboot`, `-f`,
 `-fixb2row`, `-xpre`/`-xlink` and `-xsys`, `-alpha`, `-weakex`, `-fixb2`,
 `-fdhess`. The gaps the C declares are ported as refusals, with the C's
-message.
+message. All of it is in place after milestone 3, with the CLI, `-estwin`,
+`-multistart` and `-rungs`; `-specs` waits for -warma/-mawarma.

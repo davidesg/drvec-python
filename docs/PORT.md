@@ -184,8 +184,9 @@ The same holds for every remaining PRE_CASE of golden.sh: `fixb2row.out`,
 `nodrift.out`, `casepre.out`, `trend.out`, `xsys.out`, `xlink.out`,
 `irfboot.out` and `irfboot.irfboot` are byte-identical (tests/test_options.py).
 
-Not written yet: `-f` forecasts, `-fdhess`, `-specs`, `-rungs`, `-multistart`, the
-`-warma`, `-alpha`/`-weakex` and `-fixb2` blocks.
+Milestone 3 adds the blocks of `-fdhess`, `-alpha`/`-weakex`, `-fixb2`, `-f`,
+`-estwin`, `-multistart` and `-rungs` (§11). Not written yet: `-specs` and the
+`-warma` blocks.
 
 ## 9. The options of milestone 2
 
@@ -208,7 +209,69 @@ Not written yet: `-f` forecasts, `-fdhess`, `-specs`, `-rungs`, `-multistart`, t
 
 ## 10. Not yet ported
 
-The CLI, `-fdhess`, forecasting, `-alpha`/`-weakex`, `-fixb2`, `-multistart`,
-`-specs`, `-rungs`, `-warma`/`-mawarma`, an `-xlink` input with an ARMA model or
-deterministic variables; the -lrtest internal rescaling is ported but not
-exercised (no fixture triggers it).
+`-specs` (it fits `-warma` and `-mawarma`, neither ported), `-warma`/`-mawarma`,
+`-m 2`, `-matest`/`-artest`, `-eval`, the `-seed*` family, `-noladder`, `-rankadm`,
+`-writeinp`/`-writeres`; the rank test with `-alpha`/`-weakex`/`-fixb2`,
+`-nodrift`/`-case pre` or the diagonal flags; an `-xlink` input with an ARMA
+model or deterministic variables; the .inp route. drvec-py refuses each of them
+by name (exit 2). The -lrtest internal rescaling is ported but not exercised (no
+fixture triggers it).
+
+## 11. Milestone 3
+
+* **`-fdhess`** (`fdhess.py`; exact_hessian_se and fdh_obj, drvec.c:1877-2007).
+  The objective normalised at the optimum, drvarma's `_qnewt.fdhess` (qnewtopt.c:404
+  line for line) with eta = macheps, choldcp, cov = 2 f H^-1 / n. A refused step
+  (the cast's Sigma, or AS 311) counts as 1e10 and as a rejection; any rejection
+  keeps the BFGS s.e. ("the optimum is on the boundary"), and so does an
+  indefinite Hessian; the .out and the stderr warning say which (BUG-34). The
+  eigenvalues of the warning are numpy's, where the C uses eigenqr (they are
+  only counted). **The s.e. are path-independent but not bit-stable**: AS 311's
+  objective carries ~1e-14 relative noise (an ulp in x moves g by ~3e-14 on
+  E1), the step is macheps^(1/3) max(|x|, 1) ~ 6e-6, and the second difference
+  divides by its square: an s.e. moves by up to 4.5e-3 relative (E1) and
+  1.3e-3 (mink-muskrat) for an ulp in x. Off the oracle's platform the compiled
+  likelihood rounds differently, the same kind of perturbation, so the tests'
+  tier is relative, TOL_FDSE_REL = 2e-2 (tests/test_fdhess.py, test_noise_floor).
+* **`-alpha FILE`, `-weakex i`** (`Spec.alpha`, `api.load_alpha_A`): alpha = A psi
+  through the machinery -xsys already had (A in the .inp's rows, permuted with
+  lam2inp where it meets Lambda; the psi seed projected, drvec.c:4122). H(r) for
+  the LR is ONE `est()` from init_guess, no search, no ladder, and its optimiser
+  banner goes into the .out right after the header (drvec.c:11415-11439); df =
+  (M - sa) r. With `-fixb2row` the free model drops both restrictions (init_guess
+  and the search) and the LR is the joint one, df = (rows held) r + (M - sa) r.
+  **Port difference**: the C checks A's rank with choldcp(A'A), which accepts an
+  exactly singular A'A (a zero pivot is replaced, not refused) and then fits NaN
+  and crashes (bugs/drvec-c-alpha-rank); the port adds numpy's matrix_rank and
+  refuses with the C's own message.
+* **`-fixb2 [v]`** (`Spec.b2_fix`, `fixb2_given`): B2 held whole. With v the seed
+  is built from W = Y1 + v'Y2 (BUG-33) and the search adds the `ols-b2` start
+  (init_guess with the static-OLS W, `consistent=False`, drvec.c:5143); without
+  a value B2 is held at its static-OLS estimate (B2_fixed, which init_guess sets
+  as a side effect in the C). No `johansen` start under -fixb2 (5151). No free
+  model is fitted: the C prints no LR for -fixb2.
+* **`-f H`** (`forecast.py`; forecast_core 5935, forecast_vec 6456): the recursion
+  on Ybar from the origin with the shocks after it at zero, the levels through
+  B2, the bands through the psi weights and level_error_map, the one-step
+  self-check, and the back-transform to each series' units (bt_level/bt_jac;
+  the det path is zero on this route, data.py refuses deterministic variables).
+  The `.forecast` file's first line names the port and its version.
+* **`-estwin E`** (`Data.estwin`, rolling_eval 5990): the fit on rows 1..E of
+  nabla Y; the rolling evaluation filters the WHOLE sample with those parameters
+  and rolls the origin over E..n-H; `<base>.recursive` (or -C FILE). The C's
+  header dates the first observation as nobs_raw - nobs + 1 (1862 for a window
+  on 1851..1900), and the per-series diagnosis is offset the same way; the port
+  does the same.
+* **`-multistart n`** (fit_search's step 5, 5202): n - 1 jitters of the caller's
+  seed from the C's LCG, 64-bit (as `unsigned long` on Linux). In the rank test
+  every observed rank gets them, the bootstrap replications do not (BUG-25).
+* **`-rungs`** (`rungtable.py`, run_rungs 9047): the three rungs at r = 0 with
+  the gate, which is `fit_r0_ladder` with every rung forced.
+* **The CLI** (`cli.py`, `drvec-py`): parse_cli and validate_cli's checks and
+  messages for the .pre route, the refusals in the C's order and words, the
+  products named as the C names them. The terminal output is a summary, not
+  the C's progress log.
+
+Every milestone-3 case (tests/data/oracle/SOURCE) is byte-identical to the
+oracle on Linux x86_64 with GSL: the .out, and the .forecast/.recursive but for
+their first line.

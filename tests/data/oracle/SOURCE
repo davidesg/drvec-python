@@ -25,3 +25,31 @@ engines/drvec/tests/fixtures at the tag), each with `-name <label>`:
   irfboot   mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -irfboot 40   (+ irfboot.irfboot)
 Run again with -name under /tmp, each .out hashes (golden.sh's filter) to the
 value in engines/drvec/tests/golden/hashes.txt at the tag; irfboot.irfboot too.
+
+Milestone 3 (2026-10-15), same binary, run in a directory holding the
+fixtures (mmpre.*.pre, minkmu.pre, e1*.pre, and e1alpha.txt, a matrix A with
+alpha_invest = alpha_income), each with `-name <label>`:
+  fdh201    mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -fdhess
+  fdh211    mmpre.muskrat.pre mmpre.mink.pre 2 1 1 -mean -case 2 -fdhess
+  e1fdh     e1invest.pre e1income.pre e1cons.pre 2 0 1 -case 2 -fdhess
+  weakex1   mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -weakex 1
+  weakex2   mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -weakex 2
+  e1alpha   e1invest.pre e1income.pre e1cons.pre 2 0 1 -case 2 -alpha e1alpha.txt
+  fixb2v    mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -fixb2 0
+  fixb2s    mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -fixb2
+  wxfix     mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -weakex 1 -fixb2 0
+  wxrow     e1invest.pre e1income.pre e1cons.pre 2 0 1 -case 2 -weakex 3 -fixb2row 1 0
+  fc201     mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -f 8          (+ .forecast)
+  fc211     mmpre.muskrat.pre mmpre.mink.pre 2 1 1 -mean -case 2 -f 6    (+ .forecast)
+  fcpre     mmpre.muskrat.pre minkmu.pre 2 0 1 -case pre -f 5           (+ .forecast)
+  ewin      mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -f 4 -estwin 50
+            (+ .forecast, .recursive)
+  e1fc      e1invest.pre e1income.pre e1cons.pre 2 0 1 -case 2 -f 8 -estwin 70
+            (+ .forecast, .recursive)
+  ms201     mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -multistart 4
+  ms211     mmpre.muskrat.pre mmpre.mink.pre 2 1 1 -mean -case 2 -multistart 5
+  msrank    mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -lrtest -multistart 3
+  rungs     mmpre.muskrat.pre mmpre.mink.pre 2 1 1 -case 2 -rungs
+  e1rungs   e1invest.pre e1income.pre e1cons.pre 2 1 1 -case 2 -rungs
+  rungs3    mmpre.muskrat.pre minkmu.pre 2 0 0 -case 3 -rungs
+Every run takes under 0.3 s.

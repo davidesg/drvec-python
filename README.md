@@ -23,6 +23,19 @@ drvec is pure Python; the compiled engine arrives with drvarma's binary
 wheels. A compiled cast of its own is added only if the parametric bootstraps
 need it.
 
+## Command line
+
+`drvec-py` takes the C program's `.pre` route with its syntax and writes its
+files (`<base>.out`, and `.boot`, `.irfboot`, `.forecast`, `.recursive` as
+the options ask):
+
+    drvec-py muskrat.pre mink.pre 2 1 1 -mean -case 2 -fdhess -f 8 -name mm
+    drvec-py muskrat.pre mink.pre 2 0 1 -case 2 -lrtest -bootstrap 200
+    drvec-py -h
+
+It is `drvec-py` and not `drvec` because `drvec` is the C program's name on a
+system with the ATSW suite.
+
 The assistant that drives drvec is **sima** (sima-tseries), from its 0.2.0.
 
 ## License
