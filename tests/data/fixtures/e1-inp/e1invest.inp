@@ -1,0 +1,123 @@
+************************************************
+* Input file for program FUE                   *
+* Lutkepohl (2005) data set E1, invest         *
+************************************************
+** Frequency of time series: either 1(A), 4(Q) or 12(M):
+ 4
+** Number of observations and starting date of time series:
+ 92 1 1960 invest
+** Number of deterministic variables (including seasonal components):
+0
+** Number and orders of regular AR operators:
+0
+** Number and orders of annual AR operators:
+0
+** Number and orders of regular MA operators:
+0
+** Number and orders of anual MA operators:
+0
+** Number and frequencies of regular AR(2) operators with fixed frequency:
+0
+** Number and frequencies of regular MA(2) operators with fixed frequency:
+0
+** Mean and estimation flag:
+0.0 1
+** Box-Cox lambda, regular and seasonal differences:
+0.0 1 0
+** Fixed-frequency annual difference factors:
+ 0
+** Confidence bands and rescaling factor:
+0.95 1.0
+** Series:
+180
+179
+185
+192
+211
+202
+207
+214
+231
+229
+234
+237
+206
+250
+259
+263
+264
+280
+282
+292
+286
+302
+304
+307
+317
+314
+306
+304
+292
+275
+273
+301
+280
+289
+303
+322
+315
+339
+364
+371
+375
+432
+453
+460
+475
+496
+494
+498
+526
+519
+516
+531
+573
+551
+538
+532
+558
+524
+525
+519
+526
+510
+519
+538
+549
+570
+559
+584
+611
+597
+603
+619
+635
+658
+675
+700
+692
+759
+782
+816
+844
+830
+853
+852
+833
+860
+870
+830
+801
+824
+831
+830

@@ -4,3 +4,10 @@ Commands, run in a directory holding the two fixtures:
   drvec mmpre.muskrat.pre mmpre.mink.pre 2 1 1 -mean -case 2 -name proute
   drvec mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -lrtest -bootstrap 20 -name rankboot
 Golden hashes (engines/drvec/tests/golden/hashes.txt): preroute, rankboot.out, rankboot.boot.
+
+Milestone 2, the three-series case (tests/data/fixtures/e1*.pre, see
+tests/data/fixtures/e1-inp/SOURCE), same binary, run in a directory holding
+the three fixtures:
+  drvec e1invest.pre e1income.pre e1cons.pre 2 1 1 -mean -case 2 -name e1fit
+  drvec e1invest.pre e1income.pre e1cons.pre 2 0 1 -case 2 -lrtest -bootstrap 20 -name e1boot
+Wall time on the machine of 2026-10-15: 2.4 s and 13.1 s.

@@ -1,0 +1,19 @@
+The three-series case (milestone 2, the option-(b) measurement).
+
+Data: Lutkepohl (2005), data set E1 -- West German fixed investment, disposable
+income and consumption expenditures, billions of DM, quarterly, seasonally
+adjusted, 1960Q1-1982Q4 (92 observations); source Deutsche Bundesbank. Taken
+byte for byte from atsw-gui engines/drvec/datasets/lutkepohl/e1.dat (SHA-256
+c4fdef149249cea596657c42713ce2f41df160d23c29ed1b9b59e2ff10fc0d97, listed in
+engines/drvec/datasets/MANIFEST.md).
+
+e1invest.inp, e1income.inp, e1cons.inp: one fue specification per column,
+written by a script: frequency 4, start 1960 Q1, no deterministic variables,
+no ARMA, the mean free (0.0 1), Box-Cox lambda 0 (logs), d = 1, D = 0,
+rescaling factor 1. Each was estimated with fue 0.1.17 (`python -m fue
+e1<name> eml`), which wrote the ../e1<name>.pre files: the .pre is written by
+the program that estimated it, which is the format's rule.
+
+What drvec reads from them is the series, the calendar, lambda and the
+rescaling factor (docs/PORT.md §7); the fue model (a random walk with drift in
+logs) is not read on the .pre route.
