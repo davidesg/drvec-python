@@ -1,0 +1,52 @@
+Program          : DRVEC 0.12
+Input Data File  : the .pre files
+Output File      : e1rungs.out
+Model            : VARMA-VECM(2,1), M = 3 series, cointegration rank r = 1
+Estimation       : Exact Unconditional Maximum Likelihood, Algorithm AS 311 (Mauricio 1997), xi sequence truncated at 1e-3
+Transformation   : VECM to stationary VARMA (Mauricio 2006)
+Deterministic    : case 2 -- E[nabla Y2] = 0, E[W] free
+Structure        : F free, Theta free (the default; -mafree), Sigma free
+Series           : invest income cons   (2 in the nabla Y2 block, 1 in Y1)
+Sample           : 91 observations from 1960/2, quarterly (raw 92)
+
+=== The ladder: rungs at r = 0 ===
+
+=== Entry gate: the factorisation contract ===
+
+At r = 0 with diagonal Phi, Theta and Sigma the likelihood factorises,
+so the joint fit must equal the sum of the univariate fits exactly.
+
+  univariate 1 (p=2, q=1)   logL =     148.1558611078
+  univariate 2 (p=2, q=1)   logL =     274.1300031938
+  univariate 3 (p=2, q=1)   logL =     281.2352204638
+                                 sum  =     703.5210847654
+                                 joint=     703.5210806454
+  (both sides untruncated; the fit's own logL, xi truncated at 1e-03, is 703.5254690090)
+
+  crossing identity (joint - sum) = -4.120e-06   (tolerance 1.0e-06)   *** NOT VERIFIED ***
+
+  The two sides must agree at this rung to rounding: both are
+  evaluated with the whole xi sequence.  A gap is then not
+  truncation, and the fault is upstream of the likelihood --
+  the transformation, the rank's differencing, the parameter
+  walk, the deterministic terms or the scaling -- and never in
+  elf() itself.
+
+  rung                          npar         logL         AIC         BIC
+  ---------------------------------------------------------------------
+  0  F, Theta, Sigma diagonal     8     703.5255    -15.2863    -15.0655
+  1  Sigma free                  11     722.3706    -15.6345    -15.3310
+  2  F and Theta free            23     768.1832    -16.3777    -15.7430
+
+  step        LR = 2*[L(k+1) - L(k)]    df    p-value
+  -----------------------------------------------------
+  0 -> 1          37.6902         3      0.0000
+  1 -> 2          91.6252        12      0.0000
+
+  These are ordinary nested comparisons: the restricted model is
+  an INTERIOR point of the wider one, so the log-likelihood cannot
+  fall and the statistic is chi2 on the stated degrees of freedom.
+  The next rung -- adding the VEC matrix, r = 1 -- is not ordinary
+  in either respect: the null sits ON the boundary of the alternative
+  and B2 is unidentified under it.  It is reported by -lrtest, with
+  a parametric bootstrap available for its distribution.

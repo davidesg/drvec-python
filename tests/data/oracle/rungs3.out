@@ -1,0 +1,44 @@
+Program          : DRVEC 0.12
+Input Data File  : the .pre files
+Output File      : rungs3.out
+Model            : VARMA-VECM(2,0), M = 2 series, cointegration rank r = 0
+Estimation       : Exact Unconditional Maximum Likelihood, Algorithm AS 311 (Mauricio 1997), xi sequence truncated at 1e-3
+Transformation   : VECM to stationary VARMA (Mauricio 2006)
+Deterministic    : case 3 -- E[nabla Y2] free, E[W] free
+Structure        : F free, Theta absent (q = 0), Sigma free
+Series           : muskrat mink   (2 in the nabla Y2 block, 0 in Y1)
+Sample           : 61 observations from 1851, annual (raw 62)
+
+=== The ladder: rungs at r = 0 ===
+
+=== Entry gate: the factorisation contract ===
+
+At r = 0 with diagonal Phi, Theta and Sigma the likelihood factorises,
+so the joint fit must equal the sum of the univariate fits exactly.
+
+  univariate 1 (p=2, q=0)   logL =     -24.0251813445
+  univariate 2 (p=2, q=0)   logL =     -14.7874170655
+                                 sum  =     -38.8125984100
+                                 joint=     -38.8125984103
+  (both sides untruncated; the fit's own logL, xi truncated at 1e-03, is -38.8125984103)
+
+  crossing identity (joint - sum) = -2.477e-10   (tolerance 1.0e-06)   VERIFIED
+
+  rung                          npar         logL         AIC         BIC
+  ---------------------------------------------------------------------
+  0  F, Theta, Sigma diagonal     5     -38.8126      1.4365      1.6095
+  1  Sigma free                   6     -31.9991      1.2459      1.4535
+  2  F and Theta free             8     -12.7876      0.6816      0.9584
+
+  step        LR = 2*[L(k+1) - L(k)]    df    p-value
+  -----------------------------------------------------
+  0 -> 1          13.6270         1      0.0002
+  1 -> 2          38.4231         2      0.0000
+
+  These are ordinary nested comparisons: the restricted model is
+  an INTERIOR point of the wider one, so the log-likelihood cannot
+  fall and the statistic is chi2 on the stated degrees of freedom.
+  The next rung -- adding the VEC matrix, r = 1 -- is not ordinary
+  in either respect: the null sits ON the boundary of the alternative
+  and B2 is unidentified under it.  It is reported by -lrtest, with
+  a parametric bootstrap available for its distribution.

@@ -10,7 +10,7 @@ try:
 except Exception:                                   # noqa: BLE001
     __version__ = "0.0.0.dev0"
 
-from .api import FitResult, Param, fit, rank_test          # noqa: E402,F401
+from .api import FitResult, Param, fit, rank_test, rungs   # noqa: E402,F401
 from .data import Data, read_pre                           # noqa: E402,F401
 from .fit import LineSearchRoundoff                        # noqa: E402,F401
 from .params import Spec                                   # noqa: E402,F401

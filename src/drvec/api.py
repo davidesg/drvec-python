@@ -475,3 +475,14 @@ def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
     spec = Spec(data.M, p, q, 0, case, ma)
     return _rank_test(data, spec, bootstrap, boot_path, progress,
                       njitter=multistart if multistart > 1 else 1)
+
+
+def rungs(pre_files, p, q, r=0, case=2, ma="free"):
+    """-rungs: the ladder below the rank at r = 0 -- rungs 0, 1 and 2 with
+    rung 0's gate and the nested chi2 LRs (rungtable.run_rungs). r only names the
+    header's rank, as the C's does."""
+    from .rungtable import run_rungs
+    data = _data(pre_files)
+    if not 0 <= r < data.M:
+        raise ValueError(f"r={r} must be < M={data.M}")
+    return run_rungs(data, Spec(data.M, p, q, r, case, ma))

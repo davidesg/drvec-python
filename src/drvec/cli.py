@@ -42,7 +42,7 @@ OPT_TABLE = [
     ("-lrtest", "none", None, True),
     ("-bootstrap", "int", "N", True),
     ("-irfboot", "int", "N", True),
-    ("-rungs", "none", None, False),
+    ("-rungs", "none", None, True),
     ("-specs", "none", None, False),
     ("-warma", "none", None, False),
     ("-mawarma", "none", None, False),
@@ -73,6 +73,29 @@ OPT_TABLE = [
 ]
 _OPTS = {o[0]: o for o in OPT_TABLE}
 B2ROW_MAX = 64
+
+
+# the C's words for the combinations it refuses (parse_cli, drvec.c:10634-10741)
+MSG_XLINK = ("-xlink needs the .pre route in the levels layout, and a\n"
+             "       single fit: it cannot be combined with -differenced, -warma,\n"
+             "       -lrtest, -specs, -rungs, -matest, -artest, -eval, -f, -estwin,\n"
+             "       -writeinp or -writeres.")
+MSG_IRFBOOT = ("-irfboot bootstraps the responses of a single fit in the levels\n"
+               "       layout: it cannot be combined with -differenced, -xlink, -trend,\n"
+               "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
+               "       -specs, -rungs, -matest, -artest and -eval (not yet).")
+MSG_TREND = ("-trend (case 4) goes on case 3's drifts (-case 3 or -case pre)\n"
+             "       for a single fit: it cannot be combined with -warma, -f,\n"
+             "       -estwin, -writeinp, -writeres or the modes -lrtest, -specs,\n"
+             "       -rungs, -matest, -artest and -eval (not yet).")
+MSG_XSYS = ("-xsys embeds an input in the system for a single fit with\n"
+            "       q = 0.  It cannot be combined with -alpha/-weakex (it sets\n"
+            "       alpha itself), -xlink, -warma, a moving average (q > 0, not\n"
+            "       yet), or the modes -lrtest, -specs, -rungs, -matest, -artest\n"
+            "       and -eval.")
+MSG_FIXB2ROW = ("-fixb2row holds rows of B2 at a single fit.  It cannot be\n"
+                "       combined with -fixb2 (which holds every row), -warma, or the\n"
+                "       modes -lrtest, -specs, -rungs, -matest, -artest and -eval.")
 
 
 class CliError(Exception):
@@ -133,6 +156,8 @@ Restrictions, each with its LR against the free model:
 
 Modes and products:
   -lrtest [-bootstrap N]   the sequential LR test for the rank (<base>.boot)
+  -rungs         the ladder below the rank: rungs 0, 1 and 2 at r = 0,
+                 with the gate and their chi2 LRs
   -irfboot N     bands for the level responses and the FEVD (<base>.irfboot)
   -f H           forecast H steps in LEVELS, with bands (<base>.forecast)
   -estwin E      estimate on observations 1..E and roll the origin (needs
@@ -262,7 +287,7 @@ def parse(argv):
              nodrift=[], diag_ar=False, diag_cov=False, ma=None, fixb2=None, fixb2row={},
              xpre=[], xlink=None, xsys=[], lrtest=False, bootstrap=0, irfboot=0,
              forecast=0, estwin=0, csv=None, alpha=None, weakex=0, fdhess=False,
-             name=None, method=1, multistart=0, differenced=False, interv=False, unported=[])
+             name=None, method=1, multistart=0, rungs=False, differenced=False, interv=False, unported=[])
     i = first
     while i < len(argv):
         a = argv[i]
@@ -318,6 +343,8 @@ def parse(argv):
             o["xsys"].append(int(nxt))
         elif a == "-lrtest":
             o["lrtest"] = True
+        elif a == "-rungs":
+            o["rungs"] = True
         elif a == "-bootstrap":
             o["bootstrap"] = int(nxt)
         elif a == "-irfboot":
@@ -383,21 +410,33 @@ def _refusals(o):
     if o["method"] == 2:
         raise CliError("ERROR: -m 2 (the xi sequence not truncated) is not ported to "
                        "drvec-py yet.", code=2)
+    if o["lrtest"] and o["rungs"]:
+        raise CliError("ERROR: one mode per run: -lrtest, -specs, -rungs, -matest/-artest "
+                       "and -eval\n       cannot be combined.", code=2)
+    if o["rungs"] and (o["forecast"] or o["estwin"]):
+        raise CliError("ERROR: -f and -estwin act on a single fit; the mode asked for "
+                       "does not\n       produce one.  Run them separately.", code=2)
+    if o["rungs"]:
+        for on, msg in ((o["xlink"] or o["xpre"], MSG_XLINK), (o["irfboot"], MSG_IRFBOOT),
+                        (o["trend"], MSG_TREND), (o["xsys"], MSG_XSYS),
+                        (o["fixb2row"], MSG_FIXB2ROW)):
+            if on:
+                raise CliError("ERROR: " + msg, code=2)
+        late = [n for n, on in (("-alpha", o["alpha"]), ("-weakex", o["weakex"]),
+                                ("-fixb2", o["fixb2"] is not None),
+                                ("-nodrift", o["nodrift"]), ("-case pre", o["case"] == "pre"))
+                if on]
+        if late:
+            raise CliError("ERROR: -rungs with %s is not ported to drvec-py yet."
+                           % ", ".join(late), code=2)
     if o["lrtest"]:
         if o["forecast"] or o["estwin"]:
             raise CliError("ERROR: -f and -estwin act on a single fit; the mode asked for "
                            "does not\n       produce one.  Run them separately.", code=2)
         if o["irfboot"]:
-            raise CliError(
-                "ERROR: -irfboot bootstraps the responses of a single fit in the levels\n"
-                "       layout: it cannot be combined with -differenced, -xlink, -trend,\n"
-                "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
-                "       -specs, -rungs, -matest, -artest and -eval (not yet).", code=2)
+            raise CliError("ERROR: " + MSG_IRFBOOT, code=2)
         if o["fixb2row"]:
-            raise CliError(
-                "ERROR: -fixb2row holds rows of B2 at a single fit.  It cannot be\n"
-                "       combined with -fixb2 (which holds every row), -warma, or the\n"
-                "       modes -lrtest, -specs, -rungs, -matest, -artest and -eval.", code=2)
+            raise CliError("ERROR: " + MSG_FIXB2ROW, code=2)
         late = [n for n, on in (("-alpha", o["alpha"]), ("-weakex", o["weakex"]),
                                 ("-fixb2", o["fixb2"] is not None),
                                 ("-nodrift", o["nodrift"]), ("-case pre", o["case"] == "pre"),
@@ -448,6 +487,15 @@ def _execute(o, out, err):
               f"Model  : VEC({o['r']}) with stationary VARMA({o['p']},{o['q']}) on Ybar_t\n"
               f"Case   : {o['case']}\n")
     try:
+        if o["rungs"]:
+            t = drvec.rungs(o["files"], o["p"], o["q"], o["r"], case=o["case"],
+                            ma=o["ma"] or "free")
+            _write(base + ".out", t.out_text(base))
+            for k in range(3):
+                out.write("  rung %d : %s\n" % (k, "ok" if t.ll[k] is not None
+                                                 else "estimation failed"))
+            out.write(f"Done. Output written to {base}.out\n")
+            return 0
         if o["lrtest"]:
             boot = base + ".boot" if o["bootstrap"] > 0 else None
             t = drvec.rank_test(o["files"], o["p"], o["q"], case=o["case"],
