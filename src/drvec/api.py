@@ -124,7 +124,15 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     case: 1, 2, 3 or "pre" (case 3 with each drift free or held as its .pre
     says). fixb2row: {row: value} (1-based rows of B2, the nabla Y2 block),
     the C's -fixb2row i v; the free model is fitted too, for the LR. nodrift:
-    1-based series whose drift is held at 0 (-nodrift). trend: -trend (case 4)."""
+    1-based series whose drift is held at 0 (-nodrift). trend: -trend (case 4).
+    irfboot: -irfboot N, bands for the level responses and the decomposition by
+    the parametric bootstrap."""
+    if irfboot and trend:
+        raise ValueError(
+            "-irfboot bootstraps the responses of a single fit in the levels\n"
+            "       layout: it cannot be combined with -differenced, -xlink, -trend,\n"
+            "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
+            "       -specs, -rungs, -matest, -artest and -eval (not yet).")
     data = _data(pre_files)
     case, drift, how = _drift_mask(data, case, nodrift)
     if trend and case != 3:
