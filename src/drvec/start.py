@@ -144,7 +144,7 @@ def canonical_b2(spec, rd):
     return B2
 
 
-def init_guess(spec, rd, seedjoh=False):
+def init_guess(spec, rd, seedjoh=False, consistent=True):
     """The conditional (Johansen-style) start: B2 by static OLS (or the canonical
     one), Lambda and F by the conditional regression
         nabla Y_t = sum F_k nabla Y_{t-k} - Lambda (W_{t-1} - E[W]) + e_t,
@@ -157,7 +157,13 @@ def init_guess(spec, rd, seedjoh=False):
         Bc = canonical_b2(spec, rd)
         if Bc is not None:
             B2 = Bc
-    if spec.b2_hold and r > 0:                  # -fixb2row: held rows BEFORE W (BUG-33)
+    if spec.b2_fix is not None and spec.fixb2_given and r > 0 and consistent:
+        # -fixb2 v: the rest of the seed from the W that is fitted (BUG-33);
+        # consistent=False is the search's `ols-b2' start (drvec.c:5143)
+        for i in range(s):
+            for j in range(r):
+                B2[i][j] = float(spec.b2_value(i, j))
+    elif spec.b2_hold and r > 0:                # -fixb2row: held rows BEFORE W (BUG-33)
         for i in range(s):
             v = spec.b2_held(i)
             if v is not None:

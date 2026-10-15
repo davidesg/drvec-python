@@ -181,11 +181,14 @@ def profile_block(spec, prof):
                                  nl, r)
     for i in range(nl):
         out += "     " + "".join(" %12.6f" % x2[nmean + i * r + j] for j in range(r)) + "\n"
-    out += "    B2 (%d x %d)%s:\n" % (s, r, ", rows held by -fixb2row marked *"
-                                       if spec.b2_hold else "")
+    if spec.b2_fix is not None:
+        out += "    B2 (%d x %d): held fixed by -fixb2\n" % (s, r)
+    else:
+        out += "    B2 (%d x %d)%s:\n" % (s, r, ", rows held by -fixb2row marked *"
+                                           if spec.b2_hold else "")
     b0 = nmean + nlam
     nfr = s - spec.b2_nheld()
-    for i in range(s):
+    for i in (range(s) if spec.b2_fix is None else ()):
         out += "     "
         for j in range(r):
             v = spec.b2_held(i)
@@ -452,6 +455,8 @@ def fit_out(res, base):
     """The whole <base>.out of a single fit."""
     data, spec = res.data, res.spec
     out = header(data, spec, base + ".out", how=getattr(res, "drift_how", None))
+    if getattr(res, "alpha_free", None) is not None:
+        out += res.alpha_free.banner()          # H(r)'s est(), into the .out
     if spec.xlink:
         out += "\n=== -xlink: the VEC rung below, without the transfer inputs ===\n"
         out += seed_block(spec.but(xlink=()), res.xl_base_info)
@@ -515,10 +520,12 @@ def _report_fit(res, sofar):
               "MEJORA-2).\n")
     if spec.b2_hold and getattr(res, "lr_free", None) is not None:
         nh = spec.b2_nheld()
-        df = nh * r
+        dfa = (M - spec.alpha_sa) * r if spec.alpha else 0
+        df = nh * r + dfa
         lr = 2.0 * (res.lr_free - res.loglik)
         pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
-        o += "\n--- beta restricted by -fixb2row, against H(r) ---\n"
+        o += "\n--- beta restricted by -fixb2row%s, against H(r) ---\n" % (
+            " and alpha = A*psi" if spec.alpha else "")
         for i in range(s):
             v = spec.b2_held(i)
             if v is not None:
@@ -526,7 +533,8 @@ def _report_fit(res, sofar):
         o += "logL H(r)  free        : %15.10f\n" % res.lr_free
         o += "logL restricted        : %15.10f\n" % res.loglik
         o += "LR = 2(free - restr.)  : %15.10f\n" % lr
-        o += "degrees of freedom     : %d   (rows held)*r\n" % df
+        o += "degrees of freedom     : %d   (rows held)*r%s\n" % (
+            df, " + (M - sa)*r" if spec.alpha else "")
         o += "p-value (chi2)         : %15.10f\n" % pv
     elif spec.xsys and getattr(res, "lr_free", None) is not None:
         df = res.xs_df
@@ -546,6 +554,16 @@ def _report_fit(res, sofar):
         o += ("  Not rejecting is what licenses reading the rows of the outputs as a\n"
               "  transfer from the inputs: their entry in beta (the gain), their lags\n"
               "  in Gamma and the covariance Q (omega_0, the SVAR identity).\n")
+    elif spec.alpha and getattr(res, "lr_free", None) is not None:
+        df = (M - spec.alpha_sa) * r
+        lr = 2.0 * (res.lr_free - res.loglik)
+        pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
+        o += "\n--- H1(r): alpha = A*psi, against H(r) ---\n"
+        o += "logL H(r)  free        : %15.10f\n" % res.lr_free
+        o += "logL H1(r) restricted  : %15.10f\n" % res.loglik
+        o += "LR = 2(free - restr.)  : %15.10f\n" % lr
+        o += "degrees of freedom     : %d   (M - sa)*r\n" % df
+        o += "p-value (chi2)         : %15.10f\n" % pv
 
     # the walk, with the index of every slot (ix_* of report_fit)
     labs_idx = 0
@@ -647,7 +665,9 @@ def _report_fit(res, sofar):
                     o += par_row("  D.%s <- ec%d" % (names[a], b + 1), -x[ii], dev[ii])
     if r > 0 and s > 0:
         o += "\nCointegrating vectors, beta = [I_r ; beta_2], normalised on the Y1 block\n"
-        for a in range(s):
+        if spec.b2_fix is not None:
+            o += "  beta_2 held fixed: imposed, not estimated\n"
+        for a in (range(s) if spec.b2_fix is None else ()):
             v = spec.b2_held(a)
             if v is not None:
                 o += ("  %s in ec*: held at %s by -fixb2row (imposed, not estimated)\n"
@@ -772,7 +792,10 @@ def _vecm_block(res, fv, ro):
         for a in range(M):
             o += "  " + "".join("%12.6f" % Th[k][i2l(a)][i2l(b)] for b in range(M)) + "\n"
     o += "beta_2 matrix (s x r)%s:\n" % (
-        "  [rows held by -fixb2row at the values given]" if spec.b2_hold else "")
+        "  [rows held by -fixb2row at the values given]" if spec.b2_hold else
+        ("  [FIXED at the value given]" if spec.fixb2_given else
+         "  [FIXED at its static-OLS estimate: data-chosen, so an LR against the free "
+         "model is not valid]") if spec.b2_fix is not None else "")
     for a in range(s):
         o += "  " + "".join("%12.6f" % B2[a][b] for b in range(r)) + "\n"
     o += "beta matrix (M x r), rows in the .inp's order:\n"
@@ -1017,6 +1040,10 @@ def _hypothesis_block(res, ro, ix_lam, ix_B2, ix_F, ix_Th):
                                "H0: B2 = 0 (the relation involves only the Y1 block)",
                                "REJECT H0 -> the nabla Y2 block belongs in it.",
                                "Cannot reject H0 -> the relation is inside Y1 alone.")
+        elif spec.b2_fix is not None:
+            o += ("\nExclusion from the cointegrating relations\n"
+                  "  beta_2 is held fixed (-fixb2): imposed, not estimated, so there "
+                  "is nothing to test\n")
     else:
         o += ("\n  r = 0: no error-correction term, no Lambda and no B; the short-run "
               "block only\n")

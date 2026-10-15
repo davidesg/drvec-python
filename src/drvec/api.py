@@ -43,6 +43,7 @@ class FitResult:
     xl_base_info: object = None  # its ladder and profile (written to the .out)
     xl_bridge_ll: float = None  # logL at that optimum with omega = 0
     irfboot: object = None  # -irfboot: irfboot.IrfBoot
+    alpha_free: object = None  # -alpha/-weakex: the est() of H(r) (fit.EstResult)
     fdhess: object = None   # -fdhess: fdhess.FdHess (se and cov are its when .ok)
 
     def irfboot_text(self, base):
@@ -98,6 +99,80 @@ def _data(pre_files):
     return pre_files if isinstance(pre_files, Data) else read_pre(pre_files)
 
 
+def load_alpha_A(path, M):
+    """load_alpha_A (drvec.c:2665): a first line `M sa`, then M rows of sa
+    numbers; lines beginning with '*' or '#' (or empty) are comments. A'A must
+    pass choldcp (psi identified). -> A as a tuple of rows."""
+    with open(path) as f:
+        lines = f.read().splitlines(keepends=True)
+    it = iter(lines)
+    mm = sa = 0
+    got = False
+    for line in it:
+        if line[:1] in ("*", "#", "\n") or line == "":
+            continue
+        tok = line.split()
+        try:
+            mm, sa = int(tok[0]), int(tok[1])
+            got = True
+            break
+        except (ValueError, IndexError):
+            continue
+    if not got or mm != M or sa < 1 or sa > M:
+        raise ValueError(f"{path} must start with 'M sa', with M = {M} and "
+                         f"1 <= sa <= {M} (leido {mm} {sa})")
+    A = []
+    for i in range(M):
+        while True:
+            line = next(it, None)
+            if line is None:
+                raise ValueError(f"{path} ends at row {i + 1}")
+            if line[:1] not in ("*", "#", "\n"):
+                break
+        tok = line.split()
+        if len(tok) < sa:
+            raise ValueError(f"{path}, fila {i + 1}: faltan columnas")
+        A.append(tuple(_atof(t) for t in tok[:sa]))
+    return tuple(A)
+
+
+def _atof(t):
+    """C's atof: the longest numeric prefix, 0.0 when there is none."""
+    import re
+    m = re.match(r"\s*[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?", t)
+    return float(m.group(0)) if m else 0.0
+
+
+def _alpha_matrix(M, alpha, weakex):
+    """-> (A, weakex): -weakex i (build_weakex_A, drvec.c:2727) or -alpha (a
+    path, or the matrix), with A's rank checked through A'A (choldcp)."""
+    from .nla import choldcp
+    if weakex:
+        if not 1 <= weakex <= M:
+            raise ValueError(f"-weakex {weakex} is outside 1..{M}")
+        A = tuple(tuple(1.0 if (i != weakex - 1 and c == (i if i < weakex - 1 else i - 1))
+                        else 0.0 for c in range(M - 1)) for i in range(M))
+        return A, int(weakex)
+    if isinstance(alpha, (str, bytes)) or hasattr(alpha, "__fspath__"):
+        A = load_alpha_A(alpha, M)
+    else:
+        A = tuple(tuple(float(v) for v in row) for row in alpha)
+        if len(A) != M or not A[0] or any(len(row) != len(A[0]) for row in A) \
+                or len(A[0]) > M:
+            raise ValueError(f"A must be M x sa with M = {M} and 1 <= sa <= {M}")
+    sa = len(A[0])
+    G = [[sum(A[k][i] * A[k][j] for k in range(M)) for j in range(sa)] for i in range(sa)]
+    # The C's own check is choldcp's verdict, which only faults on a NEGATIVE
+    # pivot: an exactly singular A'A passes, and the fit runs on NaN (psi's
+    # seed divides by zero) and exits 0 -- a C defect (bugs/drvec-c-alpha-rank).
+    # The port refuses it with the C's message, as the C means to.
+    import numpy as np
+    if choldcp(G)[1] > 0 or np.linalg.matrix_rank(np.array(A, float)) < sa:
+        raise ValueError(f"A does not have rank {sa} (A'A is singular), so psi\n"
+                         "       is not identified")
+    return A, 0
+
+
 def _drift_mask(data, case, nodrift):
     """-> (case, drift mask, how): -case pre reads each .pre's mean flag
     (drvec.c:6905-6925); -nodrift i holds series i's drift at 0."""
@@ -125,7 +200,8 @@ def _drift_mask(data, case, nodrift):
 
 def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         fixb2row=None, nodrift=None, trend=False, irfboot=0, xsys=None,
-        xpre=None, xlink=None, forecast=0, fdhess=False, log=None):
+        xpre=None, xlink=None, forecast=0, fdhess=False, alpha=None, weakex=None,
+        fixb2=None, log=None):
     """Estimate the VARMA-VEC of rank r on the `.pre` files (the C's
     `drvec f1.pre ... p q r -case <case>`), with the C's ladder and search.
 
@@ -135,7 +211,10 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     1-based series whose drift is held at 0 (-nodrift). trend: -trend (case 4).
     irfboot: -irfboot N, bands for the level responses and the decomposition by
     the parametric bootstrap. fdhess: -fdhess, the standard errors from the
-    finite-difference Hessian at the optimum."""
+    finite-difference Hessian at the optimum. alpha: -alpha FILE (a path, or the
+    M x sa matrix A itself), weakex: -weakex i (1-based): alpha = A psi, with the
+    LR against the free model. fixb2: -fixb2 v (a number, an a-priori value for
+    every entry of B2) or True (-fixb2 alone: B2 held at its static-OLS value)."""
     if (xpre or xlink) and not (xpre and xlink):
         raise ValueError("-xpre and -xlink go together: the inputs and the\n"
                          "       network of links that says where they enter.")
@@ -147,6 +226,18 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
             "       -writeinp or -writeres.")
     if forecast:
         raise NotImplementedError("-f (the forecast) is not ported yet")
+    if xsys and (alpha is not None or weakex):
+        raise ValueError(
+            "-xsys embeds an input in the system for a single fit with\n"
+            "       q = 0.  It cannot be combined with -alpha/-weakex (it sets\n"
+            "       alpha itself), -xlink, -warma, a moving average (q > 0, not\n"
+            "       yet), or the modes -lrtest, -specs, -rungs, -matest, -artest\n"
+            "       and -eval.")
+    if fixb2row and fixb2 is not None and fixb2 is not False:
+        raise ValueError(
+            "-fixb2row holds rows of B2 at a single fit.  It cannot be\n"
+            "       combined with -fixb2 (which holds every row), -warma, or the\n"
+            "       modes -lrtest, -specs, -rungs, -matest, -artest and -eval.")
     if xlink and case == 1:
         raise ValueError("-xlink needs a free mean of W (-case 2 or 3): the input\n"
                          "       keeps its mean, and nu(1) times it goes to E[W].")
@@ -211,20 +302,50 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
                 raise ValueError(f"-fixb2row {i}: B2 has {s} row{'' if s == 1 else 's'} (the "
                                  f"nabla Y2 block, the first {s} series in the input's order).")
         hold = tuple(sorted((i - 1, float(v)) for i, v in fixb2row.items()))
-    spec = Spec(data.M, p, q, r, case, ma, diag_ar, diag_cov, drift, trend, hold, xsys=xs)
+    A, wx = (), 0
+    if alpha is not None or weakex:
+        A, wx = _alpha_matrix(data.M, alpha, weakex)
+        if r < 1:
+            raise ValueError("alpha = A*psi means nothing with r = 0 (there is no "
+                             "error-correction term)")
+    spec = Spec(data.M, p, q, r, case, ma, diag_ar, diag_cov, drift, trend, hold, xsys=xs,
+                alpha=A, weakex=wx)
+    if fixb2 is not None and fixb2 is not False and r > 0:
+        if fixb2 is True:
+            # -fixb2 alone: B2 at the static-OLS estimate init_guess computes
+            # (drvec.c:4253-4262), a data-chosen restriction
+            from .start import prelim_b2
+            B = prelim_b2(spec, data.at(r))
+            bf = tuple(tuple(float(B[i][j]) for j in range(r)) for i in range(spec.s))
+            spec = spec.but(b2_fix=bf, fixb2_given=False)
+        else:
+            v = float(fixb2)
+            spec = spec.but(b2_fix=tuple((v,) * r for _ in range(spec.s)), fixb2_given=True)
     if spec.npar() >= (data.nobs_raw - 1) * data.M:
         raise ValueError(f"the model has {spec.npar()} parameters and the sample "
                          f"{(data.nobs_raw - 1) * data.M} data points")
     lr_free = None
+    alpha_free = None
     if hold:
         # the free model, as the C fits it for the LR: init_guess and the
-        # search, no ladder (drvec.c:11351-11380)
+        # search, no ladder (drvec.c:11351-11380); with -alpha/-weakex the
+        # restriction on alpha is off too (the joint test)
         from .fit import fit_search
         from .start import init_guess
-        sf = spec.but(b2_hold=())
+        sf = spec.but(b2_hold=(), alpha=(), weakex=0)
         rdf = data.at(r)
         rf = fit_search(sf, rdf, init_guess(sf, rdf))
         lr_free = rf.ll if rf.ifault == 0 else None
+    elif spec.alpha:
+        # H(r) for the LR of alpha = A psi: ONE est() from init_guess, no
+        # search and no ladder, its banner written to the .out
+        # (drvec.c:11415-11439)
+        from .fit import est
+        from .start import init_guess
+        sf = spec.but(alpha=(), weakex=0)
+        rdf = data.at(r)
+        alpha_free = est(sf, rdf, init_guess(sf, rdf))
+        lr_free = alpha_free.ll if alpha_free.ifault == 0 else None
     xs_df = None
     xl_base = None
     if links:
@@ -261,6 +382,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
                     e.termcode, e.iters, e.fk, list(e.dev), res, info,
                     ma_min_modulus(theta), data, e.cov)
     out.drift_how = how
+    out.alpha_free = alpha_free
     out.lr_free = lr_free
     out.xs_df = xs_df
     if links:

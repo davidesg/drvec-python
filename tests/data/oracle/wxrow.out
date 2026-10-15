@@ -1,0 +1,1233 @@
+Program          : DRVEC 0.12
+Input Data File  : the .pre files
+Output File      : wxrow.out
+Model            : VARMA-VECM(2,0), M = 3 series, cointegration rank r = 1
+Estimation       : Exact Unconditional Maximum Likelihood, Algorithm AS 311 (Mauricio 1997), xi sequence truncated at 1e-3
+Transformation   : VECM to stationary VARMA (Mauricio 2006)
+Deterministic    : case 2 -- E[nabla Y2] = 0, E[W] free
+Structure        : F free, Theta absent (q = 0), Sigma free
+Series           : invest income cons   (2 in the nabla Y2 block, 1 in Y1)
+Sample           : 91 observations from 1960/2, quarterly (raw 92)
+
+=== The ladder below the rank: r = 0, from the gate up ===
+  rung 0  (F diag, Theta diag, Sigma diag)   logL = 656.3578127682
+
+=== Entry gate: the factorisation contract ===
+
+At r = 0 with diagonal Phi, Theta and Sigma the likelihood factorises,
+so the joint fit must equal the sum of the univariate fits exactly.
+
+  univariate 1 (p=2, q=0)   logL =     147.9767602488
+  univariate 2 (p=2, q=0)   logL =     253.5424657685
+  univariate 3 (p=2, q=0)   logL =     254.8385867509
+                                 sum  =     656.3578127682
+                                 joint=     656.3578127682
+  (both sides untruncated; the fit's own logL, xi truncated at 1e-03, is 656.3578127682)
+
+  crossing identity (joint - sum) = -2.444e-11   (tolerance 1.0e-06)   VERIFIED
+  rung 1  (F diag, Theta diag, Sigma free)   logL = 669.9608176531
+  rung 2  (F free, Theta free, Sigma free)   logL = 721.1988081448
+
+=============================================================
+  OPTIMIZER CONVERGED after 13 iterations
+  Objective function = 0.973549335727
+  Convergence criterion: norm of scaled gradient <= gradtol
+=============================================================
+
+
+=== -seedgate: the VEC block profiled on the rung below ===
+
+  r = 0 optimum (F, Theta, Sigma)        logL =     721.1988081448
+  admissible entry, Lambda x 1.00          logL =     723.6217199274
+  + Lambda and B2 profiled on it         logL =     724.8414282692
+
+  The starting point for the free fit below is that second value, not
+  a conditional regression.  Holding the rung below and estimating only
+  Lambda and B2 lands in the INTERIOR by construction: at Lambda = 0 the
+  transformed system has an AR root of modulus exactly one, so the rung
+  below cannot be carried up unchanged, and the step off that boundary
+  is chosen here by the likelihood rather than by a constant.
+
+  the pre-estimates the conditional step produced
+    psi, with Lambda = A*psi (2 x 1):
+         -0.340709
+         -0.132930
+    B2 (2 x 1), rows held by -fixb2row marked *:
+         0.000000*
+         -0.972122
+    mean block (1):       0.056498
+
+Search: 3 starting points, 2 converged; logL from 725.980520 to 725.980520.  The best is `seed'.
+  start        logL            stop  iters  admissible start
+  seed            725.980520     grad     39  as given
+  cold            725.980520     grad     38  as given
+  johansen     (failed)            -       -  not found
+  The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.
+
+=============================================================
+  OPTIMIZER CONVERGED after 39 iterations
+  Objective function = 0.975275798493
+  Convergence criterion: norm of scaled gradient <= gradtol
+=============================================================
+
+Convergence      : clean convergence, on the scaled gradient
+sigma2           :    0.0001674118
+logelf           :  725.9805197561
+npar             : 18
+AIC              :  -15.5600114232   (-2logL + 2k, /n)
+BIC              :  -15.0633578944   (-2logL + k log n, /n)
+
+--- beta restricted by -fixb2row and alpha = A*psi, against H(r) ---
+row 1 of B2 (invest) held at 0 in every relation
+logL H(r)  free        :  750.5247086306
+logL restricted        :  725.9805197561
+LR = 2(free - restr.)  :   49.0883777489
+degrees of freedom     : 2   (rows held)*r + (M - sa)*r
+p-value (chi2)         :    0.0000000000
+
+
+=============================================================
+  Estimated Parameters and Standard Deviations
+=============================================================
+
+  nabla Y_t = alpha (beta'Y_{t-1} - E[W]) + Gamma_1 nabla Y_{t-1} + ... + Theta(L) A_t
+  with Pi = alpha beta' of rank r, and beta = [I_r ; beta_2] normalised on Y1.
+  Johansen's notation throughout: a NEGATIVE alpha is error-correcting.
+  Rows read `equation <- regressor`; D.x is nabla x, A.x its innovation,
+  and ec is the equilibrium error beta'Y_{t-1}.
+
+Parameter                         Estimate    Std.Error   t-stat   p-val
+------------------------------------------------------------------------
+
+Mean of the equilibrium error (the constant restricted to the relation)
+  E[ec1]                          0.070124     0.059412    1.180  0.2379  
+
+Adjustment coefficients, alpha (M x r)   [negative = error-correcting]
+  free part psi of alpha = A*psi; Lambda = A*psi is in the model block
+  psi[1 <- ec1]                  -0.643621     0.378457   -1.701  0.0890 .
+  psi[2 <- ec1]                  -0.138844     0.081277   -1.708  0.0876 .
+
+Cointegrating vectors, beta = [I_r ; beta_2], normalised on the Y1 block
+  invest in ec*: held at 0 by -fixb2row (imposed, not estimated)
+  income in ec1                  -0.971996     0.008283 -117.351  0.0000 ***
+
+Short-run dynamics, Gamma(k) on nabla Y_{t-k}
+  D.invest <- D.invest(-1)       -0.254814     0.108681   -2.345  0.0190 *
+  D.invest <- D.income(-1)        0.910533     0.533044    1.708  0.0876 .
+  D.invest <- D.cons(-1)          0.597773     0.448648    1.332  0.1827  
+  D.income <- D.invest(-1)        0.021097     0.032665    0.646  0.5184  
+  D.income <- D.income(-1)        0.329068     0.132803    2.478  0.0132 *
+  D.income <- D.cons(-1)          0.596581     0.138096    4.320  0.0000 ***
+  D.cons <- D.invest(-1)         -0.007193     0.032121   -0.224  0.8228  
+  D.cons <- D.income(-1)          0.602057     0.118430    5.084  0.0000 ***
+  D.cons <- D.cons(-1)            0.191716     0.130378    1.470  0.1414  
+
+Innovation covariance up to scale, Q (Sigma = sigma2 * Q, var cons = 1)
+  var invest                     11.104632     2.045151    5.430  0.0000 ***
+  var income                      1.081906     0.170488    6.346  0.0000 ***
+  cov invest, cons                1.088242     0.410486    2.651  0.0080 **
+  cov income, cons                0.761891     0.083366    9.139  0.0000 ***
+  cov income, invest              0.489544     0.404070    1.212  0.2257  
+------------------------------------------------------------------------
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+  ! standard errors from the BFGS-accumulated factor; -fdhess uses the Hessian at the optimum
+
+
+=============================================================
+  Vector Error Correction Model
+=============================================================
+
+  nabla Y_t = alpha (beta'Y_{t-1} - E[W]) + Gamma_1 nabla Y_{t-1} + ... + Theta(L) A_t
+  Theta(L) = I - Theta1 L - ... - Theta_q L^q,   Pi = alpha beta'
+
+E[W] vector:
+      0.070124
+alpha matrix (M x r), rows in the .inp's order:
+      0.643621
+      0.138844
+     -0.000000
+Gamma(1) matrix, rows and columns in the .inp's order:
+     -0.254814    0.910533    0.597773
+      0.021097    0.329068    0.596581
+     -0.007193    0.602057    0.191716
+beta_2 matrix (s x r)  [rows held by -fixb2row at the values given]:
+      0.000000
+     -0.971996
+beta matrix (M x r), rows in the .inp's order:
+      0.000000
+     -0.971996
+      1.000000
+Pi = alpha beta' matrix (M x M), the long run:
+      0.000000   -0.625597    0.643621
+      0.000000   -0.134956    0.138844
+      0.000000    0.000000    0.000000
+  eigenvalues of Pi:  0.000000  0.000000  -0.134956
+  ! Pi has rank r by construction: the 2 zero eigenvalues prove nothing about r (use -lrtest)
+Q matrix (lower triangle, rows and columns in the .inp's order; var cons = 1 by normalisation):
+     11.104632
+      0.489544    1.081906
+      1.088242    0.761891    1.000000
+Sigma = sigma2 * Q, in the .inp's order:
+      0.001859
+      0.000082    0.000181
+      0.000182    0.000128    0.000167
+  |Sigma| = 2.279860425e-11      log|Sigma| = -24.504322
+P matrix (Sigma = P D P', P unit lower triangular):
+      1.000000
+      0.044085    1.000000
+      0.097999    0.673300    1.000000
+D vector:
+      0.001859    0.000178    0.000069
+  own share D_i/Sigma_ii:
+        100.0%       98.0%       41.3%
+  ! the ordering is the .inp's column order: another order gives another P
+
+
+=============================================================
+  Cointegration Diagnostics
+=============================================================
+
+Normalisation, share of the weight carried by the Y1 block:
+  relation 1: the Y1 block carries  49.9% of the weight
+
+
+=============================================================
+  Joint Hypothesis Tests (Wald)
+=============================================================
+
+Error-correction term as a whole
+  alpha is not free (-alpha imposes alpha = A*psi): nothing to test
+
+Weak exogeneity, one variable at a time   [H0: row i of alpha = 0, chi2(1)]
+
+Exclusion from the cointegrating relations   [H0: row i of beta_2 = 0, chi2(1)]
+  only the 2 nabla Y2 variables can be excluded: beta = [I_r ; beta_2] normalises on Y1
+
+income:
+  H0: row 2 of beta_2 = 0
+  Wald chi2(1) = 13771.1921, p-value = 0.0000
+  REJECT H0 -> income belongs in the long-run relation.
+
+All of B2 jointly:
+  H0: B2 = 0 (the relation involves only the Y1 block)
+  Wald chi2(1) = 13771.1921, p-value = 0.0000
+  REJECT H0 -> the nabla Y2 block belongs in it.
+
+Short-run dynamics   [Gamma on nabla Y, Theta on the innovations]
+  ! statements about nabla Y, not about the levels: a variable can drive
+    another's DIFFERENCES and still be tied to it only through ec
+
+Joint significance of the last short-run lag, Gamma(1):
+  H0: Gamma(last) = 0
+  Wald chi2(9) = 228.3649, p-value = 0.0000
+  REJECT H0 -> the last AR lag is significant.
+
+All cross effects jointly:
+  H0: every off-diagonal coefficient of Gamma and Theta = 0
+  Wald chi2(6) = 120.5137, p-value = 0.0000
+  REJECT H0 -> the cross structure earns its parameters.
+
+D.invest: what the others do to it:
+  H0: no other variable enters the equation of D.invest
+  Wald chi2(2) = 7.5649, p-value = 0.0228
+  REJECT H0 -> D.invest is driven by the others.
+
+D.invest: what it does to the others:
+  H0: D.invest enters no other equation
+  Wald chi2(2) = 1.3384, p-value = 0.5121
+  Cannot reject H0 -> D.invest does not drive the others.
+
+D.income: what the others do to it:
+  H0: no other variable enters the equation of D.income
+  Wald chi2(2) = 22.1726, p-value = 0.0000
+  REJECT H0 -> D.income is driven by the others.
+
+D.income: what it does to the others:
+  H0: D.income enters no other equation
+  Wald chi2(2) = 26.0920, p-value = 0.0000
+  REJECT H0 -> D.income drives the others.
+
+D.cons: what the others do to it:
+  H0: no other variable enters the equation of D.cons
+  Wald chi2(2) = 26.1489, p-value = 0.0000
+  REJECT H0 -> D.cons is driven by the others.
+
+D.cons: what it does to the others:
+  H0: D.cons enters no other equation
+  Wald chi2(2) = 18.8273, p-value = 0.0001
+  REJECT H0 -> D.cons drives the others.
+
+  ! p-values from the BFGS-accumulated covariance; use -fdhess before quoting them
+
+
+=============================================================
+  Impulse Response of the Levels
+=============================================================
+
+  Response of Y_{t+k} to a one-s.d. orthogonalized shock at t.
+  Shocks are orthogonalized by Sigma = P D P', so the ORDERING is the
+  .inp's column order: a different order gives different shocks.
+  ! in a cointegrated system the response does not die out: what it
+    converges to is the permanent effect, of rank M - r = 2.
+
+Shock to invest:
+    k         invest         income           cons
+    0       0.043117       0.001901       0.004225
+    1       0.037917       0.006287       0.005870
+    2       0.044063       0.008568       0.008863
+    3       0.046708       0.011308       0.010766
+    4       0.049521       0.013370       0.012762
+    5       0.051724       0.015266       0.014365
+    6       0.053543       0.016827       0.015798
+    7       0.054999       0.018157       0.017000
+    8       0.056140       0.019252       0.018020
+    9       0.057011       0.020149       0.018867
+   10       0.057650       0.020868       0.019563
+   11       0.058094       0.021433       0.020125
+   12       0.058376       0.021866       0.020570
+   13       0.058524       0.022184       0.020913
+   14       0.058564       0.022407       0.021170
+   15       0.058517       0.022550       0.021353
+   16       0.058405       0.022626       0.021474
+   17       0.058242       0.022650       0.021545
+   18       0.058044       0.022630       0.021573
+   19       0.057821       0.022578       0.021569
+   20       0.057585       0.022501       0.021538
+
+Shock to income:
+    k         invest         income           cons
+    0       0.000000       0.013323       0.008971
+    1       0.014932       0.022507       0.018712
+    2       0.023275       0.031216       0.026001
+    3       0.030643       0.038003       0.032582
+    4       0.036075       0.043713       0.037877
+    5       0.040087       0.048226       0.042291
+    6       0.042861       0.051792       0.045825
+    7       0.044606       0.054505       0.048629
+    8       0.045509       0.056504       0.050788
+    9       0.045729       0.057895       0.052399
+   10       0.045408       0.058780       0.053543
+   11       0.044669       0.059249       0.054298
+   12       0.043617       0.059381       0.054730
+   13       0.042341       0.059245       0.054900
+   14       0.040915       0.058902       0.054860
+   15       0.039403       0.058403       0.054656
+   16       0.037853       0.057792       0.054327
+   17       0.036307       0.057106       0.053908
+   18       0.034796       0.056375       0.053425
+   19       0.033345       0.055624       0.052904
+   20       0.031971       0.054874       0.052362
+
+Shock to cons:
+    k         invest         income           cons
+    0       0.000000       0.000000       0.008312
+    1       0.010318       0.006113       0.009905
+    2       0.016759       0.009843       0.013817
+    3       0.023587       0.014130       0.016766
+    4       0.029465       0.017865       0.019863
+    5       0.034828       0.021413       0.022664
+    6       0.039557       0.024621       0.025298
+    7       0.043727       0.027538       0.027701
+    8       0.047358       0.030149       0.029887
+    9       0.050492       0.032470       0.031852
+   10       0.053170       0.034513       0.033604
+   11       0.055432       0.036294       0.035150
+   12       0.057320       0.037833       0.036503
+   13       0.058874       0.039149       0.037676
+   14       0.060134       0.040262       0.038681
+   15       0.061136       0.041192       0.039535
+   16       0.061914       0.041958       0.040251
+   17       0.062500       0.042580       0.040845
+   18       0.062922       0.043076       0.041329
+   19       0.063207       0.043462       0.041717
+   20       0.063378       0.043753       0.042021
+
+
+=============================================================
+  Long-Run Gain and Mean Lag, in Levels
+=============================================================
+
+  gain     = lim_k G_k, the PERMANENT effect of a one-s.d. shock
+  mean lag = sum k delta_k / sum delta_k, with delta_k the increment of
+             the response: how long the level takes to get there
+  converged at k = 158 (largest increment 9.67e-11)
+
+Structural shock standard deviations (one-s.d. shock size):
+  invest       : 0.043117
+  income       : 0.013323
+  cons         : 0.008312
+
+Shock to invest:
+  invest       : gain =   0.054882   mean lag =    0.04 periods
+  income       : gain =   0.020865   mean lag =    2.43 periods
+  cons         : gain =   0.020281   mean lag =    2.84 periods
+
+Shock to income:
+  invest       : gain =   0.022236   mean lag =  -14.64 periods
+  income       : gain =   0.047990   mean lag =   -1.68 periods
+  cons         : gain =   0.046646   mean lag =   -0.23 periods
+
+Shock to cons:
+  invest       : gain =   0.060689   mean lag =    4.73 periods
+  income       : gain =   0.042896   mean lag =    5.92 periods
+  cons         : gain =   0.041694   mean lag =    5.46 periods
+
+  self-check  max |beta' gain| = 3.800e-11
+  beta'Y_t is stationary, so no shock can move it permanently: this is
+  zero by construction, and it exercises the weights, the level map and
+  the orthogonalisation at once.  The gain matrix has rank M - r = 2.
+
+
+=============================================================
+  Forecast Error Variance Decomposition, in Levels
+=============================================================
+
+  Percentage of the h-step level forecast error variance due to each shock.
+  Same orthogonalization, so the same caveat on the ordering.
+
+invest:
+    h      invest      income        cons
+    1      100.0%        0.0%        0.0%
+    2       90.9%        6.1%        2.9%
+    3       82.0%       12.0%        6.1%
+    4       73.7%       16.9%        9.4%
+    5       67.2%       20.5%       12.3%
+    6       62.2%       22.8%       15.0%
+    7       58.3%       24.4%       17.3%
+    8       55.2%       25.3%       19.5%
+    9       52.9%       25.7%       21.4%
+   10       51.0%       25.9%       23.2%
+   11       49.5%       25.7%       24.8%
+   12       48.2%       25.5%       26.3%
+   13       47.2%       25.1%       27.7%
+   14       46.4%       24.6%       29.0%
+   15       45.7%       24.1%       30.2%
+   16       45.2%       23.6%       31.3%
+   17       44.7%       23.0%       32.3%
+   18       44.3%       22.4%       33.3%
+   19       44.0%       21.9%       34.1%
+   20       43.7%       21.3%       35.0%
+   21       43.5%       20.8%       35.7%
+
+income:
+    h      invest      income        cons
+    1        2.0%       98.0%        0.0%
+    2        5.6%       89.5%        4.9%
+    3        6.1%       86.9%        7.0%
+    4        6.6%       84.3%        9.1%
+    5        6.9%       82.3%       10.7%
+    6        7.2%       80.6%       12.2%
+    7        7.4%       79.0%       13.5%
+    8        7.6%       77.6%       14.8%
+    9        7.7%       76.3%       16.0%
+   10        7.9%       75.1%       17.1%
+   11        8.0%       73.9%       18.1%
+   12        8.1%       72.8%       19.1%
+   13        8.2%       71.8%       20.0%
+   14        8.3%       70.8%       20.9%
+   15        8.3%       69.9%       21.8%
+   16        8.4%       69.0%       22.6%
+   17        8.5%       68.2%       23.4%
+   18        8.5%       67.4%       24.1%
+   19        8.6%       66.7%       24.8%
+   20        8.6%       65.9%       25.4%
+   21        8.7%       65.3%       26.0%
+
+cons:
+    h      invest      income        cons
+    1       10.7%       48.1%       41.3%
+    2        8.0%       66.2%       25.7%
+    3        8.2%       69.4%       22.4%
+    4        8.1%       71.0%       20.9%
+    5        8.1%       71.4%       20.5%
+    6        8.2%       71.4%       20.5%
+    7        8.2%       71.0%       20.7%
+    8        8.3%       70.6%       21.2%
+    9        8.3%       70.0%       21.7%
+   10        8.4%       69.4%       22.2%
+   11        8.4%       68.7%       22.8%
+   12        8.5%       68.1%       23.4%
+   13        8.6%       67.4%       24.0%
+   14        8.6%       66.7%       24.7%
+   15        8.7%       66.1%       25.3%
+   16        8.7%       65.4%       25.9%
+   17        8.7%       64.8%       26.4%
+   18        8.8%       64.2%       27.0%
+   19        8.8%       63.7%       27.5%
+   20        8.9%       63.1%       28.0%
+   21        8.9%       62.6%       28.5%
+
+
+=============================================================
+           MULTIVARIATE RESIDUAL DIAGNOSTICS                
+=============================================================
+
+Hosking's Multivariate Portmanteau Test (lag 6):
+  Q(43) = 72.8184, p-value = 0.0031
+  df = m^2 s - k = 54 - 11, k = dynamic coefficients estimated
+  *** REJECT H0: residuals are not white noise.
+
+Multivariate Jarque-Bera Test (normality; Lutkepohl, symmetric square root of Sigma):
+  JB(6) = 41.9317, p-value = 0.0000
+  skewness 4.5115, kurtosis 37.4203, each chi2(3)
+  *** REJECT H0: residuals are not normally distributed.
+=============================================================
+
+  residual sd:   0.043040   0.013005   0.009493
+  band = 2/sqrt(n) = 0.2097;  * marks |r| > band
+
+Residual cross-correlation matrices, R(k)[i][j] = corr(a_i(t), a_j(t-k)):
+  k=0     1.000*   0.134    0.250*
+          0.134    1.000*  -0.401*
+          0.250*  -0.401*   1.000*
+  k=1    -0.086   -0.146   -0.022 
+         -0.062   -0.401*   0.032 
+         -0.063   -0.117   -0.095 
+  k=2    -0.119    0.109   -0.044 
+          0.113    0.008   -0.006 
+         -0.025    0.116   -0.138 
+  k=3     0.123    0.103   -0.041 
+         -0.103    0.146   -0.058 
+          0.102   -0.013    0.140 
+  k=4     0.209   -0.096   -0.023 
+         -0.042   -0.142    0.045 
+         -0.075    0.015   -0.154 
+  k=5    -0.095    0.109   -0.094 
+          0.111    0.135   -0.061 
+          0.066    0.022    0.027 
+  k=6    -0.041    0.075   -0.126 
+          0.006   -0.025   -0.098 
+         -0.084   -0.048    0.094 
+  k=7     0.152    0.029    0.219*
+          0.003    0.030    0.138 
+          0.005    0.100   -0.012 
+  k=8    -0.147   -0.159   -0.049 
+         -0.022   -0.164    0.037 
+         -0.041   -0.042   -0.047 
+  k=9    -0.150    0.155   -0.151 
+          0.006    0.072   -0.146 
+         -0.005    0.015   -0.001 
+  k=10    0.100   -0.038    0.181 
+         -0.056    0.141    0.080 
+          0.025    0.039   -0.018 
+  k=11    0.047   -0.148   -0.020 
+          0.008   -0.117   -0.156 
+         -0.030    0.008   -0.075 
+  k=12   -0.211*   0.030    0.038 
+          0.049   -0.034    0.193 
+         -0.016    0.027    0.071 
+
+  Contemporaneous correlation, largest |r| at k=0: -0.401   (Sigma carries it)
+  Cross dynamics left at k >= 1: YES, largest is equation 1 against the innovation of 3 at lag 7, r = +0.219
+
+Roots of |phi(B)|=0 and |theta(B)|=0 (moduli; > 1 is stationary/invertible):
+
+  AR (Phi)          inf        inf    3.76525    2.71542    1.12803    1.12803 
+
+
+=============================================================
+                RESIDUAL DIAGNOSTICS                         
+=============================================================
+
+--- Residual series a[1] (invest) ---
+Unconditional residuals (seasonal period: 4)
+91 observations: from 2/1960 to 4/1982
+
+                  Mean:           0.001406
+Standard error of mean:           0.004512
+              Variance:           0.001852
+    Standard deviation:           0.043040
+              Skewness:          -0.087909
+              Kurtosis:           2.341523
+               Minimum:          -0.163644 at  1/1963 (observation  12)
+               Maximum:           0.142354 at  2/1963 (observation  13)
+
+Standardized time series plot (original values on right-side column):
+
+                  -3     -2    -1      0     +1    +2     +3      
+-------------+-----+------+-----+------+------+-----+------+-----+--------------
+   1  2/1960 |            :     : *    |      :     :            | -0.0306916397
+   2  3/1960 |            :     :    * |      :     :            | -0.0147410360
+   3  4/1960 +            :     :     *|      :     :            + -0.0058044881
+   4  1/1961 |            :     :      |      :  *  :            |  0.0649300848
+   5  2/1961 |            :  *  :      |      :     :            | -0.0637797698
+   6  3/1961 |            :     :      |*     :     :            |  0.0093063145
+   7  4/1961 +            :     :     *|      :     :            + -0.0025863854
+   8  1/1962 |            :     :      |     *:     :            |  0.0406223456
+   9  2/1962 |            :     :   *  |      :     :            | -0.0204181392
+  10  3/1962 |            :     :  *   |      :     :            | -0.0234831330
+  11  4/1962 +            :     :   *  |      :     :            + -0.0152976492
+  12  1/1963>|*           :     :      |      :     :            |>-0.1636441172
+  13  2/1963>|            :     :      |      :     :       *    |> 0.1423542902
+  14  3/1963 |            :     :      |      : *   :            |  0.0613585589
+  15  4/1963 +            :     :      *      :     :            + -0.0001800269
+  16  1/1964 |            :     :   *  |      :     :            | -0.0195529438
+  17  2/1964 |            :     :      |  *   :     :            |  0.0188323674
+  18  3/1964 |            :     :      |  *   :     :            |  0.0179433420
+  19  4/1964 +            :     :      |  *   :     :            +  0.0192386375
+  20  1/1965 |            :   * :      |      :     :            | -0.0549805847
+  21  2/1965 |            :     :      |    * :     :            |  0.0312417507
+  22  3/1965 |            :     :   *  |      :     :            | -0.0166157426
+  23  4/1965 +            :     :     *|      :     :            + -0.0065172770
+  24  1/1966 |            :     :      | *    :     :            |  0.0176302378
+  25  2/1966 |            :     :    * |      :     :            | -0.0116506558
+  26  3/1966 |            :     *      |      :     :            | -0.0427315758
+  27  4/1966 +            :     :*     |      :     :            + -0.0363425486
+  28  1/1967 |            :     :      *      :     :            |  0.0019987386
+  29  2/1967>|           *:     :      |      :     :            |>-0.0921524276
+  30  3/1967 |            :     :    * |      :     :            | -0.0133092392
+  31  4/1967>+            :     :      |      :     *            +> 0.0888743989
+  32  1/1968 |            :   * :      |      :     :            | -0.0609138755
+  33  2/1968 |            :     :     *|      :     :            | -0.0046998597
+  34  3/1968 |            :     :      |   *  :     :            |  0.0299916691
+  35  4/1968 +            :     :      |      :*    :            +  0.0552411468
+  36  1/1969 |            :     : *    |      :     :            | -0.0310225020
+  37  2/1969 |            :     :      |     *:     :            |  0.0434446976
+  38  3/1969 |            :     :      |      :  *  :            |  0.0690021502
+  39  4/1969 +            :     :      | *    :     :            +  0.0155207362
+  40  1/1970 |            :     :      *      :     :            |  0.0040776704
+  41  2/1970>|            :     :      |      :     :   *        |> 0.1125623279
+  42  3/1970 |            :     :      |      :*    :            |  0.0574040939
+  43  4/1970 +            :     :      *      :     :            +  0.0005844431
+  44  1/1971 |            :     :      |*     :     :            |  0.0111927667
+  45  2/1971 |            :     :      |      *     :            |  0.0494124366
+  46  3/1971 |            :     : *    |      :     :            | -0.0284455864
+  47  4/1971 +            :     :    * |      :     :            + -0.0115116224
+  48  1/1972 |            :     :      |   *  :     :            |  0.0297307479
+  49  2/1972 |            :     :  *   |      :     :            | -0.0262119084
+  50  3/1972 |            :     :      *      :     :            |  0.0024108946
+  51  4/1972 +            :     :      *      :     :            +  0.0017531530
+  52  1/1973 |            :     :      |      :  *  :            |  0.0646600511
+  53  2/1973 |            :    *:      |      :     :            | -0.0490695694
+  54  3/1973 |            :     :*     |      :     :            | -0.0386892658
+  55  4/1973 +            :     :   *  |      :     :            + -0.0211834947
+  56  1/1974 |            :     :      |    * :     :            |  0.0328834349
+  57  2/1974 |            :  *  :      |      :     :            | -0.0631565172
+  58  3/1974 |            :     :  *   |      :     :            | -0.0280899069
+  59  4/1974 +            :     :*     |      :     :            + -0.0359972515
+  60  1/1975 |            :     :      | *    :     :            |  0.0150069891
+  61  2/1975 |            :     :*     |      :     :            | -0.0356627039
+  62  3/1975 |            :     :    * |      :     :            | -0.0138660611
+  63  4/1975 +            :     :      |      *     :            +  0.0468969519
+  64  1/1976 |            :     :      |  *   :     :            |  0.0182500012
+  65  2/1976 |            :     :      |   *  :     :            |  0.0252322256
+  66  3/1976 |            :     :   *  |      :     :            | -0.0189062900
+  67  4/1976 +            :     :      |   *  :     :            +  0.0257334848
+  68  1/1977 |            :     :      |    * :     :            |  0.0351044601
+  69  2/1977 |            :     :   *  |      :     :            | -0.0216626339
+  70  3/1977 |            :     :  *   |      :     :            | -0.0237020148
+  71  4/1977 +            :     :     *|      :     :            + -0.0026774001
+  72  1/1978 |            :     :      *      :     :            |  0.0016642656
+  73  2/1978 |            :     :      |  *   :     :            |  0.0224485275
+  74  3/1978 |            :     :      |*     :     :            |  0.0052321607
+  75  4/1978 +            :     :      | *    :     :            +  0.0145214904
+  76  1/1979 |            :     :    * |      :     :            | -0.0094340627
+  77  2/1979 |            :     :      |      *     :            |  0.0498194609
+  78  3/1979 |            :     :      |*     :     :            |  0.0064941293
+  79  4/1979 +            :     :      |      *     :            +  0.0499400247
+  80  1/1980 |            :     :      | *    :     :            |  0.0163601250
+  81  2/1980 |            :    *:      |      :     :            | -0.0529791269
+  82  3/1980 |            :     :      | *    :     :            |  0.0143872966
+  83  4/1980 +            :     :   *  |      :     :            + -0.0152609471
+  84  1/1981 |            :     : *    |      :     :            | -0.0306640957
+  85  2/1981 |            :     :      |*     :     :            |  0.0087321993
+  86  3/1981 |            :     :      | *    :     :            |  0.0139569845
+  87  4/1981 +            :  *  :      |      :     :            + -0.0637094255
+  88  1/1982 |            :   * :      |      :     :            | -0.0582483991
+  89  2/1982 |            :     :      |  *   :     :            |  0.0200662975
+  90  3/1982 |            :     :      |   *  :     :            |  0.0269179958
+  91  4/1982 +            :     :     *|      :     :            + -0.0028230166
+-------------+-----+------+-----+------+------+-----+------+-----+--------------
+                  -3     -2    -1      0     +1    +2     +3      
+
+                 +------------------------------------------+
+                 |       Table of standardized values       |
+                 |       greater than or equal to 2.0       |
+                 +------------------------------------------+
+                 |                                          |
+                 | Observation    Date   Standardized value |
+                 |                                          |
+                 |     12        1/1963        -3.83        |
+                 |     13        2/1963         3.27        |
+                 |     29        2/1967        -2.17        |
+                 |     31        4/1967         2.03        |
+                 |     41        2/1970         2.58        |
+                 +------------------------------------------+
+
+Standardized time series histogram:
+
+       -4      -3      -2      -1       0      +1      +2      +3      +4
+        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+        |                                 23                            |
+        |                                ....                            |
+        |                             19 ....                            |
+        |                            ........                            |
+        |                            ........                            |
+        |                         15 ........                            |
+        |                        ............                            |
+        |                        ............                            |
+        |                        ............                            |
+        |                        ............ 10  9                      |
+        |                        ....................                    |
+        |                      6 ....................                    |
+        |                    ........................                    |
+        |                  3 ........................                    |
+        |                ............................                    |
+        |  1          1  ............................1  1  1  1          |
+        |....        ................................................    |
+        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+       -4      -3      -2      -1       0      +1      +2      +3      +4
+
+              24 values outside (-1,+1): 26.37 % (31.74 % expected)
+               5 values outside (-2,+2):  5.49 % ( 4.56 % expected)
+
+Autocorrelation function (acf bands =  0.210):
+
+            -1                         0                         1  L-B Q  DF
+-------------+-------------------------+-------------------------+--------------
+   1  -0.086 |                    :  **|    :                    | 
+   2  -0.119 |                    : ***|    :                    | 
+   3   0.123 |                    :    |*** :                    | 
+   4   0.209 +                    :    |+++++                    +   7.75   3
+   5  -0.095 |                    :  **|    :                    | 
+   6  -0.041 |                    :   *|    :                    | 
+   7   0.152 |                    :    |****:                    | 
+   8  -0.147 +                    :++++|    :                    +  13.32   7
+   9  -0.150 |                    :****|    :                    | 
+  10   0.100 |                    :    |**  :                    | 
+  11   0.047 |                    :    |*   :                    | 
+  12  -0.211 +                    +++++|    :                    +  21.67  11
+  13  -0.095 |                    :  **|    :                    | 
+  14  -0.002 |                    :    |    :                    | 
+  15  -0.055 |                    :   *|    :                    | 
+  16  -0.251 +                   ++++++|    :                    +  30.10  15
+  17   0.168 |                    :    |****:                    | 
+  18  -0.017 |                    :    |    :                    |  33.36  17
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1  L-B Q  DF
+
+Partial autocorrelation function (pacf bands =  0.210):
+
+            -1                         0                         1
+-------------+-------------------------+-------------------------+--------------
+   1  -0.086 |                    :  **|    :                    | 
+   2  -0.128 |                    : ***|    :                    | 
+   3   0.103 |                    :    |*** :                    | 
+   4   0.222 +                    :    |++++++                   + 
+   5  -0.030 |                    :   *|    :                    | 
+   6  -0.025 |                    :   *|    :                    | 
+   7   0.089 |                    :    |**  :                    | 
+   8  -0.176 +                    :++++|    :                    + 
+   9  -0.140 |                    : ***|    :                    | 
+  10   0.038 |                    :    |*   :                    | 
+  11   0.025 |                    :    |*   :                    | 
+  12  -0.102 +                    : +++|    :                    + 
+  13  -0.092 |                    :  **|    :                    | 
+  14  -0.124 |                    : ***|    :                    | 
+  15  -0.046 |                    :   *|    :                    | 
+  16  -0.213 +                    +++++|    :                    + 
+  17   0.128 |                    :    |*** :                    | 
+  18  -0.001 |                    :    |    :                    | 
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1
+
+
+--- Residual series a[2] (income) ---
+Unconditional residuals (seasonal period: 4)
+91 observations: from 2/1960 to 4/1982
+
+                  Mean:           0.003367
+Standard error of mean:           0.001363
+              Variance:           0.000169
+    Standard deviation:           0.013005
+              Skewness:          -0.390255
+              Kurtosis:           1.432511
+               Minimum:          -0.045628 at  4/1966 (observation  27)
+               Maximum:           0.035234 at  4/1964 (observation  19)
+
+Standardized time series plot (original values on right-side column):
+
+                  -3     -2    -1      0     +1    +2     +3      
+-------------+-----+------+-----+------+------+-----+------+-----+--------------
+   1  2/1960 |            :     :      |  *   :     :            |  0.0095820148
+   2  3/1960 |            :     :      |     *:     :            |  0.0149961435
+   3  4/1960 +            :   * :      |      :     :            + -0.0152188679
+   4  1/1961 |            :     :      |*     :     :            |  0.0057478018
+   5  2/1961 |            :     : *    |      :     :            | -0.0057320857
+   6  3/1961 |            :     :    * |      :     :            |  0.0001537563
+   7  4/1961 +            :     :      |*     :     :            +  0.0050076724
+   8  1/1962 |            :     :*     |      :     :            | -0.0080474535
+   9  2/1962 |            :     :   *  |      :     :            | -0.0017153991
+  10  3/1962 |            :     :      |*     :     :            |  0.0047334260
+  11  4/1962 +            :     :    * |      :     :            + -0.0013526566
+  12  1/1963 |            :     :   *  |      :     :            | -0.0025507147
+  13  2/1963 |            :     :      | *    :     :            |  0.0077000798
+  14  3/1963 |            :     :    * |      :     :            | -0.0005933714
+  15  4/1963 +            :     :      |   *  :     :            +  0.0121361724
+  16  1/1964 |            :     :      |*     :     :            |  0.0061478700
+  17  2/1964 |            :     *      |      :     :            | -0.0108074276
+  18  3/1964 |            :     :      |*     :     :            |  0.0062688371
+  19  4/1964>+            :     :      |      :     :  *         +> 0.0352339535
+  20  1/1965 |            :     :*     |      :     :            | -0.0079086657
+  21  2/1965 |            :     :      |      *     :            |  0.0168839536
+  22  3/1965 |            :     : *    |      :     :            | -0.0072325165
+  23  4/1965 +            :     :    * |      :     :            + -0.0013459063
+  24  1/1966 |            :    *:      |      :     :            | -0.0126574228
+  25  2/1966 |            :     :      |*     :     :            |  0.0057703469
+  26  3/1966 |            :     :      |      :    *:            |  0.0265949903
+  27  4/1966>+*           :     :      |      :     :            +>-0.0456278066
+  28  1/1967>|            :     :      |      :     :*           |> 0.0309258518
+  29  2/1967 |            :     *      |      :     :            | -0.0098614304
+  30  3/1967 |            :     :      |*     :     :            |  0.0057665622
+  31  4/1967 +            :     :      | *    :     :            +  0.0081614695
+  32  1/1968 |            :     :      |      :*    :            |  0.0192759347
+  33  2/1968 |            :     :      | *    :     :            |  0.0067261404
+  34  3/1968 |            :     :      *      :     :            |  0.0039551550
+  35  4/1968 +            :     :      | *    :     :            +  0.0078966341
+  36  1/1969 |            :     :      |*     :     :            |  0.0049907076
+  37  2/1969 |            :     :      |  *   :     :            |  0.0091524484
+  38  3/1969 |            :     :      |   *  :     :            |  0.0108139503
+  39  4/1969 +            :    *:      |      :     :            + -0.0130328645
+  40  1/1970 |            :     :      |      : *   :            |  0.0210808536
+  41  2/1970 |            :     :      |   *  :     :            |  0.0120972105
+  42  3/1970 |            :     :      |   *  :     :            |  0.0118280955
+  43  4/1970 +            :     :   *  |      :     :            + -0.0023998459
+  44  1/1971 |            :*    :      |      :     :            | -0.0203083805
+  45  2/1971 |            :     :      |      :    *:            |  0.0264184695
+  46  3/1971 |            :     :    * |      :     :            |  0.0003159820
+  47  4/1971 +            :     :      |      :*    :            +  0.0193101034
+  48  1/1972 |            :     :      *      :     :            |  0.0024959553
+  49  2/1972 |            :     :*     |      :     :            | -0.0080196974
+  50  3/1972 |            :     :      |      :   * :            |  0.0239813754
+  51  4/1972 +            :     :     *|      :     :            +  0.0021090529
+  52  1/1973 |            :     :      *      :     :            |  0.0023966128
+  53  2/1973 |            :   * :      |      :     :            | -0.0136764777
+  54  3/1973 |            :     :      |   *  :     :            |  0.0108932606
+  55  4/1973 +            :     :      |    * :     :            +  0.0133472983
+  56  1/1974 |            :     :     *|      :     :            |  0.0008387577
+  57  2/1974 |            :     :      |   *  :     :            |  0.0107440609
+  58  3/1974 |            :     :      |      :  *  :            |  0.0222288089
+  59  4/1974 +            :     : *    |      :     :            + -0.0056003254
+  60  1/1975 |            :     :      |      :  *  :            |  0.0221820107
+  61  2/1975 |            :     :      |      :  *  :            |  0.0236905443
+  62  3/1975>|         *  :     :      |      :     :            |>-0.0278168616
+  63  4/1975 +            :     :      *      :     :            +  0.0043222386
+  64  1/1976 |            :     :     *|      :     :            |  0.0004283898
+  65  2/1976 |            :     :   *  |      :     :            | -0.0030668776
+  66  3/1976 |            :     :      |    * :     :            |  0.0127962002
+  67  4/1976 +            :     :     *|      :     :            +  0.0010941354
+  68  1/1977 |            :    *:      |      :     :            | -0.0128583516
+  69  2/1977 |            :     :      | *    :     :            |  0.0076973915
+  70  3/1977 |            :     :    * |      :     :            | -0.0007535166
+  71  4/1977 +            :     :     *|      :     :            +  0.0016535122
+  72  1/1978 |            :     : *    |      :     :            | -0.0071618169
+  73  2/1978 |            :     :      *      :     :            |  0.0025511371
+  74  3/1978 |            :     :      | *    :     :            |  0.0067033648
+  75  4/1978 +            :     *      |      :     :            + -0.0108786217
+  76  1/1979 |            :     :      |      :   * :            |  0.0251332299
+  77  2/1979 |            :     :    * |      :     :            | -0.0001887305
+  78  3/1979 |            *     :      |      :     :            | -0.0216589576
+  79  4/1979 +            :     :      |      :*    :            +  0.0186537033
+  80  1/1980 |            :     :     *|      :     :            |  0.0014373756
+  81  2/1980 |            :     : *    |      :     :            | -0.0061895018
+  82  3/1980 |            :     :      |   *  :     :            |  0.0105603433
+  83  4/1980 +            :    *:      |      :     :            + -0.0120367321
+  84  1/1981 |            :     :      |    * :     :            |  0.0138690751
+  85  2/1981 |            :     :   *  |      :     :            | -0.0017796656
+  86  3/1981 |            :     :      | *    :     :            |  0.0063685121
+  87  4/1981 +            :     :    * |      :     :            +  0.0001147264
+  88  1/1982 |            :     :    * |      :     :            | -0.0001385041
+  89  2/1982 |            :     *      |      :     :            | -0.0101178271
+  90  3/1982 |            :     :      |*     :     :            |  0.0062824897
+  91  4/1982 +            :     :      |*     :     :            +  0.0045057413
+-------------+-----+------+-----+------+------+-----+------+-----+--------------
+                  -3     -2    -1      0     +1    +2     +3      
+
+                 +------------------------------------------+
+                 |       Table of standardized values       |
+                 |       greater than or equal to 2.0       |
+                 +------------------------------------------+
+                 |                                          |
+                 | Observation    Date   Standardized value |
+                 |                                          |
+                 |     19        4/1964         2.45        |
+                 |     27        4/1966        -3.77        |
+                 |     28        1/1967         2.12        |
+                 |     62        3/1975        -2.40        |
+                 +------------------------------------------+
+
+Standardized time series histogram:
+
+       -4      -3      -2      -1       0      +1      +2      +3      +4
+        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+        |                             23                                |
+        |                            .... 21                             |
+        |                            ........                            |
+        |                            ........                            |
+        |                            ........                            |
+        |                            ........                            |
+        |                            ........                            |
+        |                            ........                            |
+        |                            ........ 11                         |
+        |                     10     ............                        |
+        |                    ....  8 ............                        |
+        |                    ....................  7                     |
+        |                    ........................  5                 |
+        |                    ............................                |
+        |                  2 ............................ 2              |
+        |  1          1  ....................................            |
+        |....        ........................................            |
+        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+       -4      -3      -2      -1       0      +1      +2      +3      +4
+
+              28 values outside (-1,+1): 30.77 % (31.74 % expected)
+               4 values outside (-2,+2):  4.40 % ( 4.56 % expected)
+
+Autocorrelation function (acf bands =  0.210):
+
+            -1                         0                         1  L-B Q  DF
+-------------+-------------------------+-------------------------+--------------
+   1  -0.401 |               **********|    :                    | 
+   2   0.008 |                    :    |    :                    | 
+   3   0.146 |                    :    |****:                    | 
+   4  -0.142 +                    :++++|    :                    +  19.13   3
+   5   0.135 |                    :    |*** :                    | 
+   6  -0.025 |                    :   *|    :                    | 
+   7   0.030 |                    :    |*   :                    | 
+   8  -0.164 +                    :++++|    :                    +  23.81   7
+   9   0.072 |                    :    |**  :                    | 
+  10   0.141 |                    :    |****:                    | 
+  11  -0.117 |                    : ***|    :                    | 
+  12  -0.034 +                    :   +|    :                    +  27.99  11
+  13   0.076 |                    :    |**  :                    | 
+  14  -0.081 |                    :  **|    :                    | 
+  15   0.073 |                    :    |**  :                    | 
+  16   0.041 +                    :    |+   :                    +  30.13  15
+  17  -0.022 |                    :   *|    :                    | 
+  18  -0.099 |                    :  **|    :                    |  31.32  17
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1  L-B Q  DF
+
+Partial autocorrelation function (pacf bands =  0.210):
+
+            -1                         0                         1
+-------------+-------------------------+-------------------------+--------------
+   1  -0.401 |               **********|    :                    | 
+   2  -0.182 |                    *****|    :                    | 
+   3   0.095 |                    :    |**  :                    | 
+   4  -0.044 +                    :   +|    :                    + 
+   5   0.091 |                    :    |**  :                    | 
+   6   0.048 |                    :    |*   :                    | 
+   7   0.086 |                    :    |**  :                    | 
+   8  -0.190 +                    +++++|    :                    + 
+   9  -0.076 |                    :  **|    :                    | 
+  10   0.146 |                    :    |****:                    | 
+  11   0.068 |                    :    |**  :                    | 
+  12  -0.113 +                    : +++|    :                    + 
+  13   0.016 |                    :    |    :                    | 
+  14  -0.013 |                    :    |    :                    | 
+  15   0.029 |                    :    |*   :                    | 
+  16   0.031 +                    :    |+   :                    + 
+  17   0.092 |                    :    |**  :                    | 
+  18  -0.071 |                    :  **|    :                    | 
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1
+
+
+--- Residual series a[3] (ec1) ---
+Unconditional residuals (seasonal period: 4)
+91 observations: from 2/1960 to 4/1982
+
+                  Mean:           0.000237
+Standard error of mean:           0.000995
+              Variance:           0.000090
+    Standard deviation:           0.009493
+              Skewness:           0.220376
+              Kurtosis:           0.323141
+               Minimum:          -0.022109 at  3/1966 (observation  26)
+               Maximum:           0.031914 at  3/1961 (observation   6)
+
+Standardized time series plot (original values on right-side column):
+
+                -3     -2      -1      0     +1      +2     +3    
+-------------+---+------+-------+------+------+-------+------+---+--------------
+   1  2/1960 |          :       :      |*     :       :          |  0.0016347781
+   2  3/1960 |          :       *      |      :       :          | -0.0080177772
+   3  4/1960 +          :       :      |      :    *  :          +  0.0155946080
+   4  1/1961 |          :       :      | *    :       :          |  0.0030007297
+   5  2/1961>|         *:       :      |      :       :          |>-0.0198101664
+   6  3/1961>|          :       :      |      :       :         *|> 0.0319141062
+   7  4/1961 +          :       :      |*     :       :          +  0.0021203767
+   8  1/1962 |          :       :      |  *   :       :          |  0.0036465865
+   9  2/1962 |          :       :      |      :    *  :          |  0.0152871630
+  10  3/1962 |          :       *      |      :       :          | -0.0088050165
+  11  4/1962 +          :       :     *|      :       :          + -0.0005010892
+  12  1/1963 |          :       :    * |      :       :          | -0.0025206454
+  13  2/1963 |          :       :     *|      :       :          | -0.0012831334
+  14  3/1963 |          :       :      |   *  :       :          |  0.0054003335
+  15  4/1963 +          :       *      |      :       :          + -0.0089784250
+  16  1/1964 |          :       :      |     *:       :          |  0.0081123427
+  17  2/1964 |          :      *:      |      :       :          | -0.0101550198
+  18  3/1964 |          :       :      |   *  :       :          |  0.0047921095
+  19  4/1964 +          :*      :      |      :       :          + -0.0176446281
+  20  1/1965 |          :       :    * |      :       :          | -0.0028575529
+  21  2/1965 |          :       :      |*     :       :          |  0.0008824101
+  22  3/1965 |          :       :      |*     :       :          |  0.0015139700
+  23  4/1965 +          :       :      |    * :       :          +  0.0061266727
+  24  1/1966 |          :       :      |      :   *   :          |  0.0148084451
+  25  2/1966 |          :       :     *|      :       :          | -0.0006155318
+  26  3/1966>|       *  :       :      |      :       :          |>-0.0221090985
+  27  4/1966 +          :       :      |    * :       :          +  0.0061122583
+  28  1/1967 |          :       :      |      :  *    :          |  0.0127606116
+  29  2/1967 |          :       *      |      :       :          | -0.0091027850
+  30  3/1967 |          :       :      |   *  :       :          |  0.0057553364
+  31  4/1967 +          :       :    * |      :       :          + -0.0022816835
+  32  1/1968 |          : *     :      |      :       :          | -0.0168573924
+  33  2/1968 |          :       :      | *    :       :          |  0.0022214799
+  34  3/1968 |          :       :  *   |      :       :          | -0.0047981426
+  35  4/1968 +          :       :      |*     :       :          +  0.0009144247
+  36  1/1969 |          :       :      *      :       :          |  0.0001823344
+  37  2/1969 |          :       :*     |      :       :          | -0.0079185155
+  38  3/1969 |          :       : *    |      :       :          | -0.0062271185
+  39  4/1969 +          :       :      |      :   *   :          +  0.0143505518
+  40  1/1970 |          :       :   *  |      :       :          | -0.0041601397
+  41  2/1970 |          :    *  :      |      :       :          | -0.0120102772
+  42  3/1970 |          :       : *    |      :       :          | -0.0060067409
+  43  4/1970 +          :       :      |      *       :          +  0.0095979566
+  44  1/1971 |          :       :      |      :   *   :          |  0.0138250124
+  45  2/1971 |          :       :     *|      :       :          | -0.0015189580
+  46  3/1971 |          :       : *    |      :       :          | -0.0065686303
+  47  4/1971 +          :     * :      |      :       :          + -0.0107653684
+  48  1/1972 |          :       :      |  *   :       :          |  0.0043658184
+  49  2/1972 |          :   *   :      |      :       :          | -0.0135381192
+  50  3/1972 |          :       :      |  *   :       :          |  0.0035995859
+  51  4/1972 +          :       :      *      :       :          +  0.0002434793
+  52  1/1973 |          :       :      |      : *     :          |  0.0120504949
+  53  2/1973 |          :       :      |  *   :       :          |  0.0042458329
+  54  3/1973 |          :     * :      |      :       :          | -0.0108305060
+  55  4/1973 +          :       : *    |      :       :          + -0.0060368420
+  56  1/1974 |          :       :      |  *   :       :          |  0.0045097145
+  57  2/1974 |          :       : *    |      :       :          | -0.0066490228
+  58  3/1974 |          :    *  :      |      :       :          | -0.0129093151
+  59  4/1974 +          :      *:      |      :       :          + -0.0095308345
+  60  1/1975 |          :    *  :      |      :       :          | -0.0122628261
+  61  2/1975 |          :      *:      |      :       :          | -0.0095226348
+  62  3/1975 |          :       :      |      :      *:          |  0.0184779260
+  63  4/1975 +          :       :      |      :  *    :          +  0.0133044324
+  64  1/1976 |          :       :      |      *       :          |  0.0092427078
+  65  2/1976 |          :       :      |*     :       :          |  0.0014877605
+  66  3/1976 |          :       *      |      :       :          | -0.0090141045
+  67  4/1976 +          :       :      |      *       :          +  0.0093079588
+  68  1/1977 |          :       :      |      : *     :          |  0.0116071181
+  69  2/1977 |          :       :      |     *:       :          |  0.0075013116
+  70  3/1977 |          :       :      |     *:       :          |  0.0079491659
+  71  4/1977 +          :       :      |*     :       :          +  0.0014325812
+  72  1/1978 |          :       :      |  *   :       :          |  0.0036546233
+  73  2/1978 |          :       :      |     *:       :          |  0.0072145596
+  74  3/1978 |          :       :  *   |      :       :          | -0.0053883106
+  75  4/1978 +          :       :     *|      :       :          + -0.0004359303
+  76  1/1979 |          :       :    * |      :       :          | -0.0027055604
+  77  2/1979 |          :       :      |      : *     :          |  0.0118866458
+  78  3/1979 |          :       :  *   |      :       :          | -0.0047855858
+  79  4/1979 +          :       :      *      :       :          +  0.0002895276
+  80  1/1980 |          :       :      |      :     * :          |  0.0164743414
+  81  2/1980 |          : *     :      |      :       :          | -0.0156087307
+  82  3/1980 |          :       :     *|      :       :          | -0.0013617927
+  83  4/1980 +          :       :      |     *:       :          +  0.0082631270
+  84  1/1981 |          :       :*     |      :       :          | -0.0071394655
+  85  2/1981 |          :       :   *  |      :       :          | -0.0040752833
+  86  3/1981 |          :       :      |   *  :       :          |  0.0058666442
+  87  4/1981 +          :       :   *  |      :       :          + -0.0033609767
+  88  1/1982 |          :       : *    |      :       :          | -0.0066263644
+  89  2/1982 |          :       :      |   *  :       :          |  0.0052631032
+  90  3/1982 |          :       :      |  *   :       :          |  0.0045301951
+  91  4/1982 +          :       :      |*     :       :          +  0.0015651274
+-------------+---+------+-------+------+------+-------+------+---+--------------
+                -3     -2      -1      0     +1      +2     +3    
+
+                 +------------------------------------------+
+                 |       Table of standardized values       |
+                 |       greater than or equal to 2.0       |
+                 +------------------------------------------+
+                 |                                          |
+                 | Observation    Date   Standardized value |
+                 |                                          |
+                 |      5        2/1961        -2.11        |
+                 |      6        3/1961         3.34        |
+                 |     26        3/1966        -2.35        |
+                 +------------------------------------------+
+
+Standardized time series histogram:
+
+       -4      -3      -2      -1       0      +1      +2      +3      +4
+        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+        |                                 20                            |
+        |                                ....                            |
+        |                                ....                            |
+        |                         16     ....                            |
+        |                        .... 14 ....14                          |
+        |                        ................                        |
+        |                        ................                        |
+        |                        ................                        |
+        |                      9 ................                        |
+        |                    ....................                        |
+        |                    ....................  7                     |
+        |                    ........................                    |
+        |                    ........................  5                 |
+        |                  3 ............................                |
+        |              2 ................................                |
+        |            ....................................          1     |
+        |            ....................................        ....    |
+        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+       -4      -3      -2      -1       0      +1      +2      +3      +4
+
+              27 values outside (-1,+1): 29.67 % (31.74 % expected)
+               3 values outside (-2,+2):  3.30 % ( 4.56 % expected)
+
+Autocorrelation function (acf bands =  0.210):
+
+            -1                         0                         1  L-B Q  DF
+-------------+-------------------------+-------------------------+--------------
+   1  -0.095 |                    :  **|    :                    | 
+   2  -0.138 |                    : ***|    :                    | 
+   3   0.140 |                    :    |****:                    | 
+   4  -0.154 +                    :++++|    :                    +   6.87   3
+   5   0.027 |                    :    |*   :                    | 
+   6   0.094 |                    :    |**  :                    | 
+   7  -0.012 |                    :    |    :                    | 
+   8  -0.047 +                    :   +|    :                    +   8.07   7
+   9  -0.001 |                    :    |    :                    | 
+  10  -0.018 |                    :    |    :                    | 
+  11  -0.075 |                    :  **|    :                    | 
+  12   0.071 +                    :    |++  :                    +   9.23  11
+  13  -0.100 |                    : ***|    :                    | 
+  14  -0.060 |                    :   *|    :                    | 
+  15   0.095 |                    :    |**  :                    | 
+  16  -0.037 +                    :   +|    :                    +  11.87  15
+  17   0.026 |                    :    |*   :                    | 
+  18  -0.004 |                    :    |    :                    |  11.95  17
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1  L-B Q  DF
+
+Partial autocorrelation function (pacf bands =  0.210):
+
+            -1                         0                         1
+-------------+-------------------------+-------------------------+--------------
+   1  -0.095 |                    :  **|    :                    | 
+   2  -0.149 |                    :****|    :                    | 
+   3   0.114 |                    :    |*** :                    | 
+   4  -0.156 +                    :++++|    :                    + 
+   5   0.039 |                    :    |*   :                    | 
+   6   0.042 |                    :    |*   :                    | 
+   7   0.048 |                    :    |*   :                    | 
+   8  -0.060 +                    :   +|    :                    + 
+   9  -0.009 |                    :    |    :                    | 
+  10  -0.021 |                    :   *|    :                    | 
+  11  -0.073 |                    :  **|    :                    | 
+  12   0.039 +                    :    |+   :                    + 
+  13  -0.121 |                    : ***|    :                    | 
+  14  -0.042 |                    :   *|    :                    | 
+  15   0.027 |                    :    |*   :                    | 
+  16   0.004 +                    :    |    :                    + 
+  17   0.028 |                    :    |*   :                    | 
+  18  -0.034 |                    :   *|    :                    | 
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1
+
+
+--- Cross-correlation functions between residuals ---
+
+CROSS CORRELATION a[2] (income) - a[1] (invest)
+      income --> invest IF k > 0
+      invest --> income IF k < 0
+CCF BANDS  2.0/SQRT(N) =  0.20966:
+
+            -1                         0                         1
+-------------+-------------------------+-------------------------+--------------
+  -9   0.006 |                    :    |    :                    |                            
+  -8  -0.022 |                    :   *|    :                    |                            
+  -7   0.003 |                    :    |    :                    |                            
+  -6   0.006 |                    :    |    :                    |                            
+  -5   0.111 |                    :    |*** :                    |                            
+  -4  -0.042 |                    :   *|    :                    |                            
+  -3  -0.103 |                    : ***|    :                    |                            
+  -2   0.113 |                    :    |*** :                    |                            
+  -1  -0.062 |                    :  **|    :                    |                            
+   0   0.134 |                    :    |*** :                    |                            
+   1  -0.146 |                    :****|    :                    |                            
+   2   0.109 |                    :    |*** :                    |                            
+   3   0.103 |                    :    |*** :                    |                            
+   4  -0.096 |                    :  **|    :                    |                            
+   5   0.109 |                    :    |*** :                    |                            
+   6   0.075 |                    :    |**  :                    |                            
+   7   0.029 |                    :    |*   :                    |                            
+   8  -0.159 |                    :****|    :                    |                            
+   9   0.155 |                    :    |****:                    |                            
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1
+Q(10) = 13.619     k >= 0      Q( 9) = 11.953      k > 0
+Q(10) =  5.688     k <= 0      Q( 9) =  4.022      k < 0
+
+CROSS CORRELATION a[3] (ec1) - a[1] (invest)
+      ec1 --> invest IF k > 0
+      invest --> ec1 IF k < 0
+CCF BANDS  2.0/SQRT(N) =  0.20966:
+
+            -1                         0                         1
+-------------+-------------------------+-------------------------+--------------
+  -9  -0.005 |                    :    |    :                    |                            
+  -8  -0.041 |                    :   *|    :                    |                            
+  -7   0.005 |                    :    |    :                    |                            
+  -6  -0.084 |                    :  **|    :                    |                            
+  -5   0.066 |                    :    |**  :                    |                            
+  -4  -0.075 |                    :  **|    :                    |                            
+  -3   0.102 |                    :    |*** :                    |                            
+  -2  -0.025 |                    :   *|    :                    |                            
+  -1  -0.063 |                    :  **|    :                    |                            
+   0   0.250 |                    :    |******                   |                            
+   1  -0.022 |                    :   *|    :                    |                            
+   2  -0.044 |                    :   *|    :                    |                            
+   3  -0.041 |                    :   *|    :                    |                            
+   4  -0.023 |                    :   *|    :                    |                            
+   5  -0.094 |                    :  **|    :                    |                            
+   6  -0.126 |                    : ***|    :                    |                            
+   7   0.219 |                    :    |*****                    |                            
+   8  -0.049 |                    :   *|    :                    |                            
+   9  -0.151 |                    :****|    :                    |                            
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1
+Q(10) = 16.162     k >= 0      Q( 9) = 10.341      k > 0
+Q(10) =  9.103     k <= 0      Q( 9) =  3.282      k < 0
+
+CROSS CORRELATION a[3] (ec1) - a[2] (income)
+      ec1 --> income IF k > 0
+      income --> ec1 IF k < 0
+CCF BANDS  2.0/SQRT(N) =  0.20966:
+
+            -1                         0                         1
+-------------+-------------------------+-------------------------+--------------
+  -9   0.015 |                    :    |    :                    |                            
+  -8  -0.042 |                    :   *|    :                    |                            
+  -7   0.100 |                    :    |**  :                    |                            
+  -6  -0.048 |                    :   *|    :                    |                            
+  -5   0.022 |                    :    |*   :                    |                            
+  -4   0.015 |                    :    |    :                    |                            
+  -3  -0.013 |                    :    |    :                    |                            
+  -2   0.116 |                    :    |*** :                    |                            
+  -1  -0.117 |                    : ***|    :                    |                            
+   0  -0.401 |               **********|    :                    |                            
+   1   0.032 |                    :    |*   :                    |                            
+   2  -0.006 |                    :    |    :                    |                            
+   3  -0.058 |                    :   *|    :                    |                            
+   4   0.045 |                    :    |*   :                    |                            
+   5  -0.061 |                    :  **|    :                    |                            
+   6  -0.098 |                    :  **|    :                    |                            
+   7   0.138 |                    :    |*** :                    |                            
+   8   0.037 |                    :    |*   :                    |                            
+   9  -0.146 |                    :****|    :                    |                            
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1
+Q(10) = 21.104     k >= 0      Q( 9) =  6.172      k > 0
+Q(10) = 19.016     k <= 0      Q( 9) =  4.083      k < 0
+
+=============================================================

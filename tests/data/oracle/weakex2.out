@@ -1,0 +1,773 @@
+Program          : DRVEC 0.12
+Input Data File  : the .pre files
+Output File      : weakex2.out
+Model            : VARMA-VECM(2,0), M = 2 series, cointegration rank r = 1
+Estimation       : Exact Unconditional Maximum Likelihood, Algorithm AS 311 (Mauricio 1997), xi sequence truncated at 1e-3
+Transformation   : VECM to stationary VARMA (Mauricio 2006)
+Deterministic    : case 2 -- E[nabla Y2] = 0, E[W] free
+Structure        : F free, Theta absent (q = 0), Sigma free
+Series           : muskrat mink   (1 in the nabla Y2 block, 1 in Y1)
+Sample           : 61 observations from 1851, annual (raw 62)
+
+=============================================================
+  OPTIMIZER CONVERGED after 22 iterations
+  Objective function = 0.997998813901
+  Convergence criterion: norm of scaled gradient <= gradtol
+=============================================================
+
+
+=== The ladder below the rank: r = 0, from the gate up ===
+  rung 0  (F diag, Theta diag, Sigma diag)   logL = -38.9375897585
+
+=== Entry gate: the factorisation contract ===
+
+At r = 0 with diagonal Phi, Theta and Sigma the likelihood factorises,
+so the joint fit must equal the sum of the univariate fits exactly.
+
+  univariate 1 (p=2, q=0)   logL =     -24.1491940078
+  univariate 2 (p=2, q=0)   logL =     -14.7883957507
+                                 sum  =     -38.9375897585
+                                 joint=     -38.9375897585
+  (both sides untruncated; the fit's own logL, xi truncated at 1e-03, is -38.9375897585)
+
+  crossing identity (joint - sum) = -1.123e-12   (tolerance 1.0e-06)   VERIFIED
+  rung 1  (F diag, Theta diag, Sigma free)   logL = -32.1846810825
+  rung 2  (F free, Theta free, Sigma free)   logL = -12.8900255172
+
+=============================================================
+  OPTIMIZER CONVERGED after 16 iterations
+  Objective function = 0.946376210860
+  Convergence criterion: norm of scaled gradient <= gradtol
+=============================================================
+
+
+=== -seedgate: the VEC block profiled on the rung below ===
+
+  r = 0 optimum (F, Theta, Sigma)        logL =     -12.8900255172
+  admissible entry, Lambda x 0.50          logL =     -13.4746385876
+  + Lambda and B2 profiled on it         logL =     -11.7936279434
+
+  The starting point for the free fit below is that second value, not
+  a conditional regression.  Holding the rung below and estimating only
+  Lambda and B2 lands in the INTERIOR by construction: at Lambda = 0 the
+  transformed system has an AR root of modulus exactly one, so the rung
+  below cannot be carried up unchanged, and the step off that boundary
+  is chosen here by the likelihood rather than by a constant.
+
+  the pre-estimates the conditional step produced
+    psi, with Lambda = A*psi (1 x 1):
+          0.115814
+    B2 (1 x 1):
+          0.774392
+    mean block (1):      20.873103
+
+Search: 3 starting points, 3 converged; logL from -9.873316 to -9.873316.  The best is `seed'.
+  start        logL            stop  iters  admissible start
+  seed             -9.873316     grad     25  as given
+  cold             -9.873316     grad     24  as given
+  johansen         -9.873316     grad     23  as given
+  The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.
+
+=============================================================
+  OPTIMIZER CONVERGED after 25 iterations
+  Objective function = 0.938980034249
+  Convergence criterion: norm of scaled gradient <= gradtol
+=============================================================
+
+Convergence      : clean convergence, on the scaled gradient
+sigma2           :    0.0756128522
+logelf           :   -9.8733155286
+npar             : 9
+AIC              :    0.6187972304   (-2logL + 2k, /n)
+BIC              :    0.9302376366   (-2logL + k log n, /n)
+
+--- H1(r): alpha = A*psi, against H(r) ---
+logL H(r)  free        :   -8.6814580257
+logL H1(r) restricted  :   -9.8733155286
+LR = 2(free - restr.)  :    2.3837150058
+degrees of freedom     : 1   (M - sa)*r
+p-value (chi2)         :    0.1226056712
+
+
+=============================================================
+  Estimated Parameters and Standard Deviations
+=============================================================
+
+  nabla Y_t = alpha (beta'Y_{t-1} - E[W]) + Gamma_1 nabla Y_{t-1} + ... + Theta(L) A_t
+  with Pi = alpha beta' of rank r, and beta = [I_r ; beta_2] normalised on Y1.
+  Johansen's notation throughout: a NEGATIVE alpha is error-correcting.
+  Rows read `equation <- regressor`; D.x is nabla x, A.x its innovation,
+  and ec is the equilibrium error beta'Y_{t-1}.
+
+Parameter                         Estimate    Std.Error   t-stat   p-val
+------------------------------------------------------------------------
+
+Mean of the equilibrium error (the constant restricted to the relation)
+  E[ec1]                         17.782200     6.587545    2.699  0.0069 **
+
+Adjustment coefficients, alpha (M x r)   [negative = error-correcting]
+  free part psi of alpha = A*psi; Lambda = A*psi is in the model block
+  psi[1 <- ec1]                   0.234158     0.117543    1.992  0.0464 *
+
+Cointegrating vectors, beta = [I_r ; beta_2], normalised on the Y1 block
+  muskrat in ec1                  0.532372     0.503816    1.057  0.2907  
+
+Short-run dynamics, Gamma(k) on nabla Y_{t-k}
+  D.muskrat <- D.muskrat(-1)      0.374068     0.140881    2.655  0.0079 **
+  D.muskrat <- D.mink(-1)        -0.493434     0.161494   -3.055  0.0022 **
+  D.mink <- D.muskrat(-1)         0.426751     0.106471    4.008  0.0001 ***
+  D.mink <- D.mink(-1)           -0.123456     0.126832   -0.973  0.3304  
+
+Innovation covariance up to scale, Q (Sigma = sigma2 * Q, var mink = 1)
+  var muskrat                     0.898333     0.225918    3.976  0.0001 ***
+  cov muskrat, mink               0.320954     0.125095    2.566  0.0103 *
+------------------------------------------------------------------------
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+  ! standard errors from the BFGS-accumulated factor; -fdhess uses the Hessian at the optimum
+
+
+=============================================================
+  Vector Error Correction Model
+=============================================================
+
+  nabla Y_t = alpha (beta'Y_{t-1} - E[W]) + Gamma_1 nabla Y_{t-1} + ... + Theta(L) A_t
+  Theta(L) = I - Theta1 L - ... - Theta_q L^q,   Pi = alpha beta'
+
+E[W] vector:
+     17.782200
+alpha matrix (M x r), rows in the .inp's order:
+     -0.234158
+     -0.000000
+Gamma(1) matrix, rows and columns in the .inp's order:
+      0.374068   -0.493434
+      0.426751   -0.123456
+beta_2 matrix (s x r):
+      0.532372
+beta matrix (M x r), rows in the .inp's order:
+      0.532372
+      1.000000
+Pi = alpha beta' matrix (M x M), the long run:
+     -0.124659   -0.234158
+      0.000000    0.000000
+  eigenvalues of Pi:  -0.124659  0.000000
+  ! Pi has rank r by construction: the 1 zero eigenvalue proves nothing about r (use -lrtest)
+Q matrix (lower triangle, rows and columns in the .inp's order; var mink = 1 by normalisation):
+      0.898333
+      0.320954    1.000000
+Sigma = sigma2 * Q, in the .inp's order:
+      0.067925
+      0.024268    0.075613
+  |Sigma| = 0.004547093066      log|Sigma| = -5.393267
+P matrix (Sigma = P D P', P unit lower triangular):
+      1.000000
+      0.357277    1.000000
+D vector:
+      0.067925    0.066942
+  own share D_i/Sigma_ii:
+        100.0%       88.5%
+  ! the ordering is the .inp's column order: another order gives another P
+
+
+=============================================================
+  Cointegration Diagnostics
+=============================================================
+
+Normalisation, share of the weight carried by the Y1 block:
+  relation 1: the Y1 block carries  58.3% of the weight
+
+
+=============================================================
+  Joint Hypothesis Tests (Wald)
+=============================================================
+
+Error-correction term as a whole
+  alpha is not free (-alpha imposes alpha = A*psi): nothing to test
+
+Weak exogeneity, one variable at a time   [H0: row i of alpha = 0, chi2(1)]
+
+Exclusion from the cointegrating relations   [H0: row i of beta_2 = 0, chi2(1)]
+  only the 1 nabla Y2 variable can be excluded: beta = [I_r ; beta_2] normalises on Y1
+
+muskrat:
+  H0: row 1 of beta_2 = 0
+  Wald chi2(1) = 1.1166, p-value = 0.2907
+  Cannot reject H0 -> muskrat can be dropped from it.
+
+Short-run dynamics   [Gamma on nabla Y, Theta on the innovations]
+  ! statements about nabla Y, not about the levels: a variable can drive
+    another's DIFFERENCES and still be tied to it only through ec
+
+Joint significance of the last short-run lag, Gamma(1):
+  H0: Gamma(last) = 0
+  Wald chi2(4) = 25.3200, p-value = 0.0000
+  REJECT H0 -> the last AR lag is significant.
+
+All cross effects jointly:
+  H0: every off-diagonal coefficient of Gamma and Theta = 0
+  Wald chi2(2) = 22.8239, p-value = 0.0000
+  REJECT H0 -> the cross structure earns its parameters.
+
+D.muskrat: what the others do to it:
+  H0: no other variable enters the equation of D.muskrat
+  Wald chi2(1) = 9.3357, p-value = 0.0022
+  REJECT H0 -> D.muskrat is driven by the others.
+
+D.muskrat: what it does to the others:
+  H0: D.muskrat enters no other equation
+  Wald chi2(1) = 16.0651, p-value = 0.0001
+  REJECT H0 -> D.muskrat drives the others.
+
+D.mink: what the others do to it:
+  H0: no other variable enters the equation of D.mink
+  Wald chi2(1) = 16.0651, p-value = 0.0001
+  REJECT H0 -> D.mink is driven by the others.
+
+D.mink: what it does to the others:
+  H0: D.mink enters no other equation
+  Wald chi2(1) = 9.3357, p-value = 0.0022
+  REJECT H0 -> D.mink drives the others.
+
+  ! p-values from the BFGS-accumulated covariance; use -fdhess before quoting them
+
+
+=============================================================
+  Impulse Response of the Levels
+=============================================================
+
+  Response of Y_{t+k} to a one-s.d. orthogonalized shock at t.
+  Shocks are orthogonalized by Sigma = P D P', so the ORDERING is the
+  .inp's column order: a different order gives different shocks.
+  ! in a cointegrated system the response does not die out: what it
+    converges to is the permanent effect, of rank M - r = 1.
+
+Shock to muskrat:
+    k        muskrat           mink
+    0       0.260625       0.093115
+    1       0.257877       0.192842
+    2       0.130339       0.179357
+    3       0.031038       0.126595
+    4      -0.013584       0.090732
+    5      -0.032133       0.076117
+    6      -0.045677       0.070006
+    7      -0.058427       0.064980
+    8      -0.068648       0.060160
+    9      -0.075622       0.056393
+   10      -0.080150       0.053882
+   11      -0.083230       0.052259
+   12      -0.085443       0.051145
+   13      -0.087046       0.050338
+   14      -0.088184       0.049754
+   15      -0.088978       0.049341
+   16      -0.089533       0.049053
+   17      -0.089923       0.048851
+   18      -0.090199       0.048710
+   19      -0.090394       0.048609
+   20      -0.090531       0.048539
+
+Shock to mink:
+    k        muskrat           mink
+    0       0.000000       0.258732
+    1      -0.188252       0.226790
+    2      -0.272547       0.150397
+    3      -0.267625       0.123855
+    4      -0.248327       0.129232
+    5      -0.243066       0.136804
+    6      -0.246568       0.138114
+    7      -0.250128       0.136458
+    8      -0.251414       0.135143
+    9      -0.251551       0.134757
+   10      -0.251607       0.134746
+   11      -0.251810       0.134723
+   12      -0.252031       0.134640
+   13      -0.252181       0.134556
+   14      -0.252267       0.134502
+   15      -0.252319       0.134472
+   16      -0.252358       0.134453
+   17      -0.252388       0.134439
+   18      -0.252410       0.134428
+   19      -0.252425       0.134420
+   20      -0.252435       0.134415
+
+
+=============================================================
+  Long-Run Gain and Mean Lag, in Levels
+=============================================================
+
+  gain     = lim_k G_k, the PERMANENT effect of a one-s.d. shock
+  mean lag = sum k delta_k / sum delta_k, with delta_k the increment of
+             the response: how long the level takes to get there
+  converged at k = 61 (largest increment 7.90e-11)
+
+Structural shock standard deviations (one-s.d. shock size):
+  muskrat      : 0.260625
+  mink         : 0.258732
+
+Shock to muskrat:
+  muskrat      : gain =  -0.090858   mean lag =   14.65 periods
+  mink         : gain =   0.048370   mean lag =  -11.28 periods
+
+Shock to mink:
+  muskrat      : gain =  -0.252459   mean lag =    1.22 periods
+  mink         : gain =   0.134402   mean lag =   -1.69 periods
+
+  self-check  max |beta' gain| = 1.972e-10
+  beta'Y_t is stationary, so no shock can move it permanently: this is
+  zero by construction, and it exercises the weights, the level map and
+  the orthogonalisation at once.  The gain matrix has rank M - r = 1.
+
+
+=============================================================
+  Forecast Error Variance Decomposition, in Levels
+=============================================================
+
+  Percentage of the h-step level forecast error variance due to each shock.
+  Same orthogonalization, so the same caveat on the ordering.
+
+muskrat:
+    h     muskrat        mink
+    1      100.0%        0.0%
+    2       79.1%       20.9%
+    3       58.0%       42.0%
+    4       45.7%       54.3%
+    5       38.6%       61.4%
+    6       33.7%       66.3%
+    7       30.0%       70.0%
+    8       27.2%       72.8%
+    9       25.1%       74.9%
+   10       23.5%       76.5%
+   11       22.2%       77.8%
+   12       21.2%       78.8%
+   13       20.4%       79.6%
+   14       19.7%       80.3%
+   15       19.1%       80.9%
+   16       18.6%       81.4%
+   17       18.2%       81.8%
+   18       17.8%       82.2%
+   19       17.5%       82.5%
+   20       17.1%       82.9%
+   21       16.9%       83.1%
+
+mink:
+    h     muskrat        mink
+    1       11.5%       88.5%
+    2       27.9%       72.1%
+    3       35.6%       64.4%
+    4       37.6%       62.4%
+    5       37.2%       62.8%
+    6       36.0%       64.0%
+    7       34.9%       65.1%
+    8       33.8%       66.2%
+    9       32.8%       67.2%
+   10       31.8%       68.2%
+   11       30.9%       69.1%
+   12       30.0%       70.0%
+   13       29.2%       70.8%
+   14       28.5%       71.5%
+   15       27.8%       72.2%
+   16       27.2%       72.8%
+   17       26.6%       73.4%
+   18       26.0%       74.0%
+   19       25.5%       74.5%
+   20       25.0%       75.0%
+   21       24.6%       75.4%
+
+
+=============================================================
+           MULTIVARIATE RESIDUAL DIAGNOSTICS                
+=============================================================
+
+Hosking's Multivariate Portmanteau Test (lag 10):
+  Q(35) = 47.2144, p-value = 0.0813
+  df = m^2 s - k = 40 - 5, k = dynamic coefficients estimated
+  Cannot reject H0: residuals appear white noise.
+
+Multivariate Jarque-Bera Test (normality; Lutkepohl, symmetric square root of Sigma):
+  JB(4) = 7.8106, p-value = 0.0988
+  skewness 4.9809, kurtosis 2.8297, each chi2(2)
+  Cannot reject H0: residuals appear normal.
+=============================================================
+
+  residual sd:   0.253648   0.341220
+  band = 2/sqrt(n) = 0.2561;  * marks |r| > band
+
+Residual cross-correlation matrices, R(k)[i][j] = corr(a_i(t), a_j(t-k)):
+  k=0     1.000*   0.658*
+          0.658*   1.000*
+  k=1    -0.051    0.004 
+         -0.012    0.001 
+  k=2    -0.244   -0.243 
+         -0.234   -0.142 
+  k=3     0.068   -0.007 
+          0.023   -0.043 
+  k=4     0.144    0.017 
+          0.053   -0.148 
+  k=5    -0.012    0.061 
+         -0.039   -0.141 
+  k=6    -0.116   -0.075 
+         -0.115   -0.248 
+  k=7    -0.072   -0.039 
+          0.012    0.013 
+  k=8     0.083    0.071 
+         -0.119   -0.035 
+  k=9    -0.031    0.147 
+          0.098    0.255 
+  k=10   -0.113   -0.059 
+          0.059    0.275*
+  k=11    0.184   -0.011 
+          0.106    0.056 
+  k=12   -0.058   -0.095 
+         -0.092   -0.088 
+
+  Contemporaneous correlation, largest |r| at k=0: +0.658   (Sigma carries it)
+  Cross dynamics left at k >= 1: none beyond the band
+
+Roots of |phi(B)|=0 and |theta(B)|=0 (moduli; > 1 is stationary/invertible):
+
+  AR (Phi)          inf    2.06999    2.06999    1.41965 
+
+
+=============================================================
+                RESIDUAL DIAGNOSTICS                         
+=============================================================
+
+--- Residual series a[1] (muskrat) ---
+Unconditional residuals (seasonal period: 1)
+61 observations: from 1851 to 1911
+
+                  Mean:           0.012610
+Standard error of mean:           0.032476
+              Variance:           0.064337
+    Standard deviation:           0.253648
+              Skewness:          -0.636675
+              Kurtosis:           1.715087
+               Minimum:          -0.948309 at 1908 (observation  58)
+               Maximum:           0.595890 at 1902 (observation  52)
+
+Standardized time series plot (original values on right-side column):
+
+                  -3     -2    -1      0     +1    +2     +3      
+-------------+-----+------+-----+------+------+-----+------+-----+--------------
+   1   1851  |            :     :*     |      :     :            | -0.2346322255
+   2   1852  |            :     :   *  |      :     :            | -0.1129815932
+   3   1853  |            :     :      |     *:     :            |  0.2263186324
+   4   1854  |            :    *:      |      :     :            | -0.3106157192
+   5   1855  |            :     : *    |      :     :            | -0.1799886954
+   6   1856  |            :     :   *  |      :     :            | -0.0888313112
+   7   1857  |            :     :      |      :*    :            |  0.3302336992
+   8   1858  |            :     :     *|      :     :            | -0.0256568573
+   9   1859  |            :     :    * |      :     :            | -0.0747255683
+  10   1860  |            : *   :      |      :     :            | -0.3978395935
+  11   1861  |            :     :     *|      :     :            | -0.0358375378
+  12   1862  |            :     :      |*     :     :            |  0.0354616735
+  13   1863  |            :     :      |*     :     :            |  0.0624411788
+  14   1864  |            :     :      |    * :     :            |  0.2079520057
+  15   1865  |            :     :   *  |      :     :            | -0.1060349045
+  16   1866  |            :     : *    |      :     :            | -0.1755360970
+  17   1867  |            :     :      |     *:     :            |  0.2274821405
+  18   1868  |            :     :      |      :  *  :            |  0.3928766172
+  19   1869  |            :   * :      |      :     :            | -0.3404050932
+  20   1870  |            :   * :      |      :     :            | -0.3181302163
+  21   1871  |            :     :      |  *   :     :            |  0.1399462250
+  22   1872  |            :     :      |   *  :     :            |  0.1766050860
+  23   1873  |            :     :      *      :     :            |  0.0058293142
+  24   1874  |            :     :    * |      :     :            | -0.0681317027
+  25   1875  |            :     :      |*     :     :            |  0.0358461078
+  26   1876  |            :     :      |      :  *  :            |  0.3867060478
+  27   1877  |            :     :  *   |      :     :            | -0.1510605510
+  28   1878  |            :     :      |      :*    :            |  0.3090766753
+  29   1879  |            :     :      |  *   :     :            |  0.1435978323
+  30   1880  |            :     :  *   |      :     :            | -0.1432539912
+  31   1881  |            :     :      |    * :     :            |  0.1981448534
+  32   1882  |            :     :      *      :     :            |  0.0181902677
+  33   1883  |            :     :      |  *   :     :            |  0.1454895826
+  34   1884  |            :     :      | *    :     :            |  0.1071964102
+  35   1885  |            :     :  *   |      :     :            | -0.1270557035
+  36   1886  |            :     :  *   |      :     :            | -0.1269847458
+  37   1887  |            :     :      |      *     :            |  0.2880300406
+  38   1888  |            :     : *    |      :     :            | -0.1868499513
+  39   1889  |            :     : *    |      :     :            | -0.1928290243
+  40   1890  |            :     :      |*     :     :            |  0.0333076772
+  41   1891  |            :     :      |     *:     :            |  0.2426472912
+  42   1892  |            :     :    * |      :     :            | -0.0693412022
+  43   1893  |            :     :      |     *:     :            |  0.2248700584
+  44   1894  |            :     :  *   |      :     :            | -0.1439948186
+  45   1895  |            :     :      |   *  :     :            |  0.1511438506
+  46   1896  |            :     :      |     *:     :            |  0.2251008961
+  47   1897  |            :     :  *   |      :     :            | -0.1568452238
+  48   1898  |            :     :      |      :*    :            |  0.3341123431
+  49   1899  |            :     :      |     *:     :            |  0.2596210841
+  50   1900  |            :     *      |      :     :            | -0.2389098925
+  51   1901  |            :     :      |     *:     :            |  0.2419199177
+  52   1902 >|            :     :      |      :     : *          |> 0.5958901403
+  53   1903  |            :     :     *|      :     :            | -0.0388824108
+  54   1904  |            :     :  *   |      :     :            | -0.1580322968
+  55   1905  |            :     :      |      :*    :            |  0.3174808480
+  56   1906  |            :   * :      |      :     :            | -0.3312690390
+  57   1907  |            :     *      |      :     :            | -0.2535121526
+  58   1908 >|*           :     :      |      :     :            |>-0.9483094860
+  59   1909  |            :     :      |      *     :            |  0.2632092825
+  60   1910  |            :     :      |      :*    :            |  0.3072071668
+  61   1911  |            :     :  *   |      :     :            | -0.1282689653
+-------------+-----+------+-----+------+------+-----+------+-----+--------------
+                  -3     -2    -1      0     +1    +2     +3      
+
+                 +------------------------------------------+
+                 |       Table of standardized values       |
+                 |       greater than or equal to 2.0       |
+                 +------------------------------------------+
+                 |                                          |
+                 | Observation    Date   Standardized value |
+                 |                                          |
+                 |     52         1902          2.30        |
+                 |     58         1908         -3.79        |
+                 +------------------------------------------+
+
+Standardized time series histogram:
+
+       -4      -3      -2      -1       0      +1      +2      +3      +4
+        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+        |                                     15                        |
+        |                         14         ....                        |
+        |                        ....        ....                        |
+        |                        ....        ....                        |
+        |                        ....        ....                        |
+        |                        .... 10     ....                        |
+        |                        ........    ....                        |
+        |                        ........    ....  8                     |
+        |                        ........    ........                    |
+        |                        ........  6 ........                    |
+        |                      5 ....................                    |
+        |                    ........................                    |
+        |                    ........................                    |
+        |                    ........................                    |
+        |  1              1  ........................    1               |
+        |....            ............................    ....            |
+        |....            ............................    ....            |
+        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+       -4      -3      -2      -1       0      +1      +2      +3      +4
+
+              16 values outside (-1,+1): 26.23 % (31.74 % expected)
+               2 values outside (-2,+2):  3.28 % ( 4.56 % expected)
+
+Autocorrelation function (acf bands =  0.256):
+
+            -1                         0                         1  L-B Q  DF
+-------------+-------------------------+-------------------------+--------------
+   1  -0.051 |                   :    *|     :                   | 
+   2  -0.244 |                   ******|     :                   | 
+   3   0.068 |                   :     |**   :                   | 
+   4   0.144 |                   :     |**** :                   | 
+   5  -0.012 |                   :     |     :                   | 
+   6  -0.116 |                   :  ***|     :                   | 
+   7  -0.072 |                   :   **|     :                   | 
+   8   0.083 |                   :     |**   :                   | 
+   9  -0.031 |                   :    *|     :                   |   7.62   8
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1  L-B Q  DF
+
+Partial autocorrelation function (pacf bands =  0.256):
+
+            -1                         0                         1
+-------------+-------------------------+-------------------------+--------------
+   1  -0.051 |                   :    *|     :                   | 
+   2  -0.247 |                   ******|     :                   | 
+   3   0.042 |                   :     |*    :                   | 
+   4   0.096 |                   :     |**   :                   | 
+   5   0.030 |                   :     |*    :                   | 
+   6  -0.068 |                   :   **|     :                   | 
+   7  -0.101 |                   :  ***|     :                   | 
+   8   0.019 |                   :     |     :                   | 
+   9  -0.056 |                   :    *|     :                   | 
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1
+
+
+--- Residual series a[2] (ec1) ---
+Unconditional residuals (seasonal period: 1)
+61 observations: from 1851 to 1911
+
+                  Mean:          -0.001728
+Standard error of mean:           0.043689
+              Variance:           0.116431
+    Standard deviation:           0.341220
+              Skewness:          -0.738293
+              Kurtosis:           0.471605
+               Minimum:          -0.973776 at 1870 (observation  20)
+               Maximum:           0.689832 at 1885 (observation  35)
+
+Standardized time series plot (original values on right-side column):
+
+                    -2       -1        0       +1       +2        
+-------------+-------+--------+--------+--------+--------+-------+--------------
+   1   1851  |       :      * :        |        :        :       | -0.4271372621
+   2   1852  |       :        :        *        :        :       |  0.0150679037
+   3   1853  |       :        :       *|        :        :       | -0.0216274002
+   4   1854  |       :        :        |  *     :        :       |  0.1341423765
+   5   1855  |       :        :        |   *    :        :       |  0.1351245366
+   6   1856  |       :        :        |        *        :       |  0.3348218243
+   7   1857  |       :        :        |        *        :       |  0.3289124449
+   8   1858  |       :        :        |  *     :        :       |  0.1282596648
+   9   1859  |       :        :  *     |        :        :       | -0.2162000382
+  10   1860  |       :    *   :        |        :        :       | -0.4920834154
+  11   1861  |       :        : *      |        :        :       | -0.2716593231
+  12   1862  |       :        :        |        :*       :       |  0.3738844780
+  13   1863  |       :        :  *     |        :        :       | -0.2351338060
+  14   1864  |       :        :        |        : *      :       |  0.4088704886
+  15   1865  |       :        :   *    |        :        :       | -0.1893186370
+  16   1866  |       :        :    *   |        :        :       | -0.1721259307
+  17   1867  |       :        :        |        *        :       |  0.3430937314
+  18   1868  |       :        :        |        *        :       |  0.3482203580
+  19   1869  |       :        :*       |        :        :       | -0.3153471775
+  20   1870 >|*      :        :        |        :        :       |>-0.9737762309
+  21   1871  |       :        :        |        *        :       |  0.3326324943
+  22   1872  |       :        :        |*       :        :       |  0.0402971309
+  23   1873  |       :        :       *|        :        :       | -0.0382591710
+  24   1874  |       :        :        |     *  :        :       |  0.2438455022
+  25   1875  |       :        :        |       *:        :       |  0.2921141617
+  26   1876  |       :        :        |        : *      :       |  0.4259812979
+  27   1877  |       :        :     *  |        :        :       | -0.1169722544
+  28   1878  |       :        :        |        *        :       |  0.3509416031
+  29   1879  |       :        : *      |        :        :       | -0.2580849915
+  30   1880 >|       *        :        |        :        :       |>-0.7040070799
+  31   1881  |       :        :        | *      :        :       |  0.0834311871
+  32   1882  |       :        :        *        :        :       |  0.0104890134
+  33   1883  |       :        :        |*       :        :       |  0.0547453565
+  34   1884  |       :        :        |   *    :        :       |  0.1418109290
+  35   1885 >|       :        :        |        :        *       |> 0.6898316791
+  36   1886  |       :        :  *     |        :        :       | -0.2251791078
+  37   1887  |       :        :        |       *:        :       |  0.2992337586
+  38   1888  |       :        :        |  *     :        :       |  0.0957350398
+  39   1889 >|      *:        :        |        :        :       |>-0.7412885540
+  40   1890  |       :        :       *|        :        :       | -0.0260427641
+  41   1891  |       :        :  *     |        :        :       | -0.2269438505
+  42   1892  |       :        :        |*       :        :       |  0.0537252118
+  43   1893  |       :        :        |        *        :       |  0.3392760570
+  44   1894  |       :        :  *     |        :        :       | -0.2355564598
+  45   1895  |       :        :        |     *  :        :       |  0.2288375885
+  46   1896  |       :        :        |        : *      :       |  0.4184878877
+  47   1897  |       :        :       *|        :        :       | -0.0405132983
+  48   1898  |       :        :        |      * :        :       |  0.2725149127
+  49   1899  |       :       *:        |        :        :       | -0.4053918613
+  50   1900  |       :        :   *    |        :        :       | -0.1864868406
+  51   1901  |       :        :        |   *    :        :       |  0.1410576967
+  52   1902  |       :        :        |        : *      :       |  0.4276440283
+  53   1903  |       :        :     *  |        :        :       | -0.0991560147
+  54   1904  |       :        :  *     |        :        :       | -0.2188398678
+  55   1905  |       :        :        |        :*       :       |  0.3718766561
+  56   1906  |       :        :    *   |        :        :       | -0.1603433003
+  57   1907  |       :       *:        |        :        :       | -0.3750866539
+  58   1908 >| *     :        :        |        :        :       |>-0.9279615014
+  59   1909  |       :        :        |     *  :        :       |  0.2460569979
+  60   1910  |       :        :        |  *     :        :       |  0.0999251849
+  61   1911  |       :        :        *        :        :       | -0.0157610756
+-------------+-------+--------+--------+--------+--------+-------+--------------
+                    -2       -1        0       +1       +2        
+
+                 +------------------------------------------+
+                 |       Table of standardized values       |
+                 |       greater than or equal to 2.0       |
+                 +------------------------------------------+
+                 |                                          |
+                 | Observation    Date   Standardized value |
+                 |                                          |
+                 |     20         1870         -2.85        |
+                 |     30         1880         -2.06        |
+                 |     35         1885          2.03        |
+                 |     39         1889         -2.17        |
+                 |     58         1908         -2.71        |
+                 +------------------------------------------+
+
+Standardized time series histogram:
+
+       -4      -3      -2      -1       0      +1      +2      +3      +4
+        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+        |                                 13                            |
+        |                                ....                            |
+        |                         11     ....                            |
+        |                        ....    .... 10                         |
+        |                        ....  9 ........ 9                      |
+        |                        ....................                    |
+        |                        ....................                    |
+        |                        ....................                    |
+        |                        ....................                    |
+        |                        ....................                    |
+        |                        ....................                    |
+        |                      4 ....................                    |
+        |                    ........................                    |
+        |          2  2      ........................                    |
+        |        ........    ........................      1             |
+        |        ........    ........................    ....            |
+        |        ........    ........................    ....            |
+        +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+       -4      -3      -2      -1       0      +1      +2      +3      +4
+
+              18 values outside (-1,+1): 29.51 % (31.74 % expected)
+               5 values outside (-2,+2):  8.20 % ( 4.56 % expected)
+
+Autocorrelation function (acf bands =  0.256):
+
+            -1                         0                         1  L-B Q  DF
+-------------+-------------------------+-------------------------+--------------
+   1   0.001 |                   :     |     :                   | 
+   2  -0.142 |                   : ****|     :                   | 
+   3  -0.043 |                   :    *|     :                   | 
+   4  -0.148 |                   : ****|     :                   | 
+   5  -0.141 |                   : ****|     :                   | 
+   6  -0.248 |                   ******|     :                   | 
+   7   0.013 |                   :     |     :                   | 
+   8  -0.035 |                   :    *|     :                   | 
+   9   0.255 |                   :     |******                   |  13.49   8
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1  L-B Q  DF
+
+Partial autocorrelation function (pacf bands =  0.256):
+
+            -1                         0                         1
+-------------+-------------------------+-------------------------+--------------
+   1   0.001 |                   :     |     :                   | 
+   2  -0.142 |                   : ****|     :                   | 
+   3  -0.044 |                   :    *|     :                   | 
+   4  -0.172 |                   : ****|     :                   | 
+   5  -0.164 |                   : ****|     :                   | 
+   6  -0.332 |                 ********|     :                   | 
+   7  -0.112 |                   :  ***|     :                   | 
+   8  -0.253 |                   ******|     :                   | 
+   9   0.127 |                   :     |***  :                   | 
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1
+
+
+--- Cross-correlation functions between residuals ---
+
+CROSS CORRELATION a[2] (ec1) - a[1] (muskrat)
+      ec1 --> muskrat IF k > 0
+      muskrat --> ec1 IF k < 0
+CCF BANDS  2.0/SQRT(N) =  0.25607:
+
+            -1                         0                         1
+-------------+-------------------------+-------------------------+--------------
+  -9   0.098 |                   :     |**   :                   |                            
+  -8  -0.119 |                   :  ***|     :                   |                            
+  -7   0.012 |                   :     |     :                   |                            
+  -6  -0.115 |                   :  ***|     :                   |                            
+  -5  -0.039 |                   :    *|     :                   |                            
+  -4   0.053 |                   :     |*    :                   |                            
+  -3   0.023 |                   :     |*    :                   |                            
+  -2  -0.234 |                   ******|     :                   |                            
+  -1  -0.012 |                   :     |     :                   |                            
+   0   0.658 |                   :     |****************         |                            
+   1   0.004 |                   :     |     :                   |                            
+   2  -0.243 |                   ******|     :                   |                            
+   3  -0.007 |                   :     |     :                   |                            
+   4   0.017 |                   :     |     :                   |                            
+   5   0.061 |                   :     |**   :                   |                            
+   6  -0.075 |                   :   **|     :                   |                            
+   7  -0.039 |                   :    *|     :                   |                            
+   8   0.071 |                   :     |**   :                   |                            
+   9   0.147 |                   :     |**** :                   |                            
+-------------+-------------------------+-------------------------+--------------
+            -1                         0                         1
+Q(10) = 33.846     k >= 0      Q( 9) =  6.579      k > 0
+Q(10) = 33.820     k <= 0      Q( 9) =  6.553      k < 0
+
+=============================================================

@@ -253,7 +253,11 @@ def fit_search(spec, rd, seed, njitter=1, log=None):
     cold = init_guess(spec, rd)
     if any(abs(a - b) > 1e-12 for a, b in zip(cold, seed)):
         TRY("cold", cold)
-    if spec.r > 0:
+    if spec.b2_fix is not None and spec.fixb2_given and spec.r > 0:
+        # -fixb2 v: the old seed too, Lambda, F and Sigma from the static-OLS W
+        # (inconsistent with v, BUG-33, but a search must not end below it)
+        TRY("ols-b2", init_guess(spec, rd, consistent=False))
+    if spec.r > 0 and spec.b2_fix is None:
         TRY("johansen", init_guess(spec, rd, seedjoh=True))
     cls = spec.theta_class()
     if spec.q > 0 and cls != "q0":

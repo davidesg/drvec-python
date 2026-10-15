@@ -92,11 +92,10 @@ def unpack(spec, x, hold=None):
     B2 = zeros(s, max(r, 1))
     for j in range(r):
         for i in range(s):
-            v = spec.b2_held(i)
-            if v is None:
+            if spec.b2_held(i) is None:
                 B2[i][j] = x[idx]; idx += 1
             else:
-                B2[i][j] = float(v)
+                B2[i][j] = float(spec.b2_value(i, j))
     if spec.xlink:
         from .xlink import npar as xl_npar
         xp = list(x[idx:idx + xl_npar(spec.xlink)])

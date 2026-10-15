@@ -46,6 +46,11 @@ class Spec:
     xlink: tuple = ()         # -xlink: xlink.Link's (the inputs live in Data.xl)
     xsys: tuple = ()          # -xsys: the input series (0-based, .inp order), embedded
                               # as strongly exogenous: alpha_X = 0, Gamma_k[X][j] = 0
+    alpha: tuple = ()         # -alpha FILE / -weakex i: A (M rows, .inp order, sa columns)
+                              # of alpha = A psi; () = alpha free
+    weakex: int = 0           # -weakex i (1-based): A is the identity without column i
+    b2_fix: tuple = None      # -fixb2 [v]: B2 held whole, s x r values (v, or static OLS)
+    fixb2_given: bool = False  # -fixb2 v (an a-priori value) rather than -fixb2 alone
 
     def __post_init__(self):
         if self.ma not in MA_CLASSES:
@@ -65,11 +70,20 @@ class Spec:
         return self.drift is None or i >= len(self.drift) or bool(self.drift[i])
 
     def b2_held(self, i):
-        """The value row i of B2 is held at (-fixb2row), or None."""
+        """The value row i of B2 is held at (-fixb2row; -fixb2: its first
+        column's), or None when the row is estimated."""
+        if self.b2_fix is not None:
+            return self.b2_fix[i][0] if self.r > 0 else None
         for row, v in self.b2_hold:
             if row == i:
                 return v
         return None
+
+    def b2_value(self, i, j):
+        """The held value of B2[i][j] (b2_held(i) is not None)."""
+        if self.b2_fix is not None:
+            return self.b2_fix[i][j]
+        return self.b2_held(i)
 
     def b2_nheld(self):
         return sum(1 for i in range(self.s) if self.b2_held(i) is not None)
@@ -103,11 +117,21 @@ class Spec:
 
     @property
     def alpha_sa(self):
-        """The columns of A in alpha = A psi (-xsys at r >= 1), or 0 (alpha free)."""
-        return self.M - len(self.xsys) if (self.xsys and self.r >= 1) else 0
+        """The columns of A in alpha = A psi (-xsys, -alpha, -weakex at r >= 1),
+        or 0 (alpha free)."""
+        if self.r < 1:
+            return 0
+        if self.xsys:
+            return self.M - len(self.xsys)
+        if self.alpha:
+            return len(self.alpha[0])
+        return 0
 
     def alpha_A(self):
-        """A (M x sa, .inp rows): the identity without the inputs' columns."""
+        """A (M x sa, .inp rows): -alpha's or -weakex's, or for -xsys the
+        identity without the inputs' columns."""
+        if self.alpha and not self.xsys:
+            return [list(row) for row in self.alpha]
         sa = self.alpha_sa
         A = [[0.0] * sa for _ in range(self.M)]
         c = 0
