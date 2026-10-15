@@ -262,7 +262,35 @@ def init_guess(spec, rd, seedjoh=False):
         x += [EdY2[i] for i in range(s) if spec.mu_free(i)] + [EW[j] for j in range(r)]
     if spec.trend:
         x += [ET[j] for j in range(r)]
-    x += [Lam[i][j] for i in range(M) for j in range(r)]
+    sa = spec.alpha_sa
+    if sa:
+        # psi = (A'A)^-1 A' Lambda_ols: the free seed projected onto the
+        # restriction (drvec.c:4176-4205)
+        from .params import RowOrder
+        l2i = RowOrder(M, r).lam2inp
+        A = spec.alpha_A()
+        AtA = zeros(sa, sa)
+        for a in range(sa):
+            for b in range(sa):
+                acc = 0.0
+                for i in range(M):
+                    acc += A[i][a] * A[i][b]
+                AtA[a][b] = acc
+        ip = ludcp(AtA, sa)
+        psi = zeros(sa, max(r, 1))
+        for j in range(r):
+            AtL = [0.0] * sa
+            for a in range(sa):
+                acc = 0.0
+                for i in range(M):
+                    acc += A[l2i(i)][a] * Lam[i][j]
+                AtL[a] = acc
+            lusol(AtA, AtL, sa, ip)
+            for a in range(sa):
+                psi[a][j] = AtL[a]
+        x += [psi[a][j] for a in range(sa) for j in range(r)]
+    else:
+        x += [Lam[i][j] for i in range(M) for j in range(r)]
     for k in range(nf):
         x += [F[k][i][j] for i in range(M) for j in range(M) if spec.f_free(i, j)]
     from .params import theta_len

@@ -43,6 +43,8 @@ class Spec:
                               # -case pre); by series, .inp order; None = all free
     trend: bool = False       # -trend (case 4): a trend in W, restricted to beta
     b2_hold: tuple = ()       # -fixb2row: ((row, value), ...), rows of B2 held, 0-based
+    xsys: tuple = ()          # -xsys: the input series (0-based, .inp order), embedded
+                              # as strongly exogenous: alpha_X = 0, Gamma_k[X][j] = 0
 
     def __post_init__(self):
         if self.ma not in MA_CLASSES:
@@ -88,8 +90,31 @@ class Spec:
             return "marow" if self.r > 0 else "free"
         return self.ma
 
+    def is_input(self, a):
+        """xs_is_int (drvec.c:846): internal row a is an -xsys input."""
+        return bool(self.xsys) and RowOrder(self.M, self.r).lam2inp(a) in self.xsys
+
     def f_free(self, i, j):
-        return i == j if self.diag_ar else True
+        """Entry (i, j), internal order, of each F_k is a parameter (drvec.c:853)."""
+        if self.diag_ar:
+            return i == j
+        return i == j or not self.is_input(i)
+
+    @property
+    def alpha_sa(self):
+        """The columns of A in alpha = A psi (-xsys at r >= 1), or 0 (alpha free)."""
+        return self.M - len(self.xsys) if (self.xsys and self.r >= 1) else 0
+
+    def alpha_A(self):
+        """A (M x sa, .inp rows): the identity without the inputs' columns."""
+        sa = self.alpha_sa
+        A = [[0.0] * sa for _ in range(self.M)]
+        c = 0
+        for i in range(self.M):
+            if i not in self.xsys:
+                A[i][c] = 1.0
+                c += 1
+        return A
 
     def f_nfree(self):
         M = self.M
@@ -105,7 +130,7 @@ class Spec:
         nmean = (r if self.case == 2 else
                  (sum(self.mu_free(i) for i in range(s)) + r if self.case == 3 else 0))
         nmean += r if self.trend else 0
-        nlam = M * r
+        nlam = (self.alpha_sa or M) * r
         nmid = self.nf * self.f_nfree() + theta_len(self.theta_class(), self.q, M, r) + self.nsig()
         return nmean, nlam, nmid, (s - self.b2_nheld()) * r
 
@@ -212,9 +237,13 @@ def slot_labels(spec, names):
         out += [(f"E[ec{j + 1}]", "mean", 1) for j in range(r)]
     if spec.trend:
         out += [(f"trend[ec{j + 1}]", "trend", 1) for j in range(r)]
-    for a in range(M):
-        for j in range(r):
-            out.append((f"D.{nm(a)} <- ec{j + 1}", "alpha", -1))
+    if spec.alpha_sa:
+        out += [(f"psi[{a + 1} <- ec{j + 1}]", "psi", 1)
+                for a in range(spec.alpha_sa) for j in range(r)]
+    else:
+        for a in range(M):
+            for j in range(r):
+                out.append((f"D.{nm(a)} <- ec{j + 1}", "alpha", -1))
     for k in range(spec.nf):
         for a in range(M):
             for b in range(M):

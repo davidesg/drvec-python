@@ -19,6 +19,7 @@ CASES = {
     "nodrift": (MM, (2, 0, 1), dict(case=3, nodrift=[1])),
     "casepre": (MU, (2, 0, 1), dict(case="pre")),
     "trend": (MU, (2, 0, 1), dict(case="pre", trend=True)),
+    "xsys": (MM, (3, 0, 1), dict(case=2, xsys=[1])),
 }
 
 _FITS = {}
@@ -106,3 +107,21 @@ def test_irfboot_out_and_file(irfboot):
 def test_irfboot_refusal():
     with pytest.raises(ValueError, match="-irfboot bootstraps the responses"):
         drvec.fit(MU, 2, 0, 1, case="pre", trend=True, irfboot=10)
+
+
+def test_xsys():
+    res = _fit("xsys")
+    out = out_text("xsys.out")
+    assert abs(res.lr_free - number_after(out, "logL VEC free          :")) < 1e-6
+    assert res.xs_df == 3
+    assert [p.label for p in res.params if p.kind == "psi"] == ["psi[1 <- ec1]"]
+
+
+def test_xsys_refusals():
+    """The gaps the C declares, with its words: q > 0, the Y1 block, every series."""
+    with pytest.raises(ValueError, match="a moving average \\(q > 0, not"):
+        drvec.fit(MM, 2, 1, 1, case=2, xsys=[1])
+    with pytest.raises(ValueError, match="is in the Y1 block"):
+        drvec.fit(MM, 2, 0, 1, case=2, xsys=[2])
+    with pytest.raises(ValueError, match="every series an input"):
+        drvec.fit(MM, 2, 0, 0, case=2, xsys=[1, 2])

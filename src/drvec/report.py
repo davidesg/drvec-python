@@ -176,8 +176,10 @@ def profile_block(spec, prof):
             "  is chosen here by the likelihood rather than by a constant.\n"
             % (prof.ladder.ll, prof.mult, prof.ll_start, prof.ll))
     out += "\n  the pre-estimates the conditional step produced\n"
-    out += "    Lambda (%d x %d):\n" % (M, r)
-    for i in range(M):
+    nl = spec.alpha_sa or M
+    out += "    %s (%d x %d):\n" % ("psi, with Lambda = A*psi" if spec.alpha_sa else "Lambda",
+                                 nl, r)
+    for i in range(nl):
         out += "     " + "".join(" %12.6f" % x2[nmean + i * r + j] for j in range(r)) + "\n"
     out += "    B2 (%d x %d)%s:\n" % (s, r, ", rows held by -fixb2row marked *"
                                        if spec.b2_hold else "")
@@ -496,6 +498,24 @@ def _report_fit(res, sofar):
         o += "LR = 2(free - restr.)  : %15.10f\n" % lr
         o += "degrees of freedom     : %d   (rows held)*r\n" % df
         o += "p-value (chi2)         : %15.10f\n" % pv
+    elif spec.xsys and getattr(res, "lr_free", None) is not None:
+        df = res.xs_df
+        lr = 2.0 * (res.lr_free - res.loglik)
+        pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
+        o += ("\n--- the inputs embedded by -xsys: strong exogeneity, against the free "
+              "VEC ---\n")
+        for i in spec.xsys:
+            o += ("%s: alpha = 0 and no other series in its short run (Gamma(k) row)\n"
+                  % names[i])
+        o += "logL VEC free          : %15.10f\n" % res.lr_free
+        o += "logL inputs embedded   : %15.10f\n" % res.loglik
+        o += "LR = 2(free - restr.)  : %15.10f\n" % lr
+        o += ("degrees of freedom     : %d   r*(inputs) + (p-1)*(Gamma entries held)\n"
+              % df)
+        o += "p-value (chi2)         : %15.10f\n" % pv
+        o += ("  Not rejecting is what licenses reading the rows of the outputs as a\n"
+              "  transfer from the inputs: their entry in beta (the gain), their lags\n"
+              "  in Gamma and the covariance Q (omega_0, the SVAR identity).\n")
 
     # the walk, with the index of every slot (ix_* of report_fit)
     labs_idx = 0
@@ -515,9 +535,13 @@ def _report_fit(res, sofar):
     if spec.trend:
         ix_tr = list(range(idx, idx + r)); idx += r
     ix_lam = {}
-    for i in range(M):
-        for j in range(r):
-            ix_lam[(i, j)] = idx; idx += 1
+    ix_psi = []
+    if spec.alpha_sa:
+        ix_psi = list(range(idx, idx + spec.alpha_sa * r)); idx += spec.alpha_sa * r
+    else:
+        for i in range(M):
+            for j in range(r):
+                ix_lam[(i, j)] = idx; idx += 1
     ix_F = {}
     for k in range(spec.nf):
         for i in range(M):
@@ -580,10 +604,17 @@ def _report_fit(res, sofar):
                 o += par_row("  trend[ec%d]" % (a + 1), x[ix_tr[a]], dev[ix_tr[a]])
     if r > 0:
         o += "\nAdjustment coefficients, alpha (M x r)   [negative = error-correcting]\n"
-        for a in range(M):
-            for b in range(r):
-                ii = ix_lam[(i2l(a), b)]
-                o += par_row("  D.%s <- ec%d" % (names[a], b + 1), -x[ii], dev[ii])
+        if spec.alpha_sa:
+            o += "  free part psi of alpha = A*psi; Lambda = A*psi is in the model block\n"
+            for a in range(spec.alpha_sa):
+                for b in range(r):
+                    ii = ix_psi[a * r + b]
+                    o += par_row("  psi[%d <- ec%d]" % (a + 1, b + 1), x[ii], dev[ii])
+        else:
+            for a in range(M):
+                for b in range(r):
+                    ii = ix_lam[(i2l(a), b)]
+                    o += par_row("  D.%s <- ec%d" % (names[a], b + 1), -x[ii], dev[ii])
     if r > 0 and s > 0:
         o += "\nCointegrating vectors, beta = [I_r ; beta_2], normalised on the Y1 block\n"
         for a in range(s):
@@ -912,9 +943,12 @@ def _hypothesis_block(res, ro, ix_lam, ix_B2, ix_F, ix_Th):
     i2l = ro.inp2lam
     o = banner("Joint Hypothesis Tests (Wald)")
     if r > 0:
-        idx = [ix_lam[(i, j)] for i in range(M) for j in range(r)]
-        w = wald_sub(x, cov, idx)
-        if w is not None:
+        idx = [ix_lam[(i, j)] for i in range(M) for j in range(r) if (i, j) in ix_lam]
+        w = wald_sub(x, cov, idx) if idx else None
+        if not idx:
+            o += ("\nError-correction term as a whole\n"
+                  "  alpha is not free (-alpha imposes alpha = A*psi): nothing to test\n")
+        elif w is not None:
             o += ("\nError-correction term as a whole\n"
                   "  H0: alpha = 0\n"
                   "  Wald chi2(%d) = %.4f, p-value = %.4f\n"
@@ -924,7 +958,7 @@ def _hypothesis_block(res, ro, ix_lam, ix_B2, ix_F, ix_Th):
               % r)
         for i in range(M):
             li = i2l(i)
-            idx = [ix_lam[(li, j)] for j in range(r)]
+            idx = [ix_lam[(li, j)] for j in range(r) if (li, j) in ix_lam]
             nm = names[i]
             o += emit_wald(x, cov, idx, "%s (%s block):" % (nm, "nabla Y2" if i < s else "Y1"),
                            "H0: this variable does not adjust",

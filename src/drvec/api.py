@@ -37,7 +37,8 @@ class FitResult:
     data: object = None     # the data as read (the .out's header and diagnostics)
     cov: object = None      # the BFGS covariance of the winner (npar x npar)
     drift_how: str = None   # "pre" (-case pre) or "nodrift" when drifts are held
-    lr_free: float = None   # -fixb2row: logL of the free model
+    lr_free: float = None   # -fixb2row, -xsys: logL of the free model
+    xs_df: int = None       # -xsys: the parameters the embedding removes
     irfboot: object = None  # -irfboot: irfboot.IrfBoot
 
     def irfboot_text(self, base):
@@ -117,7 +118,7 @@ def _drift_mask(data, case, nodrift):
 
 
 def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
-        fixb2row=None, nodrift=None, trend=False, irfboot=0, log=None):
+        fixb2row=None, nodrift=None, trend=False, irfboot=0, xsys=None, log=None):
     """Estimate the VARMA-VEC of rank r on the `.pre` files (the C's
     `drvec f1.pre ... p q r -case <case>`), with the C's ladder and search.
 
@@ -134,6 +135,30 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
             "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
             "       -specs, -rungs, -matest, -artest and -eval (not yet).")
     data = _data(pre_files)
+    xs = ()
+    if xsys:
+        if q > 0 or fixb2row:
+            raise ValueError(
+                "-xsys embeds an input in the system for a single fit with\n"
+                "       q = 0.  It cannot be combined with -alpha/-weakex (it sets\n"
+                "       alpha itself), -xlink, -warma, a moving average (q > 0, not\n"
+                "       yet), or the modes -lrtest, -specs, -rungs, -matest, -artest\n"
+                "       and -eval.")
+        M = data.M
+        if len(set(xsys)) >= M:
+            raise ValueError("-xsys declares every series an input: there is nothing "
+                             "left to explain.")
+        for i in xsys:
+            if not 1 <= i <= M:
+                raise ValueError(f"-xsys {i}: the system has {M} series")
+            if i > M - r:
+                raise ValueError(
+                    f"-xsys {i}: series {i} is in the Y1 block (the last {r} of\n"
+                    "       the input), on which beta is normalised.  An input does\n"
+                    "       not adjust to the equilibrium, so it cannot be the\n"
+                    "       series a relation is solved for: put it in the nabla Y2\n"
+                    f"       block (among the first {M - r}).")
+        xs = tuple(sorted(set(i - 1 for i in xsys)))
     case, drift, how = _drift_mask(data, case, nodrift)
     if trend and case != 3:
         raise ValueError("-trend (case 4) goes on case 3's drifts (-case 3 or -case pre)")
@@ -147,7 +172,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
                 raise ValueError(f"-fixb2row {i}: B2 has {s} row{'' if s == 1 else 's'} (the "
                                  f"nabla Y2 block, the first {s} series in the input's order).")
         hold = tuple(sorted((i - 1, float(v)) for i, v in fixb2row.items()))
-    spec = Spec(data.M, p, q, r, case, ma, diag_ar, diag_cov, drift, trend, hold)
+    spec = Spec(data.M, p, q, r, case, ma, diag_ar, diag_cov, drift, trend, hold, xs)
     if spec.npar() >= (data.nobs_raw - 1) * data.M:
         raise ValueError(f"the model has {spec.npar()} parameters and the sample "
                          f"{(data.nobs_raw - 1) * data.M} data points")
@@ -161,6 +186,14 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         rdf = data.at(r)
         rf = fit_search(sf, rdf, init_guess(sf, rdf))
         lr_free = rf.ll if rf.ifault == 0 else None
+    xs_df = None
+    if xs:
+        # the free VEC, as the C fits it for the LR of strong exogeneity:
+        # the ladder start and the search (drvec.c:11383-11414)
+        sf = spec.but(xsys=())
+        rf, _ = fit_rank(sf, data)
+        lr_free = rf.ll if rf.ifault == 0 else None
+        xs_df = sf.npar() - spec.npar()
     res, info = fit_rank(spec, data, log)
     if res.ifault != 0:
         raise RuntimeError(f"ESTIMATION FAILED: ifault = {res.ifault}")
@@ -172,6 +205,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
                     ma_min_modulus(theta), data, e.cov)
     out.drift_how = how
     out.lr_free = lr_free
+    out.xs_df = xs_df
     if irfboot > 0:
         from .irfboot import irf_bootstrap
         out.irfboot = irf_bootstrap(spec, data, out.x, irfboot, 10 if rd.n < 40 else 20)

@@ -48,9 +48,26 @@ def unpack(spec, x, hold=None):
         for j in range(r):
             dtr[j] = x[idx]; idx += 1
     Lam = zeros(M, max(r, 1))
-    for i in range(M):
-        for j in range(r):
-            Lam[i][j] = x[idx]; idx += 1
+    sa = spec.alpha_sa
+    if sa:                                      # alpha = A psi (-xsys), drvec.c:4448
+        from .params import RowOrder
+        l2i = RowOrder(M, r).lam2inp
+        A = spec.alpha_A()
+        psi = zeros(sa, max(r, 1))
+        for i in range(sa):
+            for j in range(r):
+                psi[i][j] = x[idx]; idx += 1
+        for i in range(M):
+            Ai = A[l2i(i)]
+            for j in range(r):
+                acc = 0.0
+                for kk in range(sa):
+                    acc += Ai[kk] * psi[kk][j]
+                Lam[i][j] = acc
+    else:
+        for i in range(M):
+            for j in range(r):
+                Lam[i][j] = x[idx]; idx += 1
     if hold is not None:
         F = [[row[:] for row in Fk] for Fk in hold["F"][:nf]]
         Th = [[row[:] for row in Tk] for Tk in hold["Th"][:q]]
