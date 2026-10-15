@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ._gsl import gensymmv_desc
 from .nla import zeros, ludcp, lusol
 
 
@@ -43,13 +44,11 @@ def prelim_b2(spec, rd):
 
 def canonical_b2(spec, rd):
     """Johansen's reduced-rank B2 (canonical_b2), or None when it cannot be
-    formed. The generalized symmetric eigenproblem is scipy's `eigh`, where the
-    C calls GSL's `gsl_eigen_gensymmv`: the B2 it gives differs from the C's by
-    2 ulps on mink-muskrat (0.41947218341803055 against 0.4194721834180301).
-    Measured effect (tests/test_johansen.py): on case 1 the `johansen` start then
-    ends 9.5e-8 away in logL (a tc-3 stop) and on case 2 5.7e-14; it wins in
-    neither case, so no winner, logL or estimate moves beyond tolerance."""
-    import scipy.linalg as sl
+    formed. The generalized symmetric eigenproblem is the C's own GSL
+    `gsl_eigen_gensymmv` through ctypes when libgsl is on the system, and
+    scipy's `eigh` otherwise (`_gsl.py`). scipy's is a few ulps off: 2 ulps
+    in B2 on mink-muskrat, which moves the `johansen` start by up to 9.5e-8
+    in logL there, and by 0.47 on Lutkepohl's E1 (tests/test_johansen.py)."""
     M, r, s, p, n = spec.M, spec.r, spec.s, spec.p, rd.n
     nf = spec.nf
     T = n - p
@@ -127,11 +126,9 @@ def canonical_b2(spec, rd):
             A[i][j] = ss
     As = np.array([[0.5 * (A[i][j] + A[j][i]) for j in range(M)] for i in range(M)])
     Bs = np.array([[0.5 * (S11[i][j] + S11[j][i]) for j in range(M)] for i in range(M)])
-    try:
-        _ev, V = sl.eigh(As, Bs)
-    except (np.linalg.LinAlgError, ValueError):
+    V = gensymmv_desc(As, Bs)                       # GSL_EIGEN_SORT_VAL_DESC
+    if V is None:
         return None
-    V = V[:, ::-1]                                  # GSL_EIGEN_SORT_VAL_DESC
     bet = [[float(V[i, j]) for j in range(r)] for i in range(M)]
     Bt = [[bet[j][i] for j in range(r)] for i in range(r)]      # Btop'
     ip3 = ludcp(Bt, r)

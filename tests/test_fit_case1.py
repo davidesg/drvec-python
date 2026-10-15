@@ -8,6 +8,9 @@ from conftest import PRE
 from oracle import est_pairs, number_after, out_text, param_table
 
 import drvec
+from drvec._gsl import backend
+
+GSL = backend() == "gsl"
 
 OUT = out_text("proute.out")
 
@@ -24,9 +27,9 @@ def test_the_est_calls_are_the_cs(fit):
     c = est_pairs("proute")
     assert len(log) == len(c) == 24
     for k, ((label, spec, start, er), (cstart, cll, _s2, _i, cx)) in enumerate(zip(log, c)):
-        if label == "johansen":
+        if label == "johansen" and not GSL:
             # scipy's eigh where the C calls GSL's gensymmv: the canonical B2 is
-            # 2 ulps off, so these starts and fits are near, not equal (TODO.md)
+            # 2 ulps off, so these starts and fits are near, not equal
             assert max(abs(a - b) for a, b in zip(start, cstart)) < 1e-12, k
             assert abs(er.ll - cll) < 1e-6, k
             continue

@@ -8,11 +8,13 @@ from conftest import PRE
 from oracle import boot_rows, est_pairs, out_text
 
 import drvec
+from drvec._gsl import backend
 from drvec.rank import simulate_h0, fit_rank
 from drvec.rng import Rng
 from drvec.start import init_guess
 
 OUT = out_text("rankboot.out")
+GSL = backend() == "gsl"
 
 
 @pytest.fixture(scope="module")
@@ -52,12 +54,12 @@ def test_boot_file_replication_by_replication(test_result):
     for line, (h0, rep, st, lr) in zip(mine, c):
         a, b, s, v = line.split(",")
         assert (int(a), int(b), s) == (h0, rep, st)
-        # 18 of 20 are byte-identical; reps 6 and 13 differ by ~1e-13 through
-        # the Johansen start (scipy vs GSL), which wins there (TODO.md)
+        # with scipy's eigh 18 of 20 are byte-identical; reps 6 and 13 differ by
+        # ~1e-13 through the Johansen start, which wins there
         assert abs(float(v) - lr) < 1e-9
     identical = sum(l == ("%d,%d,%s,%.17g" % (h0, rep, st, lr))
                     for l, (h0, rep, st, lr) in zip(mine, c))
-    assert identical >= 18
+    assert identical == 20 if GSL else identical >= 18
 
 
 def test_the_first_replication_data_is_the_cs():
@@ -82,7 +84,7 @@ def test_the_observed_est_calls_are_the_cs():
     c = est_pairs("rankboot")[:11]
     assert len(log) == 11
     for k, ((label, _sp, start, er), (cs, cll, _s, _i, cx)) in enumerate(zip(log, c)):
-        if label == "johansen":
+        if label == "johansen" and not GSL:
             assert abs(er.ll - cll) < 1e-12
             continue
         assert (start, er.x, er.ll) == (cs, cx, cll), k
