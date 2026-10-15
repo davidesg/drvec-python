@@ -54,6 +54,17 @@ TOL_EST = 1e-4
 TOL_SE = 1e-3
 TOL_LR = 1e-6
 
+# -fdhess's standard errors (milestone 3). They do not follow the optimiser's
+# path, but they are NOT bit-stable either: the objective carries ~1e-14
+# relative noise (AS 311's sums at |Sigma| ~ 1e-11), and the C's step,
+# macheps^(1/3) * max(|x|, 1) ~ 6e-6, divides it by ~4e-11. Measured on Linux
+# x86_64 (tests/test_fdhess.py, test_noise_floor): moving x by one or two
+# ulps moves an s.e. by up to 4.5e-3 RELATIVE (E1, D.invest <- ec1) and 1.3e-3
+# on mink-muskrat (6e-3 absolute on E[ec1], whose s.e. is 6.9). Off the
+# oracle's platform the compiled likelihood rounds differently, which is the
+# same kind of perturbation: the tier is relative, 2e-2, a 4x margin.
+TOL_FDSE_REL = 2e-2
+
 fragile = pytest.mark.skipif(
     not EXACT, reason="replays one trajectory bit for bit: fragile off the oracle's "
                       "platform (Linux x86_64)")

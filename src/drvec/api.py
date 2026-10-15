@@ -43,6 +43,7 @@ class FitResult:
     xl_base_info: object = None  # its ladder and profile (written to the .out)
     xl_bridge_ll: float = None  # logL at that optimum with omega = 0
     irfboot: object = None  # -irfboot: irfboot.IrfBoot
+    fdhess: object = None   # -fdhess: fdhess.FdHess (se and cov are its when .ok)
 
     def irfboot_text(self, base):
         """<base>.irfboot, as the C writes it (None without -irfboot)."""
@@ -124,7 +125,7 @@ def _drift_mask(data, case, nodrift):
 
 def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         fixb2row=None, nodrift=None, trend=False, irfboot=0, xsys=None,
-        xpre=None, xlink=None, forecast=0, log=None):
+        xpre=None, xlink=None, forecast=0, fdhess=False, log=None):
     """Estimate the VARMA-VEC of rank r on the `.pre` files (the C's
     `drvec f1.pre ... p q r -case <case>`), with the C's ladder and search.
 
@@ -133,7 +134,8 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     the C's -fixb2row i v; the free model is fitted too, for the LR. nodrift:
     1-based series whose drift is held at 0 (-nodrift). trend: -trend (case 4).
     irfboot: -irfboot N, bands for the level responses and the decomposition by
-    the parametric bootstrap."""
+    the parametric bootstrap. fdhess: -fdhess, the standard errors from the
+    finite-difference Hessian at the optimum."""
     if (xpre or xlink) and not (xpre and xlink):
         raise ValueError("-xpre and -xlink go together: the inputs and the\n"
                          "       network of links that says where they enter.")
@@ -264,6 +266,14 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     if links:
         out.xl_base_ll, out.xl_base_info = xl_base
         out.xl_bridge_ll = xl_bridge
+    if fdhess:
+        # report_fit's first step (drvec.c:7805): the s.e. and the covariance
+        # every Wald test reads are replaced when the Hessian is usable
+        from .fdhess import exact_hessian_se
+        out.fdhess = exact_hessian_se(spec, rd, out.x)
+        if out.fdhess.ok:
+            out.se = list(out.fdhess.dev)
+            out.cov = out.fdhess.cov
     if irfboot > 0:
         from .irfboot import irf_bootstrap
         out.irfboot = irf_bootstrap(spec, data, out.x, irfboot, 10 if rd.n < 40 else 20)

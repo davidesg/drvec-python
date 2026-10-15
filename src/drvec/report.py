@@ -478,7 +478,15 @@ def _report_fit(res, sofar):
     npar = len(x)
     code = _termcode_from_text(sofar)
     head, note = _CONV.get(code, ("the termination criterion could not be read", None))
-    o = "Convergence      : %s\n" % head
+    o = ""
+    fh = getattr(res, "fdhess", None)
+    if fh is not None:
+        if fh.ok:
+            o += "Standard errors  : finite-difference Hessian at the optimum (-fdhess)\n"
+        else:                                   # BUG-34: said in the .out too
+            o += ("Standard errors  : BFGS-accumulated factor -- -fdhess was asked for "
+                  "and NOT used:\n                   %s\n" % fh.why)
+    o += "Convergence      : %s\n" % head
     if note:
         o += "  ! %s\n" % note
     o += "sigma2           : %15.10f\n" % res.sigma2
@@ -686,8 +694,12 @@ def _report_fit(res, sofar):
                 o += par_row("  cov %s, %s" % (nm(a), nm(b)), Q[a][b], dev[qi]); qi += 1
     o += DASHBAR + "\n"
     o += "Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n"
-    o += ("  ! standard errors from the BFGS-accumulated factor; -fdhess uses the Hessian "
-          "at the optimum\n")
+    if fh is None:
+        o += ("  ! standard errors from the BFGS-accumulated factor; -fdhess uses the Hessian "
+              "at the optimum\n")
+    elif not fh.ok:
+        o += ("  ! standard errors from the BFGS-accumulated factor (-fdhess could not be "
+              "used, see the header)\n")
     o += _vecm_block(res, fv, ro)
     o += _coint_block(res, fv, ro)
     o += _hypothesis_block(res, ro, ix_lam, ix_B2, ix_F, ix_Th)
@@ -1061,7 +1073,9 @@ def _hypothesis_block(res, ro, ix_lam, ix_B2, ix_F, ix_Th):
                                "H0: D.%s enters no other equation" % nm,
                                "REJECT H0 -> D.%s drives the others." % nm,
                                "Cannot reject H0 -> D.%s does not drive the others." % nm)
-    o += "\n  ! p-values from the BFGS-accumulated covariance; use -fdhess before quoting them\n"
+    if getattr(res, "fdhess", None) is None:
+        o += ("\n  ! p-values from the BFGS-accumulated covariance; use -fdhess before "
+              "quoting them\n")
     return o
 
 
