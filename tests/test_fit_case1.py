@@ -132,7 +132,7 @@ def test_the_out_file(fit):
     """proute.out, all 805 lines, byte for byte after golden.sh's filter."""
     res, _ = fit
     mine = golden_filter(res.out_text("proute"))
-    if EXACT:
+    if EXACT and GSL:
         assert mine == golden_filter(OUT)
     else:
         assert len(mine.splitlines()) == len(golden_filter(OUT).splitlines())

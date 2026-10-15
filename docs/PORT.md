@@ -180,11 +180,35 @@ start wins move in the last digits (2 of 20 on rankboot, ~1e-13; on E1 up to
 3.5e-5): the tests then compare the LR* numerically and the line count of the
 .out files.
 
-Not written yet: the options of the remaining PRE_CASES (§9), `-f` forecasts,
-`-fdhess`, `-specs`, `-rungs`, `-multistart`, the `-warma` and `-alpha` blocks.
+The same holds for every remaining PRE_CASE of golden.sh: `fixb2row.out`,
+`nodrift.out`, `casepre.out`, `trend.out`, `xsys.out`, `xlink.out`,
+`irfboot.out` and `irfboot.irfboot` are byte-identical (tests/test_options.py).
 
-## 9. Not yet ported
+Not written yet: `-f` forecasts, `-fdhess`, `-specs`, `-rungs`, `-multistart`, the
+`-warma`, `-alpha`/`-weakex` and `-fixb2` blocks.
 
-The CLI, `-fdhess`, forecasting, every option but `-case 1|2|3` and the MA
-classes the search needs, `-multistart`, the -lrtest internal rescaling is ported
-but not exercised (no fixture triggers it).
+## 9. The options of milestone 2
+
+* `-fixb2row i v` (`Spec.b2_hold`): the held rows are out of the vector and in
+  the cast; the cold start sets them BEFORE W is built (BUG-33); the free model
+  is fitted for the LR as the C does (cold start and search, no ladder).
+* `-nodrift i`, `-case pre` (`Spec.drift`): a mask on case 3's drifts by series;
+  `-case pre` reads each .pre's mean flag (fue's `estimate_mu`), a mean held at
+  a non-zero value goes free; the ladder is keyed on the mask.
+* `-trend` (`Spec.trend`): r slopes after the means; W detrended on centred t in
+  the cold start, `w - dtr (t - (n+1)/2)` in the cast.
+* `-xsys i` (`Spec.xsys`): alpha = A psi (A the identity without the inputs'
+  columns) and the inputs' rows of Gamma held at zero through `Spec.f_free`; psi
+  seeded by projecting the conditional regression; the free VEC fitted with its
+  ladder for the LR. q > 0 refused, as the C does.
+* `-xpre/-xlink` (`xlink.py`): see its docstring. The VEC without the inputs is
+  fitted first and its optimum with omega = 0 starts the search (the bridge).
+* `-irfboot N` (`irfboot.py`): the rank bootstrap's generator from its seed, each
+  replication refitted with the ladder start.
+
+## 10. Not yet ported
+
+The CLI, `-fdhess`, forecasting, `-alpha`/`-weakex`, `-fixb2`, `-multistart`,
+`-specs`, `-rungs`, `-warma`/`-mawarma`, an `-xlink` input with an ARMA model or
+deterministic variables; the -lrtest internal rescaling is ported but not
+exercised (no fixture triggers it).

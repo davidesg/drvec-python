@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from conftest import EXACT, FIXTURES, TOL_EST, TOL_LL, TOL_SE
+from conftest import EXACT, FIXTURES, STRICT, TOL_EST, TOL_LL, TOL_SE
 from oracle import golden_filter, number_after, out_text, param_table
 
 import drvec
@@ -40,18 +40,18 @@ def test_logl_and_estimates(label):
     table = param_table(out)
     for p in res.params:
         est, se = table[p.label]
-        assert abs(p.value - est) <= (5.01e-7 if EXACT else TOL_EST), p.label
+        assert abs(p.value - est) <= (5.01e-7 if STRICT else TOL_EST), p.label
         if se is None:                       # an MA root on the circle: no s.e.
             assert p.kind == "theta" and res.ma_on_boundary
             continue
-        assert abs(p.se - se) <= (5.01e-7 if EXACT else TOL_SE), p.label
+        assert abs(p.se - se) <= (5.01e-7 if STRICT else TOL_SE), p.label
 
 
 @pytest.mark.parametrize("label", list(CASES))
 def test_the_out_file(label):
     mine = golden_filter(_fit(label).out_text(label))
     theirs = golden_filter(out_text(label + ".out"))
-    if EXACT:
+    if STRICT:
         assert mine == theirs
     else:
         assert len(mine.splitlines()) == len(theirs.splitlines())
@@ -92,7 +92,7 @@ def test_irfboot_out_and_file(irfboot):
     mine = golden_filter(res.out_text("irfboot"))
     theirs = golden_filter(out_text("irfboot.out"))
     fb = res.irfboot_text("irfboot")
-    if EXACT:
+    if STRICT:
         assert mine == theirs
         assert fb == out_text("irfboot.irfboot")
     else:
@@ -137,9 +137,9 @@ def test_xlink():
     table = param_table(out)
     for p in res.params:
         est, se = table[p.label]
-        assert abs(p.value - est) <= (5.01e-7 if EXACT else TOL_EST), p.label
+        assert abs(p.value - est) <= (5.01e-7 if STRICT else TOL_EST), p.label
     mine = golden_filter(res.out_text("xlink"))
-    if EXACT:
+    if STRICT:
         assert mine == golden_filter(out)
 
 

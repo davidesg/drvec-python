@@ -11,4 +11,10 @@
   `drvec.fit(pre_files, p, q, r, case=2)` and `drvec.rank_test(pre_files, p, q,
   case=2, bootstrap=B)`. Homologated against the oracle's two milestone runs
   (bit-identical except Johansen's eigenproblem, docs/PORT.md).
-- `tools/time_bootstrap.py`: the bootstrap's cost against the C's.
+- `tools/time_bootstrap.py`: the bootstrap's cost against the C's, split into
+  the cast, the compiled likelihood and the rest; `--case e1` (M = 3).
+- Milestone 2: the `.out` writer (`FitResult.out_text`, `RankTest.out_text`),
+  byte-identical to the oracle's on every PRE_CASE of its golden set;
+  `fit(..., fixb2row=, nodrift=, case="pre", trend=, xsys=, xpre=, xlink=,
+  irfboot=)`; Johansen's seed through GSL (ctypes) when libgsl is present;
+  the tests exact on Linux x86_64 and on a tolerance tier elsewhere.

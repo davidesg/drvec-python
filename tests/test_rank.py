@@ -104,7 +104,7 @@ def test_the_out_file(test_result):
     """rankboot.out, byte for byte after golden.sh's filter."""
     t, _ = test_result
     mine = golden_filter(t.out_text("rankboot"))
-    if EXACT:
+    if EXACT and GSL:
         assert mine == golden_filter(OUT)
     else:
         # the numbers move in the last printed digits off the oracle's platform:

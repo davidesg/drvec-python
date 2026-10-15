@@ -15,6 +15,35 @@
       ~12x; at that ratio the article's bootstraps (13, 89, 23 min in C) would take
       ~2.6, ~17.5 and ~4.5 h. Decision input for option (b), a cast in C.
 
+## Milestone 2 — the measurement, the .out, the remaining PRE_CASES (2026-10-15)
+
+- [x] A three-series case (Lutkepohl's E1 through fue) and the option-(b)
+      measurement below (tools/time_bootstrap.py --case e1, tests/test_e1.py).
+- [x] Johansen's seed through GSL's gensymmv (ctypes) when libgsl is present:
+      with scipy E1's `johansen` start and one LR* moved beyond tolerance.
+- [x] The tests follow the suite's platform convention: exact on Linux x86_64,
+      a tolerance tier elsewhere (tests/conftest.py).
+- [x] The .out writer (report.py, diagnose.py): proute.out, rankboot.out,
+      e1fit.out, e1boot.out and the .boot files byte-identical after golden.sh's
+      filter (docs/PORT.md §8).
+- [x] Every PRE_CASE of golden.sh, .out byte-identical: fixb2row, nodrift,
+      casepre, trend, xsys, xlink, irfboot (+ irfboot.irfboot), rankboot
+      (tests/test_options.py, tests/test_rank.py).
+- [x] The gaps the C declares, refused with its message: -xsys with q > 0, the rank
+      test with -xsys, -xlink or -trend, -xlink with -f (and -irfboot with -trend,
+      -xlink with case 1).
+
+## Next
+
+- [ ] The CLI (`drvec f1.pre f2.pre p q r [options]`), writing <base>.out/.boot/.irfboot.
+- [ ] -f (forecast) and -estwin, -fdhess, -alpha/-weakex (the alpha = A psi
+      machinery is in place for -xsys), -fixb2, -multistart, -specs, -rungs.
+- [ ] -xlink: the backcast of an input WITH an ARMA model (xl_backcast with
+      expand_ar_factors/expand_ma_factors; refused today), inputs with
+      deterministic variables.
+- [ ] The goldens on the `.inp` route (base2, case1, ... in golden.sh's CASES) are
+      out of the port's scope (the .pre route only).
+
 ## Option (b): the measurement (milestone 2, 2026-10-15)
 
 `python tools/time_bootstrap.py 20 --case e1` (and `--case mm`), on Lutkepohl's E1
@@ -63,6 +92,14 @@ What this says:
 - The case-1 optimum is on the MA invertibility wall (BUG-49) and depends on the
   bit-exact trajectory of one start: any change to the cast's arithmetic (numpy
   products, a different Cholesky) must re-run tests/test_fit_case1.py.
+- The tolerance tier off Linux x86_64 was measured on milestone 1's tests only (CI run
+  38736500814); the milestone-2 tests (E1, the options, the .out files: line counts
+  off-platform) use the same tier unmeasured. E1's fit has four tc-3 stops within
+  13 logL units: off the oracle's platform its winner (`nested`) is asserted and
+  may be the first decision to move.
+- The .out's Wald and Granger blocks, Hosking's C0 inverse and Jarque-Bera's
+  S^(-1/2) are numpy where the C uses svdcp/GSL: byte-identical on every case here,
+  but a printed fourth decimal could round the other way elsewhere (PORT.md §8).
 - `nrerror` (the line search's ROUNDOFF) is an exception, not an exit (D3).
 - The `.pre` reader: deterministic variables and D > 0 are refused; alignment is
   the C's (date intersection), not drvarma's ladder rule.

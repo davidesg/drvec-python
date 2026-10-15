@@ -38,6 +38,17 @@ E1 = [os.path.join(FIXTURES, f"e1{n}.pre") for n in ("invest", "income", "cons")
 
 EXACT = sys.platform == "linux" and platform.machine() in ("x86_64", "AMD64")
 
+# The C solves Johansen's eigenproblem and the eigenvalues it PRINTS (Pi's, the
+# operator roots) with GSL; the port calls the same GSL when it finds libgsl
+# (drvec._gsl). Without it (scipy/numpy) the johansen start lands a few ulps
+# away -- and where it wins (xsys) the standard errors move by ~2e-4 -- and the
+# printed eigenvalues may come in another order: the byte-for-byte .out tests
+# and the printed-digit tests need both.
+from drvec._gsl import backend as _backend          # noqa: E402
+
+GSL = _backend() == "gsl"
+STRICT = EXACT and GSL
+
 TOL_LL = 1e-5
 TOL_EST = 1e-4
 TOL_SE = 1e-3
