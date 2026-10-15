@@ -452,6 +452,10 @@ def fit_out(res, base):
     """The whole <base>.out of a single fit."""
     data, spec = res.data, res.spec
     out = header(data, spec, base + ".out", how=getattr(res, "drift_how", None))
+    if spec.xlink:
+        out += "\n=== -xlink: the VEC rung below, without the transfer inputs ===\n"
+        out += seed_block(spec.but(xlink=()), res.xl_base_info)
+        out += "logL of the VEC without the inputs: %18.10f\n" % res.xl_base_ll
     out += seed_block(spec, res.seed_info)
     out += search_block(res.search)
     out += _report_fit(res, out)
@@ -483,6 +487,24 @@ def _report_fit(res, sofar):
     o += "AIC              : %15.10f   (-2logL + 2k, /n)\n" % ((-2.0 * res.loglik + 2.0 * npar) / n)
     o += "BIC              : %15.10f   (-2logL + k log n, /n)\n" % (
         (-2.0 * res.loglik + npar * math.log(n)) / n)
+    if spec.xlink and res.xl_base_ll is not None:
+        from .xlink import npar as xl_npar
+        df = xl_npar(spec.xlink)
+        lr = 2.0 * (res.loglik - res.xl_base_ll)
+        pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
+        o += "\n--- the transfer inputs (-xlink), against the VEC without them ---\n"
+        o += "logL VEC without inputs      : %15.10f\n" % res.xl_base_ll
+        if res.xl_bridge_ll is not None:
+            o += ("logL at the bridge (omega=0) : %15.10f   (difference %.2e: the crossing "
+                  "identity of this rung)\n" % (res.xl_bridge_ll,
+                                               res.xl_bridge_ll - res.xl_base_ll))
+        o += "logL with the inputs         : %15.10f\n" % res.loglik
+        o += "LR = 2(inputs - VEC)         : %15.10f\n" % lr
+        o += "degrees of freedom           : %d   sum of (s+1+r)\n" % df
+        o += "p-value (chi2)               : %15.10f\n" % pv
+        o += ("  The chi2 needs the rank to be the same under both models and X fixed;\n"
+              "  the rank test itself is NOT recalibrated for exogenous inputs (TODO.md "
+              "MEJORA-2).\n")
     if spec.b2_hold and getattr(res, "lr_free", None) is not None:
         nh = spec.b2_nheld()
         df = nh * r
@@ -627,6 +649,8 @@ def _report_fit(res, sofar):
                 if (a, b) in ix_B2:
                     ii = ix_B2[(a, b)]
                     o += par_row("  %s in ec%d" % (names[a], b + 1), x[ii], dev[ii])
+    if spec.xlink:
+        o += _xlink_rows(res, idx)
     if spec.nf > 0:
         o += "\nShort-run dynamics, Gamma(k) on nabla Y_{t-k}\n"
         for k in range(spec.nf):
@@ -1232,10 +1256,53 @@ def level_irf_fevd(res, fv, K):
 # --------------------------------------------------------------------------- #
 
 def diag_k(spec):
-    """diag_k (drvec.c): the dynamic coefficients, Lambda, F and Theta."""
+    """diag_k (drvec.c): the dynamic coefficients, Lambda, F and Theta, and the
+    transfer weights of -xlink."""
+    from .xlink import npar as xl_npar
     _nmean, nlam, nmid, _nt = spec.blocks()
     M = spec.M
-    return nlam + nmid - ((M if spec.diag_cov else M * (M + 1) // 2) - 1)
+    return nlam + nmid - ((M if spec.diag_cov else M * (M + 1) // 2) - 1) + xl_npar(spec.xlink)
+
+
+def _xlink_rows(res, c0):
+    """The transfer-function block of the parameter table (drvec.c:8530-8580)."""
+    spec, names = res.spec, res.data.names
+    innames = res.data.xl.names
+    x, dev, cov = res.x, res.se, res.cov
+    o = ("\nTransfer-function inputs, on the LEVELS of the output:\n"
+         "  nu(B) = omega(B)/delta(B) B^b,  omega(B) = w0 - w1 B - ...,  delta(B) = 1 - "
+         "d1 B - ...\n")
+    for L in spec.xlink:
+        np_k = L.s + 1 + L.r
+        ixw = []
+        om1, de1 = 0.0, 1.0
+        for jj in range(L.s + 1):
+            o += par_row("  %s <- %s  w%d" % (names[L.out], innames[L.inp], jj),
+                         x[c0 + jj], dev[c0 + jj])
+            om1 += x[c0] if jj == 0 else -x[c0 + jj]
+            ixw.append(c0 + jj)
+        for jj in range(1, L.r + 1):
+            o += par_row("  %s <- %s  d%d" % (names[L.out], innames[L.inp], jj),
+                         x[c0 + L.s + jj], dev[c0 + L.s + jj])
+            de1 -= x[c0 + L.s + jj]
+            ixw.append(c0 + L.s + jj)
+        g = om1 / de1
+        gr = [(1.0 if jj == 0 else -1.0) / de1 for jj in range(L.s + 1)]
+        gr += [om1 / (de1 * de1) for _ in range(L.r)]
+        gse = 0.0
+        if cov is not None:
+            for a in range(np_k):
+                for b in range(np_k):
+                    gse += gr[a] * cov[ixw[a]][ixw[b]] * gr[b]
+            gse = math.sqrt(gse) if gse > 0.0 else 0.0
+        o += ("  gain nu(1) of %s <- %s: %12.6f  (s.e. %.6f, delta method)  (b, r, s) = "
+              "(%d, %d, %d)\n" % (names[L.out], innames[L.inp], g, gse, L.b, L.r, L.s))
+        o += emit_wald(x, cov, ixw, "Link %s <- %s, whole:" % (names[L.out], innames[L.inp]),
+                       "H0: every omega and delta of the link = 0",
+                       "REJECT H0 -> the input enters the output.",
+                       "Cannot reject H0 -> the link can be dropped.")
+        c0 += np_k
+    return o
 
 
 def diag_npar_ser(spec):

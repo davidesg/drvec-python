@@ -125,3 +125,36 @@ def test_xsys_refusals():
         drvec.fit(MM, 2, 0, 1, case=2, xsys=[2])
     with pytest.raises(ValueError, match="every series an input"):
         drvec.fit(MM, 2, 0, 0, case=2, xsys=[1, 2])
+
+
+def test_xlink():
+    res = drvec.fit(MM, 2, 0, 1, case=2, xpre=[os.path.join(FIXTURES, "xrev.pre")],
+                    xlink=os.path.join(FIXTURES, "xnet1.txt"))
+    out = out_text("xlink.out")
+    assert abs(res.loglik - number_after(out, "logelf           :")) < (1e-6 if EXACT else TOL_LL)
+    assert abs(res.xl_base_ll - number_after(out, "logL VEC without inputs      :")) < 1e-6
+    assert res.xl_bridge_ll == res.xl_base_ll or not EXACT     # omega = 0 is the VEC
+    table = param_table(out)
+    for p in res.params:
+        est, se = table[p.label]
+        assert abs(p.value - est) <= (5.01e-7 if EXACT else TOL_EST), p.label
+    mine = golden_filter(res.out_text("xlink"))
+    if EXACT:
+        assert mine == golden_filter(out)
+
+
+def test_the_gaps_the_c_declares():
+    xr = [os.path.join(FIXTURES, "xrev.pre")]
+    net = os.path.join(FIXTURES, "xnet1.txt")
+    with pytest.raises(ValueError, match="-lrtest, -specs, -rungs, -matest, -artest, -eval, -f"):
+        drvec.fit(MM, 2, 0, 1, case=2, xpre=xr, xlink=net, forecast=5)
+    with pytest.raises(ValueError, match="-xlink needs the .pre route"):
+        drvec.rank_test(MM, 2, 0, case=2, xpre=xr, xlink=net)
+    with pytest.raises(ValueError, match="-xsys embeds an input"):
+        drvec.rank_test(MM, 2, 0, case=2, xsys=[1])
+    with pytest.raises(ValueError, match="-trend \\(case 4\\)"):
+        drvec.rank_test(MU, 2, 0, case=3, trend=True)
+    with pytest.raises(ValueError, match="-xlink needs a free mean of W"):
+        drvec.fit(MM, 2, 0, 1, case=1, xpre=xr, xlink=net)
+    with pytest.raises(ValueError, match="-xpre and -xlink go together"):
+        drvec.fit(MM, 2, 0, 1, case=2, xpre=xr)

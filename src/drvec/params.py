@@ -43,6 +43,7 @@ class Spec:
                               # -case pre); by series, .inp order; None = all free
     trend: bool = False       # -trend (case 4): a trend in W, restricted to beta
     b2_hold: tuple = ()       # -fixb2row: ((row, value), ...), rows of B2 held, 0-based
+    xlink: tuple = ()         # -xlink: xlink.Link's (the inputs live in Data.xl)
     xsys: tuple = ()          # -xsys: the input series (0-based, .inp order), embedded
                               # as strongly exogenous: alpha_X = 0, Gamma_k[X][j] = 0
 
@@ -132,7 +133,8 @@ class Spec:
         nmean += r if self.trend else 0
         nlam = (self.alpha_sa or M) * r
         nmid = self.nf * self.f_nfree() + theta_len(self.theta_class(), self.q, M, r) + self.nsig()
-        return nmean, nlam, nmid, (s - self.b2_nheld()) * r
+        from .xlink import npar as xl_npar
+        return nmean, nlam, nmid, (s - self.b2_nheld()) * r + xl_npar(self.xlink)
 
     def npar(self):
         return sum(self.blocks())
@@ -220,7 +222,7 @@ class RowOrder:
         return self.s + a if a < self.r else a - self.r
 
 
-def slot_labels(spec, names):
+def slot_labels(spec, names, innames=None):
     """One label per slot of x, in the vector's order, with the C's wording
     (report_fit 8340-8550): what the reader sees, in the .inp's names.
 
@@ -269,5 +271,8 @@ def slot_labels(spec, names):
         for i in range(s):
             if spec.b2_held(i) is None:
                 out.append((f"{names[i]} in ec{j + 1}", "beta", 1))
+    if spec.xlink:
+        from .xlink import labels
+        out += labels(spec.xlink, names, innames or [f"x{k + 1}" for k in range(8)])
     assert len(out) == spec.npar()
     return out

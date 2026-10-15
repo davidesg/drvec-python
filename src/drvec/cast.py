@@ -97,8 +97,15 @@ def unpack(spec, x, hold=None):
                 B2[i][j] = x[idx]; idx += 1
             else:
                 B2[i][j] = float(v)
+    if spec.xlink:
+        from .xlink import npar as xl_npar
+        xp = list(x[idx:idx + xl_npar(spec.xlink)])
+        idx += len(xp)
+    else:
+        xp = None
     if idx != len(x):
         raise ValueError(f"the vector has {len(x)} entries and the walk consumed {idx}")
+    unpack.xp = xp
     return mu, Lam, F, Th, S, B2, dtr
 
 
@@ -107,7 +114,14 @@ def shootx(spec, rd, x, hold=None):
     0-based, ready for `elf_c`. ifault = 1 when Sigma fails choldcp (4563-4577)."""
     M, r, s, p, q = spec.M, spec.r, spec.s, spec.p, spec.q
     mu, Lam, F, Th, S, B2, dtr = unpack(spec, x, hold)
+    xp = unpack.xp
     ifault = 0 if chol_ok(S) else 1
+    xT = None
+    if spec.xlink:
+        from .xlink import compute
+        xT = compute(spec.xlink, rd.xl, xp, rd.nobs_raw, M)
+        if xT is None:
+            ifault = 1                          # a delta(B) that is not stable
 
     Cb = zeros(M, M); Ci = zeros(M, M); H = zeros(M, M); LB = zeros(M, M)
     for i in range(s):
@@ -172,4 +186,12 @@ def shootx(spec, rd, x, hold=None):
             col += B2[i][j] * rd.y2_np[:, i]
         if spec.trend:
             col -= dtr[j] * tc                  # w - dtr (t - (n+1)/2), drvec.c:4766
+    if xT is not None:                          # the inputs, by subtraction (4768-4775)
+        for i in range(s):
+            w[:, i] -= xT[1:, i] - xT[:-1, i]
+        for j in range(r):
+            dw = xT[1:, s + j].copy()
+            for i in range(s):
+                dw += B2[i][j] * xT[1:, i]
+            w[:, s + j] -= dw
     return np.array(mu, float), phi, theta, qq, w, ifault

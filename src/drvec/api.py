@@ -39,6 +39,9 @@ class FitResult:
     drift_how: str = None   # "pre" (-case pre) or "nodrift" when drifts are held
     lr_free: float = None   # -fixb2row, -xsys: logL of the free model
     xs_df: int = None       # -xsys: the parameters the embedding removes
+    xl_base_ll: float = None    # -xlink: logL of the VEC without the inputs
+    xl_base_info: object = None  # its ladder and profile (written to the .out)
+    xl_bridge_ll: float = None  # logL at that optimum with omega = 0
     irfboot: object = None  # -irfboot: irfboot.IrfBoot
 
     def irfboot_text(self, base):
@@ -72,7 +75,9 @@ class FitResult:
 
     @property
     def params(self):
-        labs = slot_labels(self.spec, self.names)
+        labs = slot_labels(self.spec, self.names,
+                           self.data.xl.names if (self.data is not None and self.data.xl)
+                           else None)
         return [Param(lab, kind, sg * v, se)
                 for (lab, kind, sg), v, se in zip(labs, self.x, self.se)]
 
@@ -118,7 +123,8 @@ def _drift_mask(data, case, nodrift):
 
 
 def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
-        fixb2row=None, nodrift=None, trend=False, irfboot=0, xsys=None, log=None):
+        fixb2row=None, nodrift=None, trend=False, irfboot=0, xsys=None,
+        xpre=None, xlink=None, forecast=0, log=None):
     """Estimate the VARMA-VEC of rank r on the `.pre` files (the C's
     `drvec f1.pre ... p q r -case <case>`), with the C's ladder and search.
 
@@ -128,6 +134,31 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     1-based series whose drift is held at 0 (-nodrift). trend: -trend (case 4).
     irfboot: -irfboot N, bands for the level responses and the decomposition by
     the parametric bootstrap."""
+    if (xpre or xlink) and not (xpre and xlink):
+        raise ValueError("-xpre and -xlink go together: the inputs and the\n"
+                         "       network of links that says where they enter.")
+    if xlink and forecast:
+        raise ValueError(
+            "-xlink needs the .pre route in the levels layout, and a\n"
+            "       single fit: it cannot be combined with -differenced, -warma,\n"
+            "       -lrtest, -specs, -rungs, -matest, -artest, -eval, -f, -estwin,\n"
+            "       -writeinp or -writeres.")
+    if forecast:
+        raise NotImplementedError("-f (the forecast) is not ported yet")
+    if xlink and case == 1:
+        raise ValueError("-xlink needs a free mean of W (-case 2 or 3): the input\n"
+                         "       keeps its mean, and nu(1) times it goes to E[W].")
+    if xlink and (xsys or irfboot):
+        raise ValueError(
+            "-irfboot bootstraps the responses of a single fit in the levels\n"
+            "       layout: it cannot be combined with -differenced, -xlink, -trend,\n"
+            "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
+            "       -specs, -rungs, -matest, -artest and -eval (not yet)." if irfboot else
+            "-xsys embeds an input in the system for a single fit with\n"
+            "       q = 0.  It cannot be combined with -alpha/-weakex (it sets\n"
+            "       alpha itself), -xlink, -warma, a moving average (q > 0, not\n"
+            "       yet), or the modes -lrtest, -specs, -rungs, -matest, -artest\n"
+            "       and -eval.")
     if irfboot and trend:
         raise ValueError(
             "-irfboot bootstraps the responses of a single fit in the levels\n"
@@ -135,6 +166,12 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
             "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
             "       -specs, -rungs, -matest, -artest and -eval (not yet).")
     data = _data(pre_files)
+    links = ()
+    if xlink:
+        from .xlink import load
+        data = data.with_raw(data.raw)
+        links, data.xl = load(data, list(xpre) if not isinstance(xpre, str) else [xpre],
+                              xlink)
     xs = ()
     if xsys:
         if q > 0 or fixb2row:
@@ -172,7 +209,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
                 raise ValueError(f"-fixb2row {i}: B2 has {s} row{'' if s == 1 else 's'} (the "
                                  f"nabla Y2 block, the first {s} series in the input's order).")
         hold = tuple(sorted((i - 1, float(v)) for i, v in fixb2row.items()))
-    spec = Spec(data.M, p, q, r, case, ma, diag_ar, diag_cov, drift, trend, hold, xs)
+    spec = Spec(data.M, p, q, r, case, ma, diag_ar, diag_cov, drift, trend, hold, xsys=xs)
     if spec.npar() >= (data.nobs_raw - 1) * data.M:
         raise ValueError(f"the model has {spec.npar()} parameters and the sample "
                          f"{(data.nobs_raw - 1) * data.M} data points")
@@ -187,6 +224,23 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         rf = fit_search(sf, rdf, init_guess(sf, rdf))
         lr_free = rf.ll if rf.ifault == 0 else None
     xs_df = None
+    xl_base = None
+    if links:
+        spec = spec.but(xlink=links)
+    if links:
+        # the VEC rung below, without the inputs: its ladder and profile are
+        # written to the .out, its search is not (drvec.c:11262-11296); its
+        # optimum with omega = 0 is the start, and the bridge is evaluated
+        from .loglik import loglik
+        sb = spec.but(xlink=())
+        rb, infob = fit_rank(sb, data)
+        xl_base = (rb.ll if rb.ifault == 0 else None, infob)
+        x0 = list(rb.x) + [0.0] * (spec.npar() - sb.npar())
+        llb, _s2, ifb = loglik(spec, data.at(r), x0)
+        xl_bridge = (llb if ifb == 0 else None)
+        from .fit import fit_search
+        res = fit_search(spec, data.at(r), x0, log=log)
+        info = None
     if xs:
         # the free VEC, as the C fits it for the LR of strong exogeneity:
         # the ladder start and the search (drvec.c:11383-11414)
@@ -194,7 +248,8 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         rf, _ = fit_rank(sf, data)
         lr_free = rf.ll if rf.ifault == 0 else None
         xs_df = sf.npar() - spec.npar()
-    res, info = fit_rank(spec, data, log)
+    if not links:
+        res, info = fit_rank(spec, data, log)
     if res.ifault != 0:
         raise RuntimeError(f"ESTIMATION FAILED: ifault = {res.ifault}")
     rd = data.at(r)
@@ -206,6 +261,9 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     out.drift_how = how
     out.lr_free = lr_free
     out.xs_df = xs_df
+    if links:
+        out.xl_base_ll, out.xl_base_info = xl_base
+        out.xl_bridge_ll = xl_bridge
     if irfboot > 0:
         from .irfboot import irf_bootstrap
         out.irfboot = irf_bootstrap(spec, data, out.x, irfboot, 10 if rd.n < 40 else 20)
@@ -213,8 +271,30 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
 
 
 def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
-              progress=None):
-    """The sequential LR test for the rank (`-lrtest [-bootstrap N]`)."""
+              progress=None, trend=False, xsys=None, xpre=None, xlink=None):
+    """The sequential LR test for the rank (`-lrtest [-bootstrap N]`).
+
+    The C declares the rank test with exogenous inputs (-xsys, -xlink) and with
+    -trend as not done yet; so does the port, with its messages."""
+    if xlink or xpre:
+        raise ValueError(
+            "-xlink needs the .pre route in the levels layout, and a\n"
+            "       single fit: it cannot be combined with -differenced, -warma,\n"
+            "       -lrtest, -specs, -rungs, -matest, -artest, -eval, -f, -estwin,\n"
+            "       -writeinp or -writeres.")
+    if xsys:
+        raise ValueError(
+            "-xsys embeds an input in the system for a single fit with\n"
+            "       q = 0.  It cannot be combined with -alpha/-weakex (it sets\n"
+            "       alpha itself), -xlink, -warma, a moving average (q > 0, not\n"
+            "       yet), or the modes -lrtest, -specs, -rungs, -matest, -artest\n"
+            "       and -eval.")
+    if trend:
+        raise ValueError(
+            "-trend (case 4) goes on case 3's drifts (-case 3 or -case pre)\n"
+            "       for a single fit: it cannot be combined with -warma, -f,\n"
+            "       -estwin, -writeinp, -writeres or the modes -lrtest, -specs,\n"
+            "       -rungs, -matest, -artest and -eval (not yet).")
     data = _data(pre_files)
     spec = Spec(data.M, p, q, 0, case, ma)
     return _rank_test(data, spec, bootstrap, boot_path, progress)

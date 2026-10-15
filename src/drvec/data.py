@@ -67,6 +67,7 @@ class Data:
     refactors: list = field(default_factory=list)
     pre_mean_free: list = field(default_factory=list)   # each .pre frees its mean (Imu)
     pre_mu: list = field(default_factory=list)          # and its value
+    xl: object = None       # -xpre/-xlink: xlink.Inputs (the inputs, with presample)
     _ranks: dict = field(default_factory=dict, repr=False)
     ladder_cache: dict = field(default_factory=dict, repr=False)
 
@@ -105,6 +106,8 @@ class Data:
                 dm[t][s + j] = float(raw[t + 1, s + j])
         rd = RankData(r, n, dm, y2, np.array(dm, float),
                       np.array(y2, float) if s else np.zeros((n, 0)))
+        rd.xl = self.xl
+        rd.nobs_raw = self.nobs_raw
         self._ranks[r] = rd
         return rd
 

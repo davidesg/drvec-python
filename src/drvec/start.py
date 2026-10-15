@@ -304,5 +304,8 @@ def init_guess(spec, rd, seedjoh=False):
     if not spec.diag_cov:
         x += [Sig[i][j] for i in range(1, M) for j in range(i)]
     x += [B2[i][j] for j in range(r) for i in range(s) if spec.b2_held(i) is None]
+    if spec.xlink:                               # omega = delta = 0 (drtran's seeding)
+        from .xlink import npar as xl_npar
+        x += [0.0] * xl_npar(spec.xlink)
     assert len(x) == spec.npar()
     return x
