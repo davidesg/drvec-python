@@ -58,7 +58,7 @@ def header(data, spec, out_name, lrtest=False, how=None):
     L.append("Series           :" + "".join(" " + n for n in data.names)
              + f"   ({M - r} in the nabla Y2 block, {r} in Y1)")
     y, sub = data.first_estimated()
-    n = data.nobs_raw - 1
+    n = data.nobs
     when = f"{y}" + (f"/{sub}" if data.freq > 1 else "")
     freq = {1: "annual", 4: "quarterly", 12: "monthly"}.get(data.freq, "irregular")
     L.append(f"Sample           : {n} observations from {when}, {freq} (raw {data.nobs_raw})")
@@ -727,6 +727,18 @@ def _report_fit(res, sofar):
     o += residual_diagnostics(res, fv)
     o += operator_roots(res, fv)
     o += diagnose_ybar(res, fv)
+    H = getattr(res, "forecast_h", 0)
+    if H > 0:
+        from .forecast import forecast_vec
+        o += forecast_vec(res, fv, H, getattr(res, "_base", "") or "")[0]
+    E = getattr(res, "estwin", 0)
+    if E > 0:
+        if H < 1:
+            o += "\n(-estwin needs a horizon: give -f H)\n"
+        else:
+            from .forecast import rolling_eval
+            rv = rolling_eval(res, E, H)
+            o += rv[0] if rv else "\n(-estwin %d leaves no room for %d steps)\n" % (E, H)
     return o
 
 

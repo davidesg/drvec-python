@@ -1,0 +1,23 @@
+DRVEC 0.12 -- forecasts from a VEC(1) model
+input=fc211.inp p=2 q=1 r=1 case=2 freq=1 horizon=6 bands=95%
+Levels in each series' own units (deterministic path added back, refactor divided out, Box-Cox inverted: the median under a log).  Columns 1..1 are the Y2 block, 2..2 the Y1 block.
+Low/High are +/- 1.9600 standard errors in the model's units, transformed at both ends; s.e. by the delta method and are THEORETICAL: they assume the specification is right.
+
+Series 1 (muskrat):
+  date               Level            Low           High         s.e.
+  1912           13.854931      13.359515      14.350348     0.252768
+  1913           13.321011      12.626845      14.015177     0.354173
+  1914           12.883556      12.138151      13.628960     0.380315
+  1915           12.456261      11.695610      13.216913     0.388095
+  1916           12.297449      11.534435      13.060463     0.389300
+  1917           12.318245      11.538409      13.098081     0.397883
+
+Series 2 (mink):
+  date               Level            Low           High         s.e.
+  1912           11.041654      10.612025      11.471284     0.219203
+  1913           11.252752      10.606918      11.898586     0.329513
+  1914           11.316513      10.611929      12.021097     0.359488
+  1915           11.119641      10.380070      11.859213     0.377339
+  1916           10.876247      10.117682      11.634811     0.387030
+  1917           10.637023       9.864981      11.409064     0.393906
+

@@ -45,6 +45,25 @@ class FitResult:
     irfboot: object = None  # -irfboot: irfboot.IrfBoot
     alpha_free: object = None  # -alpha/-weakex: the est() of H(r) (fit.EstResult)
     fdhess: object = None   # -fdhess: fdhess.FdHess (se and cov are its when .ok)
+    forecast_h: int = 0     # -f H
+    estwin: int = 0         # -estwin E
+
+    def forecast_text(self, base):
+        """<base>.forecast, as the C writes it (None without -f)."""
+        if not self.forecast_h:
+            return None
+        from .forecast import forecast_vec
+        from .report import _Fit
+        return forecast_vec(self, _Fit(self), self.forecast_h, base)[1]
+
+    def recursive_text(self):
+        """<base>.recursive, the per-origin errors of -estwin (None without it,
+        or when the window leaves no room for the horizon)."""
+        if not (self.estwin and self.forecast_h):
+            return None
+        from .forecast import rolling_eval
+        rv = rolling_eval(self, self.estwin, self.forecast_h)
+        return rv[1] if rv else None
 
     def irfboot_text(self, base):
         """<base>.irfboot, as the C writes it (None without -irfboot)."""
@@ -201,7 +220,7 @@ def _drift_mask(data, case, nodrift):
 def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         fixb2row=None, nodrift=None, trend=False, irfboot=0, xsys=None,
         xpre=None, xlink=None, forecast=0, fdhess=False, alpha=None, weakex=None,
-        fixb2=None, log=None):
+        fixb2=None, estwin=0, log=None):
     """Estimate the VARMA-VEC of rank r on the `.pre` files (the C's
     `drvec f1.pre ... p q r -case <case>`), with the C's ladder and search.
 
@@ -214,18 +233,31 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     finite-difference Hessian at the optimum. alpha: -alpha FILE (a path, or the
     M x sa matrix A itself), weakex: -weakex i (1-based): alpha = A psi, with the
     LR against the free model. fixb2: -fixb2 v (a number, an a-priori value for
-    every entry of B2) or True (-fixb2 alone: B2 held at its static-OLS value)."""
+    every entry of B2) or True (-fixb2 alone: B2 held at its static-OLS value).
+    forecast: -f H, H steps in levels with their theoretical bands (the .out's
+    section and FitResult.forecast_text). estwin: -estwin E, the fit on rows
+    1..E and, with -f H, the rolling-origin evaluation (recursive_text)."""
     if (xpre or xlink) and not (xpre and xlink):
         raise ValueError("-xpre and -xlink go together: the inputs and the\n"
                          "       network of links that says where they enter.")
-    if xlink and forecast:
+    if xlink and (forecast or estwin):
         raise ValueError(
             "-xlink needs the .pre route in the levels layout, and a\n"
             "       single fit: it cannot be combined with -differenced, -warma,\n"
             "       -lrtest, -specs, -rungs, -matest, -artest, -eval, -f, -estwin,\n"
             "       -writeinp or -writeres.")
-    if forecast:
-        raise NotImplementedError("-f (the forecast) is not ported yet")
+    if trend and (forecast or estwin):
+        raise ValueError(
+            "-trend (case 4) goes on case 3's drifts (-case 3 or -case pre)\n"
+            "       for a single fit: it cannot be combined with -warma, -f,\n"
+            "       -estwin, -writeinp, -writeres or the modes -lrtest, -specs,\n"
+            "       -rungs, -matest, -artest and -eval (not yet).")
+    if irfboot and estwin:
+        raise ValueError(
+            "-irfboot bootstraps the responses of a single fit in the levels\n"
+            "       layout: it cannot be combined with -differenced, -xlink, -trend,\n"
+            "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
+            "       -specs, -rungs, -matest, -artest and -eval (not yet).")
     if xsys and (alpha is not None or weakex):
         raise ValueError(
             "-xsys embeds an input in the system for a single fit with\n"
@@ -259,6 +291,14 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
             "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
             "       -specs, -rungs, -matest, -artest and -eval (not yet).")
     data = _data(pre_files)
+    if estwin:
+        # P5.2: the fit on rows 1..E of nabla Y, the rest kept for the
+        # rolling evaluation (drvec.c:740-747)
+        nfull = data.nobs_raw - 1
+        if estwin < 10 or estwin >= nfull:
+            raise ValueError(f"-estwin {estwin} is not inside 10..{nfull - 1}")
+        data = data.with_raw(data.raw)
+        data.estwin = int(estwin)
     links = ()
     if xlink:
         from .xlink import load
@@ -321,9 +361,9 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         else:
             v = float(fixb2)
             spec = spec.but(b2_fix=tuple((v,) * r for _ in range(spec.s)), fixb2_given=True)
-    if spec.npar() >= (data.nobs_raw - 1) * data.M:
+    if spec.npar() >= data.nobs * data.M:
         raise ValueError(f"the model has {spec.npar()} parameters and the sample "
-                         f"{(data.nobs_raw - 1) * data.M} data points")
+                         f"{data.nobs * data.M} data points")
     lr_free = None
     alpha_free = None
     if hold:
@@ -382,6 +422,8 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
                     e.termcode, e.iters, e.fk, list(e.dev), res, info,
                     ma_min_modulus(theta), data, e.cov)
     out.drift_how = how
+    out.forecast_h = int(forecast or 0)
+    out.estwin = int(estwin or 0)
     out.alpha_free = alpha_free
     out.lr_free = lr_free
     out.xs_df = xs_df

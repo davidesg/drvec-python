@@ -68,6 +68,8 @@ class Data:
     pre_mean_free: list = field(default_factory=list)   # each .pre frees its mean (Imu)
     pre_mu: list = field(default_factory=list)          # and its value
     xl: object = None       # -xpre/-xlink: xlink.Inputs (the inputs, with presample)
+    lambdas: list = field(default_factory=list)          # each series' Box-Cox lambda
+    estwin: int = None      # -estwin E: the fit sees rows 1..E of nabla Y (drvec.c:740)
     _ranks: dict = field(default_factory=dict, repr=False)
     ladder_cache: dict = field(default_factory=dict, repr=False)
 
@@ -84,15 +86,23 @@ class Data:
         a fresh object, so its rank data and its ladder cache start empty."""
         return Data(np.asarray(raw, float), list(self.names), self.freq,
                     self.start, list(self.files), list(self.refactors),
-                    list(self.pre_mean_free), list(self.pre_mu))
+                    list(self.pre_mean_free), list(self.pre_mu),
+                    lambdas=list(self.lambdas))
 
-    def at(self, r):
-        """build_y2_levels for rank r (cached)."""
-        if r in self._ranks:
-            return self._ranks[r]
+    @property
+    def nobs(self):
+        """The C's nobs: the rows of nabla Y the fit sees (-estwin trims it)."""
+        return self.estwin if self.estwin else self.nobs_raw - 1
+
+    def at(self, r, full=False):
+        """build_y2_levels for rank r (cached); full=True ignores -estwin (the
+        rolling evaluation filters the whole sample)."""
+        key = r if (full is False or not self.estwin) else (r, "full")
+        if key in self._ranks:
+            return self._ranks[key]
         M = self.M
         s = M - r
-        n = self.nobs_raw - 1
+        n = self.nobs_raw - 1 if (full or not self.estwin) else self.estwin
         if n < 3:
             raise ValueError("the levels layout needs at least 4 observations")
         raw = self.raw
@@ -108,14 +118,16 @@ class Data:
                       np.array(y2, float) if s else np.zeros((n, 0)))
         rd.xl = self.xl
         rd.nobs_raw = self.nobs_raw
-        self._ranks[r] = rd
+        self._ranks[key] = rd
         return rd
 
     def first_estimated(self):
         """(year, sub) of the first observation of the estimation sample
         (BUG-37: one after the raw start, the first is used by the difference)."""
         y, sub = self.start
-        k = abs_period(y, sub, self.freq) + 1
+        # nobs_raw - nobs + 1 (drvec.c:10970): with -estwin the C counts the
+        # window's trim at the START, so its date is late by nobs_full - E
+        k = abs_period(y, sub, self.freq) + (self.nobs_raw - self.nobs)
         if self.freq <= 1:
             return k, 1
         return k // self.freq, k % self.freq + 1
@@ -160,13 +172,14 @@ def read_pre(files):
     n = last - first + 1
     M = len(series)
     raw = np.zeros((n, M))
-    names, refs, mfree, mus = [], [], [], []
+    names, refs, mfree, mus, lams = [], [], [], [], []
     for i, (f, ts, model, st) in enumerate(series):
         off = first - st
         refac = float(model.refactor) if model.refactor else 1.0
         lam = float(model.boxlam)
         names.append(ts.name or str(f))
         refs.append(refac)
+        lams.append(lam)
         mfree.append(bool(getattr(model, "estimate_mu", False)))
         mus.append(float(getattr(model, "mu", 0.0) or 0.0))
         for t in range(n):
@@ -179,4 +192,5 @@ def read_pre(files):
         start = (first, 1)
     else:
         start = (first // freq0, first % freq0 + 1)
-    return Data(raw, names, freq0, start, [str(f) for f in files], refs, mfree, mus)
+    return Data(raw, names, freq0, start, [str(f) for f in files], refs, mfree, mus,
+                lambdas=lams)
