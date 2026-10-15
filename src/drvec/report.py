@@ -22,7 +22,7 @@ BAR = "=" * 61
 #  the header (main, drvec.c:11067-11140)                                      #
 # --------------------------------------------------------------------------- #
 
-def header(data, spec, out_name, lrtest=False):
+def header(data, spec, out_name, lrtest=False, how=None):
     """The first line names the port and its version where the C names itself:
     tools/golden.sh drops that line before comparing."""
     from . import __version__
@@ -41,7 +41,12 @@ def header(data, spec, out_name, lrtest=False):
     L.append("Transformation   : VECM to stationary VARMA (Mauricio 2006)")
     det = {1: "E[nabla Y2] = 0, E[W] = 0", 2: "E[nabla Y2] = 0, E[W] free",
            3: "E[nabla Y2] free, E[W] free"}[spec.case]
-    L.append(f"Deterministic    : case {spec.case} -- {det}")
+    held = spec.case == 3 and spec.drift is not None and not all(spec.drift)
+    L.append("Deterministic    : case %d -- %s%s%s" % (
+        4 if spec.trend else spec.case, det,
+        ("" if not held else " (drifts as in the .pre files)" if how == "pre"
+         else " (some drifts held by -nodrift)"),
+        ", and a trend in W (restricted to beta)" if spec.trend else ""))
     th = ("absent (q = 0)" if spec.q == 0
           else "= [T11 T12 ; 0 T22] (-matri)" if spec.ma == "matri"
           else "diagonal (-diagma)" if spec.ma == "diag"
@@ -174,10 +179,20 @@ def profile_block(spec, prof):
     out += "    Lambda (%d x %d):\n" % (M, r)
     for i in range(M):
         out += "     " + "".join(" %12.6f" % x2[nmean + i * r + j] for j in range(r)) + "\n"
-    out += "    B2 (%d x %d):\n" % (s, r)
+    out += "    B2 (%d x %d)%s:\n" % (s, r, ", rows held by -fixb2row marked *"
+                                       if spec.b2_hold else "")
     b0 = nmean + nlam
+    nfr = s - spec.b2_nheld()
     for i in range(s):
-        out += "     " + "".join(" %12.6f" % x2[b0 + j * s + i] for j in range(r)) + "\n"
+        out += "     "
+        for j in range(r):
+            v = spec.b2_held(i)
+            if v is not None:
+                out += " %11.6f*" % v
+                continue
+            cc = sum(1 for ii in range(i) if spec.b2_held(ii) is None)
+            out += " %12.6f" % x2[b0 + j * nfr + cc]
+        out += "\n"
     if nmean > 0:
         out += "    mean block (%d):  " % nmean + "".join(" %12.6f" % x2[i]
                                                        for i in range(nmean)) + "\n"
@@ -410,10 +425,22 @@ class _Fit:
         rd = res.data.at(spec.r)
         self.rd = rd
         self.mu, self.phi, self.theta, self.qq, self.w, _ = shootx(spec, rd, res.x)
-        mu, Lam, F, Th, S, B2 = unpack(spec, res.x)
+        mu, Lam, F, Th, S, B2, dtr = unpack(spec, res.x)
+        self.dtr = dtr
         self.Lam, self.F, self.Th, self.Q, self.B2 = Lam, F, Th, S, B2
         nmean, nlam, _nmid, _nt = spec.blocks()
-        self.mu_m = list(res.x[:nmean])
+        mu_m = []
+        k = 0
+        if spec.case == 2:
+            mu_m = list(res.x[:spec.r]); k = spec.r
+        elif spec.case == 3:
+            for i in range(spec.s):
+                if spec.mu_free(i):
+                    mu_m.append(res.x[k]); k += 1
+                else:
+                    mu_m.append(0.0)
+            mu_m += list(res.x[k:k + spec.r]); k += spec.r
+        self.mu_m = mu_m
         from .loglik import elf
         _f1, _f2, a, _ifa = elf(spec, rd, res.x, atf=True)
         self.a = [[float(a[t, i]) for i in range(1, spec.M + 1)] for t in range(1, rd.n + 1)]
@@ -422,7 +449,7 @@ class _Fit:
 def fit_out(res, base):
     """The whole <base>.out of a single fit."""
     data, spec = res.data, res.spec
-    out = header(data, spec, base + ".out")
+    out = header(data, spec, base + ".out", how=getattr(res, "drift_how", None))
     out += seed_block(spec, res.seed_info)
     out += search_block(res.search)
     out += _report_fit(res, out)
@@ -451,13 +478,40 @@ def _report_fit(res, sofar):
     o += "AIC              : %15.10f   (-2logL + 2k, /n)\n" % ((-2.0 * res.loglik + 2.0 * npar) / n)
     o += "BIC              : %15.10f   (-2logL + k log n, /n)\n" % (
         (-2.0 * res.loglik + npar * math.log(n)) / n)
+    if spec.b2_hold and getattr(res, "lr_free", None) is not None:
+        nh = spec.b2_nheld()
+        df = nh * r
+        lr = 2.0 * (res.lr_free - res.loglik)
+        pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
+        o += "\n--- beta restricted by -fixb2row, against H(r) ---\n"
+        for i in range(s):
+            v = spec.b2_held(i)
+            if v is not None:
+                o += "row %d of B2 (%s) held at %s in every relation\n" % (i + 1, names[i], cg(v))
+        o += "logL H(r)  free        : %15.10f\n" % res.lr_free
+        o += "logL restricted        : %15.10f\n" % res.loglik
+        o += "LR = 2(free - restr.)  : %15.10f\n" % lr
+        o += "degrees of freedom     : %d   (rows held)*r\n" % df
+        o += "p-value (chi2)         : %15.10f\n" % pv
 
     # the walk, with the index of every slot (ix_* of report_fit)
     labs_idx = 0
     nmean, nlam, _nmid, _nt = spec.blocks()
-    ix_mu = list(range(nmean))
+    ix_mu = []                     # per entry of mu_m: its slot, or None when held
+    idx = 0
+    if spec.case == 2:
+        ix_mu = list(range(r)); idx = r
+    elif spec.case == 3:
+        for i in range(s):
+            if spec.mu_free(i):
+                ix_mu.append(idx); idx += 1
+            else:
+                ix_mu.append(None)
+        ix_mu += list(range(idx, idx + r)); idx += r
+    ix_tr = []
+    if spec.trend:
+        ix_tr = list(range(idx, idx + r)); idx += r
     ix_lam = {}
-    idx = nmean
     for i in range(M):
         for j in range(r):
             ix_lam[(i, j)] = idx; idx += 1
@@ -485,7 +539,8 @@ def _report_fit(res, sofar):
     ix_B2 = {}
     for j in range(r):
         for i in range(s):
-            ix_B2[(i, j)] = idx; idx += 1
+            if spec.b2_held(i) is None:
+                ix_B2[(i, j)] = idx; idx += 1
     del labs_idx
 
     o += banner("Estimated Parameters and Standard Deviations")
@@ -500,16 +555,26 @@ def _report_fit(res, sofar):
               " is" if r == 1 else "1..ec%d are", "" if r == 1 else "s"))
     o += "\n%-28s %13s %12s %8s %7s\n" % ("Parameter", "Estimate", "Std.Error", "t-stat", "p-val")
     o += DASHBAR + "\n"
-    if nmean > 0:
+    if ix_mu:
         o += "\n%s\n" % ("Means: of the drift in nabla Y2, and of the equilibrium error"
                          if spec.case == 3 else
                          "Mean of the equilibrium error (the constant restricted to the relation)")
-        for a in range(nmean):
+        for a in range(len(ix_mu)):
             if spec.case == 3 and a < s:
                 lb = "  E[D.%s]" % names[a]
             else:
                 lb = "  E[ec%d]" % ((a - s + 1) if spec.case == 3 else a + 1)
-            o += par_row(lb, x[ix_mu[a]], dev[ix_mu[a]])
+            if ix_mu[a] is not None:
+                o += par_row(lb, x[ix_mu[a]], dev[ix_mu[a]])
+            else:
+                o += "%-28s %13.6f   held: no drift (%s)\n" % (
+                    lb, 0.0, "-case pre" if getattr(res, "drift_how", None) == "pre"
+                    else "-nodrift")
+        if spec.trend:
+            o += ("Trend of the equilibrium error (case 4), per period, t centred at "
+                  "mid-sample\n")
+            for a in range(r):
+                o += par_row("  trend[ec%d]" % (a + 1), x[ix_tr[a]], dev[ix_tr[a]])
     if r > 0:
         o += "\nAdjustment coefficients, alpha (M x r)   [negative = error-correcting]\n"
         for a in range(M):
@@ -518,10 +583,16 @@ def _report_fit(res, sofar):
                 o += par_row("  D.%s <- ec%d" % (names[a], b + 1), -x[ii], dev[ii])
     if r > 0 and s > 0:
         o += "\nCointegrating vectors, beta = [I_r ; beta_2], normalised on the Y1 block\n"
+        for a in range(s):
+            v = spec.b2_held(a)
+            if v is not None:
+                o += ("  %s in ec*: held at %s by -fixb2row (imposed, not estimated)\n"
+                      % (names[a], cg(v)))
         for b in range(r):
             for a in range(s):
-                ii = ix_B2[(a, b)]
-                o += par_row("  %s in ec%d" % (names[a], b + 1), x[ii], dev[ii])
+                if (a, b) in ix_B2:
+                    ii = ix_B2[(a, b)]
+                    o += par_row("  %s in ec%d" % (names[a], b + 1), x[ii], dev[ii])
     if spec.nf > 0:
         o += "\nShort-run dynamics, Gamma(k) on nabla Y_{t-k}\n"
         for k in range(spec.nf):
@@ -612,6 +683,8 @@ def _vecm_block(res, fv, ro):
                 d = 0.0
                 for i3 in range(s):
                     d -= B2[i3][a - s] * mu_m[i3]
+                if spec.trend:
+                    d += fv.dtr[a - s]
             o += "  %12.6f\n" % d
     o += "alpha matrix (M x r), rows in the .inp's order:\n"
     for a in range(M):
@@ -628,7 +701,8 @@ def _vecm_block(res, fv, ro):
             "   (the nabla Y2 block carries no MA of its own)" if cls == "marow" else ""))
         for a in range(M):
             o += "  " + "".join("%12.6f" % Th[k][i2l(a)][i2l(b)] for b in range(M)) + "\n"
-    o += "beta_2 matrix (s x r):\n"
+    o += "beta_2 matrix (s x r)%s:\n" % (
+        "  [rows held by -fixb2row at the values given]" if spec.b2_hold else "")
     for a in range(s):
         o += "  " + "".join("%12.6f" % B2[a][b] for b in range(r)) + "\n"
     o += "beta matrix (M x r), rows in the .inp's order:\n"
@@ -853,14 +927,15 @@ def _hypothesis_block(res, ro, ix_lam, ix_B2, ix_F, ix_Th):
                            "H0: this variable does not adjust",
                            "REJECT H0 -> %s adjusts to the disequilibrium." % nm,
                            "Cannot reject H0 -> %s is weakly exogenous for B." % nm)
-        idx = [ix_B2[(i, j)] for i in range(s) for j in range(r)]
+        idx = [ix_B2[(i, j)] for i in range(s) for j in range(r) if (i, j) in ix_B2]
         if idx:
             o += ("\nExclusion from the cointegrating relations   [H0: row i of beta_2 = 0, "
                   "chi2(%d)]\n  only the %d nabla Y2 variable%s can be excluded: beta = "
                   "[I_r ; beta_2] normalises on Y1\n" % (r, s, "" if s == 1 else "s"))
             for i in range(s):
                 nm = names[i]
-                o += emit_wald(x, cov, [ix_B2[(i, j)] for j in range(r)], "%s:" % nm,
+                o += emit_wald(x, cov, [ix_B2[(i, j)] for j in range(r) if (i, j) in ix_B2],
+                               "%s:" % nm,
                                "H0: row %d of beta_2 = 0" % (i + 1),
                                "REJECT H0 -> %s belongs in the long-run relation." % nm,
                                "Cannot reject H0 -> %s can be dropped from it." % nm)

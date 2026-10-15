@@ -361,9 +361,14 @@ def hist_ser(d, mu, var, imax, imin):
                 chk[i] = 1
             else:
                 aux[j - 2] += no
-    s0 = list(aux[0][:NumCol] + " " * max(0, NumCol - len(aux[0])))
-    s0[NumCol - 1] = "|"
-    shist[0] = "".join(s0[:NumCol])
+    # strcpy(shist[0], aux[0]); shist[0][NumCol-1] = '|'; shist[0][NumCol] = 0:
+    # a 3-character label in a 4-character cell leaves aux[0] short, and then
+    # the '|' lands past the string's terminator and is not printed
+    a0 = aux[0]
+    if len(a0) >= NumCol - 1:
+        shist[0] = a0[:NumCol - 1] + "|"
+    else:
+        shist[0] = a0
     for j in range(2, NumFil):
         row = list(shist[j - 1])
         for k, ch in enumerate(aux[j - 1]):

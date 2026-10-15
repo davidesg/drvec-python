@@ -39,9 +39,14 @@ def unpack(spec, x, hold=None):
             mu[s + j] = x[idx]; idx += 1
     elif spec.case == 3:
         for i in range(s):
-            mu[i] = x[idx]; idx += 1
+            if spec.mu_free(i):
+                mu[i] = x[idx]; idx += 1
         for j in range(r):
             mu[s + j] = x[idx]; idx += 1
+    dtr = [0.0] * max(r, 1)
+    if spec.trend:
+        for j in range(r):
+            dtr[j] = x[idx]; idx += 1
     Lam = zeros(M, max(r, 1))
     for i in range(M):
         for j in range(r):
@@ -70,17 +75,21 @@ def unpack(spec, x, hold=None):
     B2 = zeros(s, max(r, 1))
     for j in range(r):
         for i in range(s):
-            B2[i][j] = x[idx]; idx += 1
+            v = spec.b2_held(i)
+            if v is None:
+                B2[i][j] = x[idx]; idx += 1
+            else:
+                B2[i][j] = float(v)
     if idx != len(x):
         raise ValueError(f"the vector has {len(x)} entries and the walk consumed {idx}")
-    return mu, Lam, F, Th, S, B2
+    return mu, Lam, F, Th, S, B2, dtr
 
 
 def shootx(spec, rd, x, hold=None):
     """-> (mu, phi (p,M,M), theta (q,M,M), qq (M,M), w (n,M), ifault) as numpy,
     0-based, ready for `elf_c`. ifault = 1 when Sigma fails choldcp (4563-4577)."""
     M, r, s, p, q = spec.M, spec.r, spec.s, spec.p, spec.q
-    mu, Lam, F, Th, S, B2 = unpack(spec, x, hold)
+    mu, Lam, F, Th, S, B2, dtr = unpack(spec, x, hold)
     ifault = 0 if chol_ok(S) else 1
 
     Cb = zeros(M, M); Ci = zeros(M, M); H = zeros(M, M); LB = zeros(M, M)
@@ -139,8 +148,11 @@ def shootx(spec, rd, x, hold=None):
             qq[i, j] = ss
 
     w = rd.dm_np.copy()
+    tc = np.arange(1, rd.n + 1, dtype=float) - 0.5 * (rd.n + 1)
     for j in range(r):
         col = w[:, s + j]
         for i in range(s):
             col += B2[i][j] * rd.y2_np[:, i]
+        if spec.trend:
+            col -= dtr[j] * tc                  # w - dtr (t - (n+1)/2), drvec.c:4766
     return np.array(mu, float), phi, theta, qq, w, ifault

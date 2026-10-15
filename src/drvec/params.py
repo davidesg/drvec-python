@@ -39,6 +39,10 @@ class Spec:
     ma: str = "free"          # free (the default since 2026-09-23), diag, marow, matri
     diag_ar: bool = False
     diag_cov: bool = False
+    drift: tuple = None       # case 3: drift[i] False holds E[nabla Y2_i] = 0 (-nodrift,
+                              # -case pre); by series, .inp order; None = all free
+    trend: bool = False       # -trend (case 4): a trend in W, restricted to beta
+    b2_hold: tuple = ()       # -fixb2row: ((row, value), ...), rows of B2 held, 0-based
 
     def __post_init__(self):
         if self.ma not in MA_CLASSES:
@@ -50,6 +54,22 @@ class Spec:
 
     def but(self, **kw):
         return replace(self, **kw)
+
+    def mu_free(self, i):
+        """y2mu_free (drvec.c:796): series i (0-based) carries a free drift."""
+        if self.case != 3:
+            return False
+        return self.drift is None or i >= len(self.drift) or bool(self.drift[i])
+
+    def b2_held(self, i):
+        """The value row i of B2 is held at (-fixb2row), or None."""
+        for row, v in self.b2_hold:
+            if row == i:
+                return v
+        return None
+
+    def b2_nheld(self):
+        return sum(1 for i in range(self.s) if self.b2_held(i) is not None)
 
     @property
     def s(self):
@@ -82,10 +102,12 @@ class Spec:
     def blocks(self):
         """(nmean, nlam, nmid, ntail): par_blocks."""
         M, r, s = self.M, self.r, self.s
-        nmean = r if self.case == 2 else (s + r if self.case == 3 else 0)
+        nmean = (r if self.case == 2 else
+                 (sum(self.mu_free(i) for i in range(s)) + r if self.case == 3 else 0))
+        nmean += r if self.trend else 0
         nlam = M * r
         nmid = self.nf * self.f_nfree() + theta_len(self.theta_class(), self.q, M, r) + self.nsig()
-        return nmean, nlam, nmid, s * r
+        return nmean, nlam, nmid, (s - self.b2_nheld()) * r
 
     def npar(self):
         return sum(self.blocks())
@@ -186,8 +208,10 @@ def slot_labels(spec, names):
     if spec.case == 2:
         out += [(f"E[ec{j + 1}]", "mean", 1) for j in range(r)]
     elif spec.case == 3:
-        out += [(f"E[D.{names[i]}]", "mean", 1) for i in range(s)]
+        out += [(f"E[D.{names[i]}]", "mean", 1) for i in range(s) if spec.mu_free(i)]
         out += [(f"E[ec{j + 1}]", "mean", 1) for j in range(r)]
+    if spec.trend:
+        out += [(f"trend[ec{j + 1}]", "trend", 1) for j in range(r)]
     for a in range(M):
         for j in range(r):
             out.append((f"D.{nm(a)} <- ec{j + 1}", "alpha", -1))
@@ -214,6 +238,7 @@ def slot_labels(spec, names):
         out += [(f"cov {nm(a)}, {nm(b)}", "q", 1) for a in range(1, M) for b in range(a)]
     for j in range(r):
         for i in range(s):
-            out.append((f"{names[i]} in ec{j + 1}", "beta", 1))
+            if spec.b2_held(i) is None:
+                out.append((f"{names[i]} in ec{j + 1}", "beta", 1))
     assert len(out) == spec.npar()
     return out

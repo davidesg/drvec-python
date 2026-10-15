@@ -157,6 +157,12 @@ def init_guess(spec, rd, seedjoh=False):
         Bc = canonical_b2(spec, rd)
         if Bc is not None:
             B2 = Bc
+    if spec.b2_hold and r > 0:                  # -fixb2row: held rows BEFORE W (BUG-33)
+        for i in range(s):
+            v = spec.b2_held(i)
+            if v is not None:
+                for j in range(r):
+                    B2[i][j] = float(v)
     W = zeros(n, max(r, 1))
     dY = zeros(n, M)                    # internal order [nabla Y1 ; nabla Y2]
     for t in range(n):
@@ -169,6 +175,19 @@ def init_guess(spec, rd, seedjoh=False):
             dY[t][j] = dm[t][s + j] - dm[t - 1][s + j] if t > 0 else 0.0
         for i in range(s):
             dY[t][r + i] = dm[t][i]
+    ET = [0.0] * max(r, 1)
+    if spec.trend:                              # -trend: W detrended on centred t
+        tc = 0.5 * (n + 1)
+        stt = 0.0
+        for t in range(1, n + 1):
+            stt += (t - tc) * (t - tc)
+        for j in range(r):
+            swt = 0.0
+            for t in range(1, n + 1):
+                swt += W[t - 1][j] * (t - tc)
+            ET[j] = swt / stt if stt > 0.0 else 0.0
+            for t in range(1, n + 1):
+                W[t - 1][j] -= ET[j] * (t - tc)
     EW = [0.0] * max(r, 1)
     EdY2 = [0.0] * s
     for j in range(r):
@@ -240,7 +259,9 @@ def init_guess(spec, rd, seedjoh=False):
     if spec.case == 2:
         x += [EW[j] for j in range(r)]
     elif spec.case == 3:
-        x += [EdY2[i] for i in range(s)] + [EW[j] for j in range(r)]
+        x += [EdY2[i] for i in range(s) if spec.mu_free(i)] + [EW[j] for j in range(r)]
+    if spec.trend:
+        x += [ET[j] for j in range(r)]
     x += [Lam[i][j] for i in range(M) for j in range(r)]
     for k in range(nf):
         x += [F[k][i][j] for i in range(M) for j in range(M) if spec.f_free(i, j)]
@@ -254,6 +275,6 @@ def init_guess(spec, rd, seedjoh=False):
     x += [Sig[i][i] for i in range(1, M)]
     if not spec.diag_cov:
         x += [Sig[i][j] for i in range(1, M) for j in range(i)]
-    x += [B2[i][j] for j in range(r) for i in range(s)]
+    x += [B2[i][j] for j in range(r) for i in range(s) if spec.b2_held(i) is None]
     assert len(x) == spec.npar()
     return x

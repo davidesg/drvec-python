@@ -339,7 +339,7 @@ def pack_r0(rs, F, Th, S, mu):
     M = rs.M
     x = []
     if rs.case == 3:
-        x += [mu[i] for i in range(M)]
+        x += [mu[i] for i in range(M) if rs.mu_free(i)]
     for k in range(rs.nf):
         x += [float(F[k][i][j]) for i in range(M) for j in range(M) if rs.f_free(i, j)]
     if rs.q > 0:
@@ -355,7 +355,8 @@ def fit_r0_ladder(spec, data, log=None):
     """drvec.c:5345. Rung 0 (F, Theta, Sigma diagonal; the gate), rung 1 (Sigma
     free), rung 2 (the structure asked for), each from the optimum of the one
     below. Cached per data set, as the C's lad_* cache (keyed on the data)."""
-    key = (spec.p, spec.q, spec.case, spec.diag_ar, spec.ma, spec.diag_cov)
+    key = (spec.p, spec.q, spec.case, spec.diag_ar, spec.ma, spec.diag_cov,
+           tuple(spec.mu_free(i) for i in range(spec.M)) if spec.case == 3 else None)
     if key in data.ladder_cache:
         c = data.ladder_cache[key]
         return Ladder(True, c.F, c.Th, c.S, c.ll, c.rungs, c.gate, cached=True)
@@ -395,7 +396,10 @@ def ladder_seed_r0(spec, data, x, log=None):
         return list(x), None
     mu = [0.0] * spec.M
     if spec.case == 3:
-        mu = list(x[:spec.M])
+        im = 0
+        for i in range(spec.M):
+            if spec.mu_free(i):
+                mu[i] = x[im]; im += 1
     lad = fit_r0_ladder(spec, data, log)
     if not lad.ok:
         return list(x), lad

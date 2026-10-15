@@ -65,6 +65,8 @@ class Data:
     start: tuple = (1, 1)
     files: list = field(default_factory=list)
     refactors: list = field(default_factory=list)
+    pre_mean_free: list = field(default_factory=list)   # each .pre frees its mean (Imu)
+    pre_mu: list = field(default_factory=list)          # and its value
     _ranks: dict = field(default_factory=dict, repr=False)
     ladder_cache: dict = field(default_factory=dict, repr=False)
 
@@ -80,7 +82,8 @@ class Data:
         """The same system on other levels (a bootstrap replication, a rescale):
         a fresh object, so its rank data and its ladder cache start empty."""
         return Data(np.asarray(raw, float), list(self.names), self.freq,
-                    self.start, list(self.files), list(self.refactors))
+                    self.start, list(self.files), list(self.refactors),
+                    list(self.pre_mean_free), list(self.pre_mu))
 
     def at(self, r):
         """build_y2_levels for rank r (cached)."""
@@ -154,13 +157,15 @@ def read_pre(files):
     n = last - first + 1
     M = len(series)
     raw = np.zeros((n, M))
-    names, refs = [], []
+    names, refs, mfree, mus = [], [], [], []
     for i, (f, ts, model, st) in enumerate(series):
         off = first - st
         refac = float(model.refactor) if model.refactor else 1.0
         lam = float(model.boxlam)
         names.append(ts.name or str(f))
         refs.append(refac)
+        mfree.append(bool(getattr(model, "estimate_mu", False)))
+        mus.append(float(getattr(model, "mu", 0.0) or 0.0))
         for t in range(n):
             z = float(ts.data[off + t])
             if abs(lam - 1.0) > 1.0e-12 and z <= 0.0:
@@ -171,4 +176,4 @@ def read_pre(files):
         start = (first, 1)
     else:
         start = (first // freq0, first % freq0 + 1)
-    return Data(raw, names, freq0, start, [str(f) for f in files], refs)
+    return Data(raw, names, freq0, start, [str(f) for f in files], refs, mfree, mus)

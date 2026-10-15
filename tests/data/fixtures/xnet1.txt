@@ -1,0 +1,1 @@
+mink <- xrev 1 0 1   # b = 1, s = 1: two presample values
