@@ -1,0 +1,20 @@
+{
+  "_doc": "The model each est() call of the oracle was fitting, by its position in proute.est.txt / rankboot.est.txt (0-based START/EST pair index). Fields: r, q, ma (theta class), diag_ar, diag_cov; p = 2 and case = 2 always. 'hold' marks the route-(B) profile step (only mean, Lambda, B2 free; not evaluable without the hold). rankboot lists the 11 calls on the OBSERVED data; pairs 11.. are the 20 replications, 11 calls each, in the same pattern.",
+  "proute": {
+    "0": [0, 1, "diag", true, true], "1": [0, 0, "free", true, true], "2": [0, 1, "diag", true, true],
+    "3": [0, 1, "diag", true, false], "4": [0, 1, "diag", true, false], "5": [0, 0, "free", true, false],
+    "6": [0, 1, "diag", true, false], "7": [0, 1, "free", false, false], "8": [0, 1, "free", false, false],
+    "9": [0, 0, "free", false, false], "10": [0, 1, "free", false, false], "11": "hold",
+    "12": [1, 1, "free", false, false], "13": [1, 1, "free", false, false], "14": [1, 1, "free", false, false],
+    "15": [1, 1, "matri", false, false], "16": [1, 1, "matri", false, false],
+    "17": [1, 1, "marow", false, false], "18": [1, 1, "marow", false, false],
+    "19": [1, 0, "free", false, false], "20": [1, 0, "free", false, false],
+    "21": [1, 1, "marow", false, false], "22": [1, 1, "matri", false, false], "23": [1, 1, "free", false, false]
+  },
+  "rankboot": {
+    "0": [0, 0, "free", true, true], "1": [0, 0, "free", true, false], "2": [0, 0, "free", true, false],
+    "3": [0, 0, "free", false, false], "4": [0, 0, "free", false, false],
+    "5": [0, 0, "free", false, false], "6": [0, 0, "free", false, false], "7": "hold",
+    "8": [1, 0, "free", false, false], "9": [1, 0, "free", false, false], "10": [1, 0, "free", false, false]
+  }
+}

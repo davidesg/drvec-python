@@ -1,0 +1,14 @@
+20c20,22
+< #include <math.h>              /* Header file (prototype declarations)        */
+---
+> #include <math.h>
+> #include <stdlib.h>
+> #include <stdio.h>              /* Header file (prototype declarations)        */
+82a85
+>    { const char *e_ = getenv("DRVEC_DUMPX"); if (e_) { FILE *f_ = fopen(e_, "a"); if (f_) { int k_; fprintf(f_, "START npar=%d x=", npar); for (k_ = 1; k_ <= npar; k_++) fprintf(f_, " %.17g", par[k_]); fprintf(f_, "\n"); fclose(f_); } } }
+142a146
+>    { extern long objc_count; const char *e_ = getenv("DRVEC_DUMPX"); if (e_) { FILE *f_ = fopen(e_, "a"); if (f_) { int k_; fprintf(f_, "EST nobjc=%ld npar=%d logelf=%.17g sigma2=%.17g ifault=%d x=", objc_count, npar, *logelf, *sigma2, *ifault); for (k_ = 1; k_ <= npar; k_++) fprintf(f_, " %.17g", par[k_]); fprintf(f_, "\n"); fclose(f_); } } }
+148a153
+> long objc_count = 0;
+151a157
+>    objc_count++;
