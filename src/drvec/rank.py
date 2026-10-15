@@ -189,6 +189,8 @@ class RankTest:
     scale: list
     boundary: list
     bootstraps: list = field(default_factory=list)
+    boot_n: int = 0                 # -bootstrap N (0: none)
+    data: object = None             # the data as read (for the .out's header)
 
     def lr(self, r):
         return 2.0 * (self.ll[r + 1] - self.ll[r])
@@ -217,6 +219,11 @@ class RankTest:
         if lr > cv[0]:
             return "reject H0 at 10%"
         return "H0 not rejected"
+
+    def out_text(self, base):
+        """<base>.out, as the C writes it (report.rank_test_out)."""
+        from .report import rank_test_out
+        return rank_test_out(self, self.data, base)
 
     def boot_text(self, version="0.1.0.dev0"):
         """<base>.boot (drvec.c:9775-9785). The first line differs from the C's in
@@ -264,7 +271,8 @@ def rank_test(data, spec, bootstrap=0, boot_path=None, progress=None):
     if scaled:
         jac = sum(math.log(c) for c in dsc) * nobs
         ll = [v + jac for v in ll]
-    out = RankTest(spec, data.names, nobs, fits, infos, npar, ll, dsc, bnd)
+    out = RankTest(spec, data.names, nobs, fits, infos, npar, ll, dsc, bnd,
+                   boot_n=bootstrap, data=data)
     if bootstrap > 0:
         rng = Rng()
         for rr in range(M - 1):

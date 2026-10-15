@@ -12,7 +12,7 @@ import os
 import pytest
 
 from conftest import E1, EXACT, TOL_EST, TOL_LL, TOL_LR, TOL_SE
-from oracle import ORACLE, out_text, param_table
+from oracle import ORACLE, golden_filter, out_text, param_table
 
 import drvec
 from drvec._gsl import backend
@@ -83,6 +83,8 @@ def test_the_bootstrap_replication_by_replication(tmp_path):
             a, b = a.split(","), b.split(",")
             assert a[:3] == b[:3]
             assert abs(float(a[3]) - float(b[3])) < (1e-4 if not GSL else TOL_LR)
+    if EXACT and GSL:
+        assert golden_filter(t.out_text("e1boot")) == golden_filter(BOOT_OUT)
     # the decisions: percentiles to the printed digits, p-values, verdicts
     for b, (pv, cv) in zip(t.bootstraps, ((0.0476, (17.03, 19.03, 20.24)),
                                           (0.4286, (10.15, 10.60, 20.99)))):

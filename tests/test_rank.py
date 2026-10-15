@@ -1,11 +1,12 @@
 """(d) The rank test with the parametric bootstrap (`2 0 1 -case 2 -lrtest
 -bootstrap 20`) against rankboot.out and rankboot.boot, replication by
 replication."""
+import re
 
 import pytest
 
 from conftest import EXACT, PRE, TOL_LL, TOL_LR, fragile
-from oracle import boot_rows, est_pairs, out_text
+from oracle import boot_rows, est_pairs, golden_filter, out_text
 
 import drvec
 from drvec._gsl import backend
@@ -97,3 +98,26 @@ def test_the_observed_est_calls_are_the_cs():
             assert abs(er.ll - cll) < 1e-12
             continue
         assert (start, er.x, er.ll) == (cs, cx, cll), k
+
+
+def test_the_out_file(test_result):
+    """rankboot.out, byte for byte after golden.sh's filter."""
+    t, _ = test_result
+    mine = golden_filter(t.out_text("rankboot"))
+    if EXACT:
+        assert mine == golden_filter(OUT)
+    else:
+        # the numbers move in the last printed digits off the oracle's platform:
+        # the same lines, the same words
+        a, b = mine.splitlines(), golden_filter(OUT).splitlines()
+        assert len(a) == len(b)
+        strip = lambda l: re.sub(r"-?\d+\.\d+(e[-+]\d+)?", "#", l)      # noqa: E731
+        assert [strip(l) for l in a] == [strip(l) for l in b]
+
+
+def test_the_boot_file_bytes(test_result):
+    _t, path = test_result
+    mine = golden_filter(open(path).read())
+    theirs = golden_filter(out_text("rankboot.boot"))
+    if EXACT and GSL:
+        assert mine == theirs

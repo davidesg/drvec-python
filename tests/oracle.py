@@ -59,3 +59,18 @@ def boot_rows():
             h0, rep, st, lr = line.strip().split(",")
             rows.append((int(h0), int(rep), st, float(lr) if lr else None))
     return rows
+
+
+_DROP = [re.compile(r"^DRVEC .* EML Estimation"), re.compile(r"^Program  *: DRVEC"),
+         re.compile(r"^# drvec .* -bootstrap ")]
+
+
+def golden_filter(text):
+    """tools/golden.sh's hash_of filter: the version banner lines dropped and any
+    /tmp path removed; everything else counts."""
+    out = []
+    for line in text.split("\n"):
+        if any(p.search(line) for p in _DROP):
+            continue
+        out.append(re.sub(r"/tmp/[^ ]*", "", line))
+    return "\n".join(out)
