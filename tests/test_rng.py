@@ -2,6 +2,7 @@
 (data/golden/rng_reference.c)."""
 import os
 
+from conftest import same
 from oracle import GOLDEN
 
 from drvec.rng import Rng
@@ -12,5 +13,8 @@ def test_first_draws_and_state():
     draws = [float(v) for v in lines[:12]]
     state = int(lines[12].split()[1])
     r = Rng()
-    assert [r.normal() for _ in range(12)] == draws
+    # the state is integer arithmetic, exact everywhere; the draws go through
+    # libm's log/cos/sin, which Windows' rounds differently in the last ulp
+    for a, b in zip([r.normal() for _ in range(12)], draws):
+        assert same(a, b, 1e-14)
     assert r.state == state

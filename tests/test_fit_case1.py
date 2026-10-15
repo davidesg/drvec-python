@@ -4,7 +4,7 @@ tests/data/oracle/proute.out: logL to 1e-6, every estimate and s.e. to 1e-4
 the search -- and the 24 est() calls in the C's order."""
 import pytest
 
-from conftest import PRE
+from conftest import EXACT, PRE, TOL_EST, TOL_LL, TOL_SE, fragile
 from oracle import est_pairs, number_after, out_text, param_table
 
 import drvec
@@ -22,6 +22,7 @@ def fit():
     return res, log
 
 
+@fragile
 def test_the_est_calls_are_the_cs(fit):
     _res, log = fit
     c = est_pairs("proute")
@@ -40,12 +41,17 @@ def test_the_est_calls_are_the_cs(fit):
 
 def test_logl_and_fit_statistics(fit):
     res, _ = fit
+    assert res.npar == 14
+    assert res.search.best.label == "cold"                  # the decision, everywhere
+    if not EXACT:
+        assert abs(res.loglik - 6.4786201604443221) < TOL_LL
+        assert abs(res.aic - number_after(OUT, "AIC              :")) < TOL_LL
+        return
     assert abs(res.loglik - number_after(OUT, "logelf           :")) < 1e-6
     assert res.loglik == 6.4786201604443221                 # the C's, full precision
     assert abs(res.sigma2 - number_after(OUT, "sigma2           :")) < 1e-10
     assert abs(res.aic - number_after(OUT, "AIC              :")) < 1e-10
     assert abs(res.bic - number_after(OUT, "BIC              :")) < 1e-10
-    assert res.npar == 14
     assert (res.termcode, res.iters) == (2, 66)
     assert "%.12f" % res.fk == "0.607104141583"
 
@@ -57,13 +63,15 @@ def test_every_estimate_and_se(fit):
     assert res.ma_on_boundary            # so the .out prints no s.e. for Theta
     for p in res.params:
         est, se = table[p.label]
-        assert abs(p.value - est) < 1e-4, p.label
-        assert abs(p.value - est) <= 5.01e-7, p.label        # the printed digits
+        assert abs(p.value - est) < TOL_EST, p.label
+        if EXACT:
+            assert abs(p.value - est) <= 5.01e-7, p.label    # the printed digits
         if p.kind == "theta":
             assert se is None
         else:
-            assert abs(p.se - se) < 1e-4, p.label
-            assert abs(p.se - se) <= 5.01e-7, p.label
+            assert abs(p.se - se) < (1e-4 if EXACT else TOL_SE), p.label
+            if EXACT:
+                assert abs(p.se - se) <= 5.01e-7, p.label
 
 
 def test_the_ladder_and_the_gate(fit):
@@ -73,8 +81,15 @@ def test_the_ladder_and_the_gate(fit):
                ((0, "F diag, Theta diag, Sigma diag"), (1, "F diag, Theta diag, Sigma free"),
                 (2, "F free, Theta free, Sigma free"))]
     for (_a, _b, _c, ll), pr in zip(lad.rungs, printed):
-        assert "%.10f" % ll == "%.10f" % pr
+        if EXACT:
+            assert "%.10f" % ll == "%.10f" % pr
+        else:
+            assert abs(ll - pr) < TOL_LL
     g = lad.gate
+    assert g.verified
+    if not EXACT:
+        assert abs(g.sum - (-34.6278187020)) < TOL_LL and abs(g.gap) < 1e-9
+        return
     assert "%.10f" % g.univariate[0] == "-20.0579540523"
     assert "%.10f" % g.univariate[1] == "-14.5698646497"
     assert "%.10f" % g.sum == "-34.6278187020"
@@ -87,6 +102,12 @@ def test_the_profile(fit):
     res, _ = fit
     pr = res.seed_info
     assert pr.ok and pr.mult == 0.05
+    if not EXACT:
+        assert abs(pr.ladder.ll - (-1.0494593228)) < TOL_LL
+        assert abs(pr.ll - (-0.1533711816)) < TOL_LL
+        assert max(abs(a - float(b)) for a, b in zip(
+            pr.x2, ["6.631570", "0.019488", "0.001811", "-0.313737"])) < TOL_EST
+        return
     assert "%.10f" % pr.ladder.ll == "-1.0494593228"
     assert "%.10f" % pr.ll_start == "-0.6964067884"
     assert "%.10f" % pr.ll == "-0.1533711816"
@@ -96,6 +117,12 @@ def test_the_profile(fit):
 
 def test_the_search_table(fit):
     res, _ = fit
+    if not EXACT:
+        # the winner and its logL; the losing starts stop on a flat ridge
+        # (tc-3) and are fragile off the oracle's platform
+        assert res.search.best.label == "cold" and res.search.nok == 4
+        assert abs(res.search.best.ll - 6.478620) < TOL_LL
+        return
     table = res.search.table()
     block = OUT.split("\nSearch:")[1].split("The SPREAD")[0]
     assert table.split("\nSearch:")[1].split("The SPREAD")[0] == block

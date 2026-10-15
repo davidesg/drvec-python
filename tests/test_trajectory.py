@@ -2,7 +2,7 @@
 gives the same final vector, bit for bit (drvarma's raxopt + the cast)."""
 import pytest
 
-from conftest import PRE
+from conftest import PRE, fragile
 from oracle import est_pairs, specs
 
 import drvec
@@ -21,6 +21,7 @@ def _spec(k):
 
 # a few of each kind: rung 0, rung 2, the r = 1 winner (66 iterations), a tc-3
 # stop, the matri and marow classes and the q = 0 class of the nested chain
+@fragile
 @pytest.mark.parametrize("k", [0, 7, 13, 12, 15, 17, 19])
 def test_est_from_the_c_start(k):
     spec = _spec(k)
