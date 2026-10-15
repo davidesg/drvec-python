@@ -15,14 +15,51 @@
       ~12x; at that ratio the article's bootstraps (13, 89, 23 min in C) would take
       ~2.6, ~17.5 and ~4.5 h. Decision input for option (b), a cast in C.
 
+## Option (b): the measurement (milestone 2, 2026-10-15)
+
+`python tools/time_bootstrap.py 20 --case e1` (and `--case mm`), on Lutkepohl's E1
+(M = 3, n = 91, tests/data/fixtures/e1-inp/SOURCE) and on muskrat-mink (M = 2):
+
+| run | Python | C | ratio | cast | compiled elf + wrapper | the rest |
+|---|---|---|---|---|---|---|
+| E1 fit `2 1 1 -mean -case 2` (72 526 evals) | 13.7 s | 2.25 s | 6.1x | 50% | 24% | 26% |
+| E1 `-lrtest -bootstrap 20` (681 256 evals) | 112 s | 12.2 s | 9.2x | 52% | 19% | 28% |
+| mm `-lrtest -bootstrap 20` (51 437 evals) | 5.8 s | 0.50 s | 11.6x | 52% | 21% | 27% |
+
+One evaluation on E1 (p = 2, r = 1): the cast 82-103 us in Python, drvarma's compiled
+elf 17-22 us plus 7-9 us of its Python wrapper: the cast is ~75% of an evaluation.
+"The rest" is mostly drvarma's optimiser (`_qnewt`: bfgsfac, jacrot, cdgrad's loop),
+which is pure Python, plus the starts and the simulation.
+
+What this says:
+- The ratio does NOT grow with M from 2 to 3 (11.6x -> 9.2x): the compiled elf grows
+  faster with M and n than the cast does.
+- A compiled cast that cost nothing would leave the bootstrap at 4.4x the C (E1) and
+  5.6x (mm), because a quarter of the time is drvarma's Python optimiser. Option (b)
+  alone halves the time; to get near the C it would need the optimiser compiled too
+  (that is drvarma's, not drvec's).
+- The article's bootstraps at the E1 ratio: 13 min -> ~2.0 h, 89 min -> ~13.6 h,
+  23 min -> ~3.5 h (at the mm ratio ~2.5, ~17, ~4.5 h).
+- Tried and dropped: an exactness-preserving faster cast in pure Python (the
+  structural zeros of Cbar, Cinv and Hbar skipped, which is bit-identical while
+  every value is finite; and a numpy version with matrix_multiply's order of
+  additions, also bit-identical). Both were bit-identical to the transcription on
+  410 random layouts, and neither moved the end-to-end time (the list version is
+  ~75 us, the structural one ~72 us, the numpy one ~150 us: numpy's per-call cost
+  dominates 3x3 products). The pure-Python floor is close; the transcription stays.
+- Cheap, not taken: calling `drvarma_elf` directly instead of `elf_c` saves its
+  7-9 us of wrapper (~5% of an evaluation), at the price of drvarma's private API.
+
 ## Open risks (docs/PORT.md)
 
-- Johansen's seed uses scipy's `eigh` (decision D2): a few ulps off GSL's
-  gensymmv. Measured harmless on both cases (no winner changes; 2 of 20 LR* off by
-  ~1e-13), but on another data set a near-tie between `johansen` and another start
-  could flip the winner, and then the estimates move by up to the flatness of the
-  likelihood (1e-4 here). If that is ever seen: call libgsl through ctypes (checked
-  bit-exact on 2026-10-15).
+- Johansen's seed (decision D2, revised in milestone 2): GSL's gensymmv through
+  ctypes when libgsl is found (`drvec._gsl`), scipy's `eigh` otherwise. The risk the
+  milestone-1 note foresaw was seen on E1: with scipy the `johansen` start ends at
+  760.07 instead of 760.54 and one bootstrap LR* moves by 3.5e-5 (beyond 1e-6 in
+  logL). With GSL everything is byte-identical. Without libgsl (Windows, macOS
+  without Homebrew's gsl) a near-tie can still flip a winner.
+- Off Linux x86_64 the compiled likelihood rounds differently and the tests run on
+  the tolerance tier of tests/conftest.py (first CI run 38736500814).
 - The case-1 optimum is on the MA invertibility wall (BUG-49) and depends on the
   bit-exact trajectory of one start: any change to the cast's arithmetic (numpy
   products, a different Cholesky) must re-run tests/test_fit_case1.py.

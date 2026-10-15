@@ -18,9 +18,11 @@ one of its optima with difference 0.0; the cold start, the 24 est() calls of cas
 (in the C's order, each with the C's start and the C's final vector), the ladder,
 the entry gate (gap -7.567e-12), the route-(B) profile, the search table, the BFGS
 standard errors, the bootstrap generator and the simulated data are bit-identical.
-The one exception is Johansen's canonical seed (§6, decision D2): it is a few ulps
-off, which moves the `johansen` fits by up to 9.5e-8 in logL and two of the twenty
-LR* of the bootstrap by ~1e-13.
+Johansen's canonical seed is too when libgsl is on the system (§6, decision D2);
+with scipy's eigensolver instead it is a few ulps off, which moves the `johansen`
+fits by up to 9.5e-8 in logL and two of the twenty LR* of the bootstrap by ~1e-13
+here, and by much more on E1 (§6). All of this holds on Linux x86_64, the oracle's
+platform; elsewhere the compiled likelihood rounds differently (tests/conftest.py).
 
 ## 2. The model, the vector and the two row orders
 
@@ -110,7 +112,12 @@ in the parameters: the estimates are only reproduced if the same start wins.
   the C's; drvarma's `Ladder` class is not used (its rung 0 is the `.pre` models,
   drvec's is re-estimated). Reused from drvarma: `elf_c`, `_qnewt.raxopt`,
   `_qnewt.cholsol`, all matched line by line against qnewtopt.c and lib/optim/lnsrch.c.
-* **D2. Johansen's eigenproblem with scipy**, not GSL through ctypes. Measured: the
+* **D2. Johansen's eigenproblem** -- revised in milestone 2: GSL's own
+  `gsl_eigen_gensymmv` through ctypes when libgsl is on the system (`_gsl.py`,
+  `DRVEC_EIGEN=auto|gsl|scipy`), scipy's `eigh` otherwise. Why: on the three-series
+  case (Lutkepohl's E1) scipy's few ulps moved the `johansen` start's optimum by 0.47
+  in logL and one bootstrap LR* by 3.5e-5; with GSL the case is byte-identical
+  (the search table, all 40 replications). The milestone-1 measurement with scipy: Measured: the
   canonical B2 is 0.41947218341803055 against the C's 0.4194721834180301; on case 1
   the `johansen` start ends 9.5e-8 away in logL (a tc-3 stop) and does not win; on
   case 2 it ends 6e-14 away; in the bootstrap it wins in some replications and two
