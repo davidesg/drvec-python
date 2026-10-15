@@ -558,6 +558,8 @@ def _report_fit(res, sofar):
           "at the optimum\n")
     o += _vecm_block(res, fv, ro)
     o += _coint_block(res, fv, ro)
+    o += _hypothesis_block(res, ro, ix_lam, ix_B2, ix_F, ix_Th)
+    o += level_irf_fevd(res, fv, 10 if fv.rd.n < 40 else 20)
     return o
 
 
@@ -760,4 +762,336 @@ def _coint_block(res, fv, ro):
             share = w1 / (w1 + w2) if w1 + w2 > 0.0 else 1.0
             o += "  relation %d: the Y1 block carries %5.1f%% of the weight" % (j + 1, 100.0 * share)
             o += "   <-- DUBIOUS\n" if share < 0.05 else "\n"
+    return o
+
+
+def wald_sub(x, cov, idx):
+    """wald_sub (drvec.c): th' pinv(S) th with S's rank by SVD at 1e-8 of the
+    largest singular value. -> (chi2, df) or None."""
+    import numpy as np
+    k = len(idx)
+    if k < 1 or cov is None:
+        return None
+    th = np.array([x[i] for i in idx], float)
+    S = np.array([[cov[i][j] for j in idx] for i in idx], float)
+    try:
+        U, w, Vt = np.linalg.svd(S)
+    except np.linalg.LinAlgError:
+        return None
+    tol = w.max() * 1.0e-8 if w.size else 0.0
+    keep = w > tol
+    y = np.where(keep, (U.T @ th) / np.where(keep, w, 1.0), 0.0)
+    acc = float(th @ (Vt.T @ y))
+    rk = int(keep.sum())
+    if not (acc >= 0.0) or rk == 0:
+        return None
+    return acc, rk
+
+
+def _chisq_q(x, df):
+    from scipy.stats import chi2
+    return float(chi2.sf(x, df))
+
+
+def emit_wald(x, cov, idx, title, h0, reject, accept):
+    if len(idx) < 1:
+        return ""
+    w = wald_sub(x, cov, idx)
+    if w is None:
+        return "\n%s\n  not computable (the covariance of this block is not usable)\n" % title
+    chi2, df = w
+    pv = _chisq_q(chi2, df)
+    o = "\n%s\n" % title
+    if h0:
+        o += "  %s\n" % h0
+    o += "  Wald chi2(%d) = %.4f, p-value = %.4f\n" % (df, chi2, pv)
+    o += "  %s\n" % (reject if pv < 0.05 else accept)
+    return o
+
+
+def _hypothesis_block(res, ro, ix_lam, ix_B2, ix_F, ix_Th):
+    """hypothesis_block (drvec.c:6221-6450)."""
+    spec, names = res.spec, res.data.names
+    M, r, s, q, nf = spec.M, spec.r, spec.s, spec.q, spec.nf
+    x, cov = res.x, res.cov
+    i2l = ro.inp2lam
+    o = banner("Joint Hypothesis Tests (Wald)")
+    if r > 0:
+        idx = [ix_lam[(i, j)] for i in range(M) for j in range(r)]
+        w = wald_sub(x, cov, idx)
+        if w is not None:
+            o += ("\nError-correction term as a whole\n"
+                  "  H0: alpha = 0\n"
+                  "  Wald chi2(%d) = %.4f, p-value = %.4f\n"
+                  "  ! NOT A TEST: under H0, beta is unidentified (Davies).  Use -lrtest "
+                  "-bootstrap\n" % (w[1], w[0], _chisq_q(w[0], w[1])))
+        o += ("\nWeak exogeneity, one variable at a time   [H0: row i of alpha = 0, chi2(%d)]\n"
+              % r)
+        for i in range(M):
+            li = i2l(i)
+            idx = [ix_lam[(li, j)] for j in range(r)]
+            nm = names[i]
+            o += emit_wald(x, cov, idx, "%s (%s block):" % (nm, "nabla Y2" if i < s else "Y1"),
+                           "H0: this variable does not adjust",
+                           "REJECT H0 -> %s adjusts to the disequilibrium." % nm,
+                           "Cannot reject H0 -> %s is weakly exogenous for B." % nm)
+        idx = [ix_B2[(i, j)] for i in range(s) for j in range(r)]
+        if idx:
+            o += ("\nExclusion from the cointegrating relations   [H0: row i of beta_2 = 0, "
+                  "chi2(%d)]\n  only the %d nabla Y2 variable%s can be excluded: beta = "
+                  "[I_r ; beta_2] normalises on Y1\n" % (r, s, "" if s == 1 else "s"))
+            for i in range(s):
+                nm = names[i]
+                o += emit_wald(x, cov, [ix_B2[(i, j)] for j in range(r)], "%s:" % nm,
+                               "H0: row %d of beta_2 = 0" % (i + 1),
+                               "REJECT H0 -> %s belongs in the long-run relation." % nm,
+                               "Cannot reject H0 -> %s can be dropped from it." % nm)
+            if s > 1:
+                o += emit_wald(x, cov, idx, "All of B2 jointly:",
+                               "H0: B2 = 0 (the relation involves only the Y1 block)",
+                               "REJECT H0 -> the nabla Y2 block belongs in it.",
+                               "Cannot reject H0 -> the relation is inside Y1 alone.")
+    else:
+        o += ("\n  r = 0: no error-correction term, no Lambda and no B; the short-run "
+              "block only\n")
+    if nf > 0 or q > 0:
+        o += ("\nShort-run dynamics   [Gamma on nabla Y, Theta on the innovations]\n"
+              "  ! statements about nabla Y, not about the levels: a variable can drive\n"
+              "    another's DIFFERENCES and still be tied to it only through ec\n")
+        if nf > 0:
+            idx = [ix_F[(nf - 1, i, j)] for i in range(M) for j in range(M)
+                   if (nf - 1, i, j) in ix_F]
+            o += emit_wald(x, cov, idx,
+                           "Joint significance of the last short-run lag, Gamma(%d):" % nf,
+                           "H0: Gamma(last) = 0",
+                           "REJECT H0 -> the last AR lag is significant.",
+                           "Cannot reject H0 -> the last AR lag is not significant.")
+        if q > 0:
+            idx = [ix_Th[(q - 1, i, j)] for i in range(M) for j in range(M)
+                   if (q - 1, i, j) in ix_Th]
+            o += emit_wald(x, cov, idx, "Joint significance of the last MA lag, Theta(%d):" % q,
+                           "H0: Theta(last) = 0",
+                           "REJECT H0 -> the last MA lag is significant.",
+                           "Cannot reject H0 -> the last MA lag is not significant.")
+        idx = [ix_F[(k, i, j)] for k in range(nf) for i in range(M) for j in range(M)
+               if i != j and (k, i, j) in ix_F]
+        idx += [ix_Th[(k, i, j)] for k in range(q) for i in range(M) for j in range(M)
+                if i != j and (k, i, j) in ix_Th]
+        if idx:
+            o += emit_wald(x, cov, idx, "All cross effects jointly:",
+                           "H0: every off-diagonal coefficient of Gamma and Theta = 0",
+                           "REJECT H0 -> the cross structure earns its parameters.",
+                           "Cannot reject H0 -> a diagonal short run would do "
+                           "(-diagar / -diagma).")
+        else:
+            o += ("\nNo free cross effects to test (the short run is already diagonal or "
+                  "structured).\n")
+        for i in range(M):
+            li = i2l(i)
+            nm = names[i]
+            idx = [ix_F[(k, li, j)] for k in range(nf) for j in range(M)
+                   if j != li and (k, li, j) in ix_F]
+            idx += [ix_Th[(k, li, j)] for k in range(q) for j in range(M)
+                    if j != li and (k, li, j) in ix_Th]
+            if idx:
+                o += emit_wald(x, cov, idx, "D.%s: what the others do to it:" % nm,
+                               "H0: no other variable enters the equation of D.%s" % nm,
+                               "REJECT H0 -> D.%s is driven by the others." % nm,
+                               "Cannot reject H0 -> D.%s is not driven by the others." % nm)
+            idx = [ix_F[(k, j, li)] for k in range(nf) for j in range(M)
+                   if j != li and (k, j, li) in ix_F]
+            idx += [ix_Th[(k, j, li)] for k in range(q) for j in range(M)
+                    if j != li and (k, j, li) in ix_Th]
+            if idx:
+                o += emit_wald(x, cov, idx, "D.%s: what it does to the others:" % nm,
+                               "H0: D.%s enters no other equation" % nm,
+                               "REJECT H0 -> D.%s drives the others." % nm,
+                               "Cannot reject H0 -> D.%s does not drive the others." % nm)
+    o += "\n  ! p-values from the BFGS-accumulated covariance; use -fdhess before quoting them\n"
+    return o
+
+
+# --------------------------------------------------------------------------- #
+#  impulse responses and the decomposition, in levels (drvec.c:7211-7486)      #
+# --------------------------------------------------------------------------- #
+
+def compute_psi_weights(m, p, q, phi, theta, L):
+    """compute_psi_weights (drvec.c:5876), loop for loop. phi[i-1], theta[l-1]
+    as lists; -> psi[0..L] (m x m lists)."""
+    psi = [[[0.0] * m for _ in range(m)] for _ in range(L + 1)]
+    for i in range(m):
+        psi[0][i][i] = 1.0
+    for l in range(1, L + 1):
+        P = psi[l]
+        for i in range(1, min(l, p) + 1):
+            ph = phi[i - 1]
+            prev = psi[l - i]
+            for i1 in range(m):
+                row = ph[i1]
+                for j1 in range(m):
+                    acc = 0.0
+                    for k in range(m):
+                        acc += row[k] * prev[k][j1]
+                    P[i1][j1] += acc
+        if l <= q:
+            th = theta[l - 1]
+            for i1 in range(m):
+                for j1 in range(m):
+                    P[i1][j1] -= th[i1][j1]
+    return psi
+
+
+def level_error_map(Csum, Psi_m, B2, M, r):
+    s = M - r
+    G = [[0.0] * M for _ in range(M)]
+    for i in range(s):
+        for j in range(M):
+            G[i][j] = Csum[i][j]
+    for i in range(r):
+        for j in range(M):
+            acc = Psi_m[s + i][j]
+            for k in range(s):
+                acc -= B2[k][i] * Csum[k][j]
+            G[s + i][j] = acc
+    return G
+
+
+def ldl_sigma(sigma2, qq, M):
+    Sg = [[sigma2 * qq[a][b] for b in range(M)] for a in range(M)]
+    P = [[1.0 if a == b else 0.0 for b in range(M)] for a in range(M)]
+    D = [0.0] * M
+    for b in range(M):
+        acc = Sg[b][b]
+        for k in range(b):
+            acc -= P[b][k] * P[b][k] * D[k]
+        D[b] = acc
+        if D[b] <= 0.0:
+            return None
+        for a in range(b + 1, M):
+            t = Sg[a][b]
+            for k in range(b):
+                t -= P[a][k] * P[b][k] * D[k]
+            P[a][b] = t / D[b]
+    return P, D
+
+
+def level_irf_R(M, r, p, q, phi, theta, B2, K, P, D):
+    psi = compute_psi_weights(M, p, q, phi, theta, K)
+    Csum = [[0.0] * M for _ in range(M)]
+    R = []
+    for k in range(K + 1):
+        for i in range(M):
+            for j in range(M):
+                Csum[i][j] += psi[k][i][j]
+        G = level_error_map(Csum, psi[k], B2, M, r)
+        Rk = [[0.0] * M for _ in range(M)]
+        for i in range(M):
+            for j in range(M):
+                acc = 0.0
+                for l in range(j, M):
+                    acc += G[i][l] * P[l][j]
+                Rk[i][j] = acc * math.sqrt(D[j])
+        R.append(Rk)
+    return R
+
+
+def level_irf_fevd(res, fv, K):
+    spec, names = res.spec, res.data.names
+    M, r, s, p, q = spec.M, spec.r, spec.s, spec.p, spec.q
+    if K < 1 or s < 1:
+        return ""
+    qq = fv.qq.tolist()
+    ld = ldl_sigma(res.sigma2, qq, M)
+    if ld is None:
+        return "\n(impulse responses not computed: Sigma is not positive definite)\n"
+    P, D = ld
+    phi, theta, B2 = fv.phi.tolist(), fv.theta.tolist(), fv.B2
+    R = level_irf_R(M, r, p, q, phi, theta, B2, K, P, D)
+    o = banner("Impulse Response of the Levels")
+    o += ("\n  Response of Y_{t+k} to a one-s.d. orthogonalized shock at t.\n"
+          "  Shocks are orthogonalized by Sigma = P D P', so the ORDERING is the\n"
+          "  .inp's column order: a different order gives different shocks.\n"
+          "  ! in a cointegrated system the response does not die out: what it\n"
+          "    converges to is the permanent effect, of rank M - r = %d.\n" % s)
+    for j in range(M):
+        o += "\nShock to %s:\n    k" % names[j] + "".join(" %14s" % nm for nm in names) + "\n"
+        for k in range(K + 1):
+            o += "%5d" % k + "".join(" %14.6f" % R[k][i][j] for i in range(M)) + "\n"
+    KL = 400
+    psiL = compute_psi_weights(M, p, q, phi, theta, KL)
+    CsL = [[0.0] * M for _ in range(M)]
+    Gp = [[0.0] * M for _ in range(M)]
+    gain = [[0.0] * M for _ in range(M)]
+    wsum = [[0.0] * M for _ in range(M)]
+    conv, tail, worst = False, 0.0, 0.0
+    sq = [math.sqrt(d) for d in D]
+    k = 0
+    while k <= KL:
+        mx = 0.0
+        for i in range(M):
+            for j in range(M):
+                CsL[i][j] += psiL[k][i][j]
+        GL = level_error_map(CsL, psiL[k], B2, M, r)
+        for i in range(M):
+            for j in range(M):
+                acc = 0.0
+                for l in range(j, M):
+                    acc += GL[i][l] * P[l][j]
+                acc *= sq[j]
+                d = acc - Gp[i][j]
+                gain[i][j] += d
+                wsum[i][j] += k * d
+                Gp[i][j] = acc
+                if abs(d) > mx:
+                    mx = abs(d)
+        if k > 20 and mx < 1.0e-10:
+            conv, tail = True, mx
+            break
+        tail = mx
+        k += 1
+    o += banner("Long-Run Gain and Mean Lag, in Levels")
+    o += ("\n  gain     = lim_k G_k, the PERMANENT effect of a one-s.d. shock\n"
+          "  mean lag = sum k delta_k / sum delta_k, with delta_k the increment of\n"
+          "             the response: how long the level takes to get there\n")
+    o += "  %s at k = %d (largest increment %.2e)\n" % (
+        "converged" if conv else "NOT converged", k, tail)
+    o += "\nStructural shock standard deviations (one-s.d. shock size):\n"
+    for j in range(M):
+        o += "  %-12s : %.6f\n" % (names[j], math.sqrt(D[j]))
+    for j in range(M):
+        o += "\nShock to %s:\n" % names[j]
+        for i in range(M):
+            g = gain[i][j]
+            if abs(g) > 1.0e-12 and abs(g) > 1.0e-8:
+                o += "  %-12s : gain = %10.6f   mean lag = %7.2f periods\n" % (
+                    names[i], g, wsum[i][j] / g)
+            else:
+                o += ("  %-12s : gain = %10.6f   mean lag = undefined (the permanent "
+                      "effect is zero)\n" % (names[i], g))
+    for j in range(M):
+        for kk in range(r):
+            acc = 0.0
+            for i in range(M):
+                bik = B2[i][kk] if i < s else (1.0 if i - s == kk else 0.0)
+                acc += bik * gain[i][j]
+            if abs(acc) > worst:
+                worst = abs(acc)
+    o += ("\n  self-check  max |beta' gain| = %.3e\n"
+          "  beta'Y_t is stationary, so no shock can move it permanently: this is\n"
+          "  zero by construction, and it exercises the weights, the level map and\n"
+          "  the orthogonalisation at once.  The gain matrix has rank M - r = %d.\n"
+          % (worst, s))
+    o += banner("Forecast Error Variance Decomposition, in Levels")
+    o += ("\n  Percentage of the h-step level forecast error variance due to each shock.\n"
+          "  Same orthogonalization, so the same caveat on the ordering.\n")
+    for i in range(M):
+        acc = [0.0] * M
+        o += "\n%s:\n    h" % names[i] + "".join(" %11s" % nm for nm in names) + "\n"
+        for k in range(K + 1):
+            tot = 0.0
+            for j in range(M):
+                acc[j] += R[k][i][j] * R[k][i][j]
+                tot += acc[j]
+            o += "%5d" % (k + 1) + "".join(
+                " %10.1f%%" % (100.0 * acc[j] / tot if tot > 0.0 else 0.0) for j in range(M)) + "\n"
     return o
