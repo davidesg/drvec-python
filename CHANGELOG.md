@@ -33,11 +33,18 @@
   cprboot.boot, where the C reuses the previous replication's ladder: C defect
   bugs/drvec-c-ladder-key.
 - Milestone 5: deterministic variables in a `.pre` (impulse, compimp, step,
-  ramp, easter, trend/time, cos, sin, alter): each file's exact
-  omega(B)/delta(B) component on its own dates subtracted from w, and added
-  back to the forecasts in levels (BUG-40 closed WON'T FIX: the C's filter,
-  not truncated). `-xpre` inputs with an ARMA model (the presample backcast,
-  xl_backcast) and with deterministic variables. The `.pre` files are read
-  with the C's reader, transcribed (`drvec.prefile`); fue moves to the test
-  extra, as the reader's cross-check. 21 oracle cases, every product
-  byte-identical on Linux x86_64.
+  ramp, easter, trend, cos, sin, alter): each file's component subtracted from
+  w and added back to the forecasts in levels; `-xpre` inputs with an ARMA
+  model (the presample backcast, xl_backcast) and with deterministic
+  variables. The `.pre` files are read and cast by fue (`fue.load`,
+  `fue.cast_us.cast_us_py` with the non-stationary operator emptied:
+  `drvec.data.levels_cast`), as in drtran-python; fue is a runtime dependency.
+  (A first version transcribed the C's reader, `drvec.prefile`; it was
+  removed.) Consequence, BUG-40 (WON'T FIX in the C): fue truncates a rational
+  term at 40 lags and the C does not, and the two sum the variables in a
+  different order, so only the oracle cases whose files carry no variable or
+  a single one without delta stay byte-identical (4 of 23); the others are
+  checked against the oracle fed the C's component (byte-identical) and, on
+  fue's, in sections, npar, verdicts and logL. A new case at BUG-40's size
+  (b40, b40rank: a step with delta 0.95) moves the logL by 0.47 and flips the
+  rank test's verdict at 10%.

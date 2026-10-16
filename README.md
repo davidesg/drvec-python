@@ -12,9 +12,13 @@ and the estimates to 1e-4.
 
 Like drtran's port, drvec reuses what its siblings already have:
 
-- the univariate models come as one fue `.pre` file per series, read as the
-  C program reads them (its reader transcribed, deterministic variables
-  included: drvec subtracts each file's exact omega(B)/delta(B) component);
+- the univariate models come as one fue `.pre` file per series, read with
+  `fue.load()` and built by fue's own cast (`fue.cast_us`), deterministic
+  variables included, exactly as drtran's port does: drvec takes each series
+  in levels with fue's deterministic component subtracted. fue truncates a
+  rational deterministic term at 40 lags (BUG-40) where the C applies the
+  exact filter, so on such files the port and the C differ by that tail
+  (docs/PORT.md §13);
 - the exact VARMA likelihood (AS 311) and the optimiser are drvarma's;
 - the only new piece is the **VEC cast**: from the error-correction
   parameters (α, β, Γ, Θ, Σ and the deterministic terms) to the stationary

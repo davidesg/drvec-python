@@ -136,14 +136,15 @@ in the parameters: the estimates are only reproduced if the same start wins.
 
 ## 7. The `.pre` route — `data.py`
 
-Each file is read with the C's own reader, transcribed (`prefile.py`:
-read_fue_pre's fgets/fscanf grammar, gen_detvar, build_det_component; since
-milestone 5, §13; before it, `fue.load()`). The series is taken in w units,
-refactor * BoxCox(z) (`lambda = 1` is z * refactor) MINUS its deterministic
-component, in levels; the files are lined up by DATE on the intersection of
-their samples (6810-6840; drvarma's ladder requires a common last date
-instead). Not read: the ARMA (but for an -xpre input, §13). Refused, where the
-C carries on: D > 0 (the C ignores it).
+Each file is read with `fue.load()` and its series built by fue's own
+univariate cast, `fue.cast_us.cast_us_py`, at the .pre's parameters, exactly
+as drtran-python does: the two ports differ only in how they embed the model
+(§13). drvec works in LEVELS, so it takes the cast of a copy of the model with
+the non-stationary operator emptied (`levels_cast`): refactor * BoxCox(y)
+MINUS the deterministic component, fue's regressor. The files are lined up by
+DATE on the intersection of their samples (6810-6840; drvarma's ladder
+requires a common last date instead). Not read: the ARMA (but for an -xpre
+input, §13). Refused, where the C carries on: D > 0 (the C ignores it).
 
 ## 8. The .out writer — `report.py`, `diagnose.py`
 
@@ -319,39 +320,99 @@ oracle on Linux x86_64 with GSL, but for cprboot.boot's replication 16.
 
 ## 13. Milestone 5
 
-* **Deterministic variables in a .pre** (`prefile.py`, `data.py`). BUG-40 is
-  closed WON'T FIX (atsw-gui engines/drvec/docs/BUGS.md, 2026-09-24): drvec
-  keeps the EXACT rational filter omega(B)/delta(B) and the port does what the
-  C does. read_pre_inputs (drvec.c:6862-6893) calls build_det_component
-  (fue_pre_reader.c:367) on each FILE's own sample: every variable is
-  regenerated from its spec line by gen_detvar on the file's calendar (t = 1 is
-  its first observation; impulse, compimp, step, ramp take `year` on annual
-  data and `sub year` otherwise; cos/sin r are cos(2 pi r t / freq); alter is
-  (-1)^t; trend/time is t; easter is monthly only), filtered by omega(B) =
-  w0 - w1 B - ... and 1/delta(B) = 1/(1 - d1 B - ...) from zero initial
-  conditions at the file's start, never truncated, and summed. The rows before
-  the common sample are skipped AFTER filtering, so the date, not the
-  position, places each term. w - det is what everything downstream sees (the
-  ladder, the fits, the rank test and its bootstrap, -xsys).
-  An unknown type is refused with the reader's message (the C exits 1).
-* **Forecasts in levels** (`forecast.py`): bt_det, the same component on the
-  common sample and over the horizon (built over off + nobs_raw + H, drvec.c:
-  6876-6882: a step or a trend goes on), is added back before the Box-Cox
-  inverse in the .out's table, `<base>.forecast` and the rolling evaluation of
-  -estwin (`Data.det_path`); the delta-method s.e. at the same point.
-* **-xpre inputs** (`xlink.py`): w - det of the input on its own sample
-  (drvec.c:7041-7051), and the presample backcast with its ARMA (xl_backcast,
-  drvec.c:6965, drtran's backcast_arma): the factors multiplied out as
-  expand_ar_factors/expand_ma_factors do (regular, annual at multiples of the
-  period, fixed-frequency AR(2)/MA(2) with c1 = 2 cos(2 pi f / s) sqrt(-c2)),
-  the mean's value whatever its flag, on the levels (d = 0) or on the
-  differences and cumulated backwards (d = 1). An input with seasonal
-  differencing or ifadf factors is refused, as the C refuses it.
-* The reader is the C's, not fue's: they agree on every fixture (series,
-  calendar, lambda, mean flag, omegas and deltas: tests/test_m5.py), and where
-  they could differ the C's wins (a `time` variable, an empty name, an
-  annual dated term written `sub year`).
+**The reader and the univariate cast are fue's** (decided by the lead,
+2026-10-16; a first version of the milestone transcribed the C's reader,
+`prefile.py`, and was undone). Every Python port of the suite reads a .pre
+through `fue.load()` and builds its series with `fue.cast_us`; drvec and drtran
+are siblings that differ only in how they embed each class of model, so the
+construction is the same:
 
-Every milestone-5 case (tests/data/oracle/SOURCE) is byte-identical to the
-oracle on Linux x86_64 with GSL: the .out, the .boot, and the .forecast and
-.recursive but for their first line.
+* **The series** (`data.levels_cast`): drtran's `_alt_est_specs` pattern -- a
+  `copy.deepcopy` of fue's model with only the operator changed (here d = D = 0,
+  no ifadf factors), `build_est_spec`, and `cast_us_py` at `_build_initial_x`
+  (the .pre's values in fue's parameter order). Step [6] of the cast builds
+  z = refactor * BoxCox(y) - det with fue's regressor (`_build_indicator` on
+  the file's own calendar, t = 1 its first observation; `calcnu_py`'s nu(B));
+  step [7] is then the identity. z is what the C calls w - det, in levels:
+  drvec differences the nabla-Y2 block itself. The rows before the common
+  sample are dropped after the cast, so the date, not the position, places
+  each term. Everything downstream (the ladder, the fits, the rank test and its
+  bootstrap, -xsys) sees z.
+* **Forecasts in levels** (`forecast.py`, `Data.det_path`): the component on
+  the common sample and over the horizon, fue's `_build_xi` at the .pre's
+  omegas and deltas (a step or a trend goes on), as drtran's `to_level` uses
+  it; added back before the Box-Cox inverse in the .out's table,
+  `<base>.forecast` and -estwin's rolling evaluation; the delta-method s.e. at
+  the same point.
+* **-xpre inputs** (`xlink.py`): the same cast gives the input's z on its own
+  sample, its ARMA multiplied out (fue's `_unscramble`: regular, annual at
+  multiples of the period, fixed-frequency AR(2)/MA(2) with c1 = 2 cos(2 pi f /
+  s) sqrt(-c2)) and its mean's value whatever its flag; the presample is
+  backcast with them (xl_backcast, drvec.c:6965, drtran's backcast_arma) on
+  the levels (d = 0) or on the differences, cumulated backwards (d = 1). An
+  input with seasonal differencing or ifadf factors is refused, as the C
+  refuses it.
+* **Refused** as fue refuses it: an unknown word in the deterministic block is
+  a non-standard variable to fue, which asks for its data column (`time`, the
+  C's synonym of trend, is one). With its column, fue reads it and drvec
+  refuses it with the C's message (by design: a transfer input is drtran's
+  job). `easter` off monthly data is refused (fue would carry an identically
+  null regressor; the C refuses it).
+
+**BUG-40's consequence** (WON'T FIX in the C, atsw-gui engines/drvec/docs/
+BUGS.md, 2026-09-24). The C builds each component its own way
+(fue_pre_reader.c build_det_component, drvec.c:6862-6893): omega(B) on the
+indicator, then 1/delta(B) by its recursion, never truncated, the variables
+summed into det and subtracted once. fue convolves the indicator with nu(B),
+truncated at 40 lags when delta != 0, and subtracts one variable at a time. So
+the port's w is the C's only where every file has no deterministic variable or
+a single one with no delta; elsewhere it differs by the tail
+sum_{k>40} nu_k I_{t-k} where a rational term reaches past lag 40 (in the
+sample or the forecast horizon), and by rounding (a few ulps) otherwise. An ulp
+in w moves the optimiser's path, so those .out files are not byte-identical
+even where every number agrees but in its last printed digit. The oracle cases
+are classified in tests/test_m5.py (`test_the_groups` checks the class):
+
+* **BYTE**, w bit for bit the C's, every product byte-identical on Linux
+  x86_64 with GSL: dstep (a step without delta), xarma, xarma1, xar0 (inputs
+  with an ARMA, no deterministic variable).
+* **FUE**, w is fue's: ddet201, e1seas, e1sfc, e1srank, mon201, xmon (rounding
+  only: several variables, or a rational one within 40 lags), and ddet211,
+  dfc, dcpfc, dfdh, dcpre, dxsys, xdet, drank, dcprank, dboot
+  (mmdet.muskrat's harmonic with a second-order delta, a tail of ~1e-12),
+  dfcmon (mmmon.muskrat's step with delta 0.8 passes lag 40 in the forecast
+  horizon: a tail of 3e-5 in the forecast's deterministic path), and b40,
+  b40rank (added for this: mmb40.mink's step with delta 0.95 and 52 periods
+  after it, a tail of up to 0.46). Tested there: (a) the port's levels,
+  differenced as fue differences them, are fue's stationary w bit for bit;
+  (b) the oracle's component minus fue's is the tail plus rounding (to
+  1e-14 relative), over the sample and the horizon; (c) fed the oracle's
+  component (tests/cdet.py, a test-only transcription of the C's
+  arithmetic on fue's indicators), the port reproduces every oracle product
+  byte for byte, so the component is the only difference; and on fue's w
+  the .out's sections, npar, ranks and rank-test verdicts agree, and the logL
+  to 1e-8 (measured: 7e-11 at most, the optimiser's stop). ddet211 is
+  ill-defined (a ridge, four starts over 4-5 logL units): an ulp moves the
+  winner, and the port's start ends 0.17 above the C's criterion-3 stop.
+  dboot: the same replication statuses and LR* within 1e-6 (measured 3e-10).
+* **b40 at BUG-40's size**: the logL moves from -13.0560 to -12.5837 (+0.472):
+  0.463 of it is the data's change at the C's optimum (l(x_C; w_fue) -
+  l(x_C; w_C), the envelope theorem's first-order term), 0.009 the
+  re-optimisation (second order, non-negative); the estimates move by up to
+  1.15 (E[ec1]), the forecasts by up to 0.15 in levels. **b40rank: LR(0) moves
+  from 13.2989 to 13.7873, across the 10% critical value 13.75 -- the verdict
+  at 10% flips.** A rational term that reaches past lag 40 with a slow
+  delta is a model the port estimates differently from the C, by design.
+
+On the article's 211 runs (TODO.md; private inputs) no input has a delta
+term, so BUG-40 never acts there; but every run but two has a file with two or
+more variables, and the ulps of fue's order of subtraction make 209 of the 211
+.out files differ from the C's. Fed the C's component, the port gives the C's
+files back (42 identical, 167 but the C's truncated "Input Data File" line).
+On fue's w 183 of the 209 agree in every decision and in logL to 1e-6; the
+rest are ties between starts, criterion-3 banners and ill-conditioned fits at
+r = M - 1 (up to 72 logL units on a rank whose fit fails in both programs). No
+tabulated rank-test verdict changes. Byte identity would come back only if fue
+built the component as the C does (TODO.md, for the lead).
+
+No C defect found in the deterministic or backcast paths.

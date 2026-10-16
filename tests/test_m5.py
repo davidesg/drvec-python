@@ -17,7 +17,7 @@ oracle cases fall in two groups (docs/PORT.md §13):
   from the C's: by the BUG-40 tail sum_{k>40} nu_k I_{t-k} where a delta term
   reaches past lag 40 (mmdet.muskrat's cos with delta, ~1e-12; mmb40.mink's
   step with delta 0.95, up to 0.46; mmmon.muskrat's step over dfcmon's
-  horizon, ~1e-5), and elsewhere by rounding only (a few ulps). An ulp in w is
+  horizon, 3e-5), and elsewhere by rounding only (a few ulps). An ulp in w is
   enough to move the optimiser's path, so the .out is not byte-identical even
   where the numbers agree to every printed digit but the last. Tested instead:
   (a) the w the port uses is fue's own cast z, bit for bit; (b) the oracle's

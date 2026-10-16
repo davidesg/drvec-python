@@ -72,22 +72,44 @@ The 211 invocations of the article's revision-suite scripts that carry no
 article's inputs (private: nothing of them in this repo).
 - [x] **Deterministic variables in a .pre** (milestone 5, below): 47 of the
       article's 50 .pre files declare them (seasonal cos/sin, alter, step,
-      impulse). BUG-40 is not pending: atsw-gui's BUGS.md closed it as WON'T
-      FIX (2026-09-24), drvec keeps the exact rational filter omega(B)/delta(B)
-      (fue_pre_reader.c build_det_component), and the port subtracts the same
-      component, by date.
+      impulse), none with a delta: BUG-40's tail does not reach them, but
+      several variables per file make fue's w differ from the C's by ulps.
 - [x] **-xpre/-xlink with an input that has an ARMA model** (xl_backcast): 10 of
       the 211 (milestone 5).
 - With the deterministic block removed from every .pre (both programs on the
   same edited files): 201 accepted, every .out byte-identical except one line
   in 159 of them, a C defect (below); 10 refused (the -xlink item above). Wall
   time, sum over jobs: C 278 s, Python 3153 s (~11x).
-- **Rerun after milestone 5 (2026-10-16), on the REAL inputs (deterministic
-  blocks and ARMA inputs as the article has them), C against drvec-py, 6
-  jobs in parallel: 211 accepted, 0 refused; 42 byte-identical, 169 differing
-  only in the C's truncated "Input Data File" line (below), 0 other
-  differences.** Wall time 654 s for both; sum over jobs C 261 s, Python
-  3478 s (~13x, under the parallel load).
+- Rerun after milestone 5's first version (the C's reader transcribed): 211
+  accepted, 42 byte-identical, 169 differing only in the C's truncated "Input
+  Data File" line (below). That version was undone (milestone 5).
+- **Rerun with fue's cast (2026-10-16), on the REAL inputs, C against
+  drvec-py, 6 jobs in parallel: 211 accepted, 0 refused; 0 byte-identical, 2
+  differing only in the "Input Data File" line, 0 because of BUG-40 (no input
+  of these runs has a delta term), 209 other.** The 209 are all the
+  deterministic component's rounding: each run has a file with 2 to 15
+  variables, which fue subtracts one at a time and the C sums first,
+  |w_fue - w_C| <= 1.1e-13. Rerun with the C's component (tests/cdet.py), the same 209 give 42
+  byte-identical and 167 with the "Input Data File" line only, the previous
+  acceptance exactly. On fue's w, 183 of the 209 agree in every decision and
+  in logL to 1e-6; 26 do not: 13 winning starts change among starts tied to
+  the printed digits, 4 fits change their criterion-3 banner, 4 rank tests
+  their criterion notes (all on "(no values)" rows of case 3 / -case pre),
+  and ill-conditioned fits move, all at r = M - 1 of three-series systems:
+  one fit (-case 3, r = 2, a criterion-3 stop
+  in both) by 20.0 in logL, five rank tests by 1.25 to 71.9 at a rank whose
+  fit fails in both programs (LR < 0), three by 0.008 to 0.26. No
+  tabulated rank-test verdict changes. Wall time 641 s; sum over jobs C
+  270 s, Python 3427 s (~13x, under the parallel load).
+- [ ] **For the lead: byte identity with the C on multi-variable files.** It
+  would come back if fue's cast built the component as the C does (summed,
+  then subtracted once; omega(B) then 1/delta(B) by recursion, no 40-lag
+  truncation). That is a fue change and a release; drvec would take it with
+  no change of its own. Nothing else was missing from fue: drvec uses
+  fue.load, cast_us.build_est_spec, cast_us_py and _build_initial_x, and
+  forecast._build_xi and _nonsop_coefs -- the private names drtran-python
+  already uses; a public "levels cast" (the series z and its component over a
+  horizon) would let both ports drop them.
 - [ ] **C defect: "Input Data File : the .pre fil"** -- drvec.c ~10370 sizes
       inputf as strlen(argv[1]) + 8, and ~10905 writes "the .pre files" into it
       with that size: a first file name of 6 characters or fewer truncates the
@@ -100,20 +122,38 @@ article's inputs (private: nothing of them in this repo).
 
 ## Milestone 5 — what blocks the article (2026-10-16)
 
-- [x] Deterministic variables in a .pre, every type the C's reader accepts
-      (impulse, compimp, step, ramp, easter, trend/time, cos, sin, alter):
-      build_det_component's exact omega(B)/delta(B) on each file's own dates,
-      subtracted from w; bt_det over the horizon for -f and -estwin; the same
-      for an -xpre input. The reader is the C's, transcribed (drvec.prefile).
-- [x] -xpre/-xlink inputs with an ARMA model: xl_backcast with the factors
-      multiplied out (regular, annual, fixed-frequency), d = 0 and d = 1.
+- [x] Deterministic variables in a .pre, every type fue's reader accepts
+      (impulse, compimp, step, ramp, easter, trend, cos, sin, alter): the
+      .pre is read with fue.load() and its series built by fue's own cast
+      at the .pre's parameters, the non-stationary operator emptied
+      (data.levels_cast: cast_us_py's step [6], z = refactor * BoxCox(y) -
+      det), as drtran-python does; the component over the horizon for -f and
+      -estwin is fue's _build_xi; the same for an -xpre input. fue is a
+      runtime dependency again. (The first version transcribed the C's
+      reader, drvec.prefile; removed by the lead's decision: every port
+      reads through fue's cast.)
+- [x] -xpre/-xlink inputs with an ARMA model: xl_backcast with fue's factors
+      multiplied out (the phi, theta and mean of the same cast), d = 0 and
+      d = 1.
+- [x] Refused as fue refuses it (an unknown word asks for a data column;
+      `time` is one); a non-standard variable WITH its column, with the C's
+      message; easter off monthly data (fue would carry a null regressor).
 - [x] Fixtures from the public data (tests/data/fixtures/make_m5.py, SOURCE)
-      and 21 oracle cases (fits, -lrtest, -bootstrap 10, -f, -estwin,
-      -fdhess, -case pre, -xsys, -xpre/-xlink with ARMA and deterministic
-      inputs, annual/quarterly/monthly): every product byte-identical on
-      Linux x86_64 (tests/test_m5.py). ddet211 and dstep are ill-defined
-      (criterion-3 stops, a spread of 4-5 logL units): off the oracle's
-      platform they check the declaration only.
+      and 23 oracle cases, two of them new for BUG-40 (b40, b40rank), in two
+      groups (tests/test_m5.py, docs/PORT.md §13). BYTE (dstep, xarma,
+      xarma1, xar0: no variable or a single one without delta, fue's w is the
+      C's bit for bit): every product byte-identical on Linux x86_64. FUE
+      (the other 19): the port's w is fue's cast bit for bit; the C's
+      component minus fue's is the BUG-40 tail plus rounding; fed the C's
+      component (tests/cdet.py) the port reproduces every oracle product
+      byte for byte; on fue's w the sections, npar, verdicts and logL (1e-8)
+      agree, except on ddet211 (a ridge: the port's start ends 0.17 higher)
+      and b40/b40rank (below).
+- [ ] **BUG-40 decides a verdict on b40rank** (a step with delta 0.95, 52
+      periods on, tail up to 0.46): logL +0.47, LR(0) 13.2989 -> 13.7873
+      across the 10% critical value 13.75. By design (fue's cast is the
+      suite's); for the lead: whether fue should stop truncating, or warn
+      when a rational term reaches past lag 40 (atsw-gui BUGS.md BUG-40).
 - No C defect found in the deterministic or backcast paths.
 
 ## Next
@@ -259,9 +299,13 @@ What this says:
   S^(-1/2) are numpy where the C uses svdcp/GSL: byte-identical on every case here,
   but a printed fourth decimal could round the other way elsewhere (PORT.md §8).
 - `nrerror` (the line search's ROUNDOFF) is an exception, not an exit (D3).
-- The `.pre` reader is the C's, transcribed (drvec.prefile, milestone 5): D > 0
-  is refused (the C ignores it); alignment is the C's (date intersection), not
-  drvarma's ladder rule.
+- The `.pre` files go through fue's reader and cast (milestone 5): D > 0 is
+  refused (the C ignores it); alignment is the C's (date intersection), not
+  drvarma's ladder rule. Any file with two or more deterministic variables,
+  or a rational one, gives a w a few ulps from the C's (fue subtracts them
+  one at a time, and convolves with nu(B) where the C recurses): the port is
+  then not byte-identical to the C, and on an ill-defined fit the winner can
+  move. With a rational term past lag 40, the BUG-40 tail (§ milestone 5).
 - C defect candidate, not filed: the bootstrap generator's `unsigned long`
   (drvec.c:2203) is 32-bit on Windows, so the C's bootstrap stream (and its
   `.boot` goldens) are platform-dependent. The port computes the 64-bit stream.
