@@ -65,6 +65,33 @@
       (tests/test_gate.py). On E1 the C's own gate is NOT VERIFIED
       (-4.120e-06, the rung-0 fit stops on criterion 3), as in e1rungs.
 
+## The article's runs: acceptance test (2026-10-16)
+
+The 211 invocations of the article's revision-suite scripts that carry no
+-bootstrap and no -irfboot, C (drvec-v0.12) against drvec-py, on copies of the
+article's inputs (private: nothing of them in this repo).
+- [ ] **Deterministic variables in a .pre: the blocker.** 47 of the article's
+      50 .pre files declare them (seasonal cos/sin, alter, step), so drvec-py
+      refuses all 211. BUG-40 is not pending: atsw-gui's BUGS.md closed it as
+      WON'T FIX (2026-09-24, the analyst's decision), and drvec keeps the exact
+      rational filter omega(B)/delta(B) (fue_pre_reader.c build_det_component,
+      ~394). The port subtracts the same component, by date.
+- [ ] **-xpre/-xlink with an input that has an ARMA model** (xl_backcast): 10 of
+      the 211.
+- With the deterministic block removed from every .pre (both programs on the
+  same edited files): 201 accepted, every .out byte-identical except one line
+  in 159 of them, a C defect (below); 10 refused (the -xlink item above). Wall
+  time, sum over jobs: C 278 s, Python 3153 s (~11x).
+- [ ] **C defect: "Input Data File : the .pre fil"** -- drvec.c ~10370 sizes
+      inputf as strlen(argv[1]) + 8, and ~10905 writes "the .pre files" into it
+      with that size: a first file name of 6 characters or fewer truncates the
+      line. Cosmetic; the port prints it whole. Repro: `drvec c.pre e1income.pre
+      1 0 0 -case 2 -lrtest` with c.pre a copy of e1cons.pre.
+- cprq (2 1 r -case pre) is ill-defined at r = 1 as E1 is: the C's four starts
+  end at logL -1.50 to 6.48, the best on the step criterion; off Linux x86_64 it
+  stops ~1e-3 elsewhere (CI run 38912495044). The test compares the logL to 1e-2
+  there; e1gate's to 1e-4.
+
 ## Next
 
 - [ ] `-specs`: it fits -warma and -mawarma, neither of which is ported (the

@@ -59,9 +59,15 @@ def test_ranks_and_logl(label):
     t = _rt(label)
     rows = _table_rows(out_text(label + ".out"))
     assert sorted(rows) == list(range(t.spec.M))
+    # cprq (q = 1) is ill-defined at r = 1: the C's own four starts end at four
+    # points (logL -1.50 to 6.48) and the best stops on the step, not the
+    # gradient. Off the oracle's platform it stops ~1e-3 further along the
+    # ridge (CI run 38912495044, macOS and Windows), as E1 does (TODO.md):
+    # there the rank table's shape and the logL to 1e-2, not the point.
+    tol = 5.01e-5 + (0 if EXACT else 1e-2 if label == "cprq" else TOL_LL)
     for r, (npar, ll) in rows.items():
         assert t.npar[r] == npar
-        assert abs(t.ll[r] - ll) <= 5.01e-5 + (0 if EXACT else TOL_LL)
+        assert abs(t.ll[r] - ll) <= tol
     # case 3's tables are not tabulated: no asymptotic verdict, everywhere
     assert t.critical_values(0) is None and t.verdict(0) is None
 
