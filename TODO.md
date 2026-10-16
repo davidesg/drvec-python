@@ -48,12 +48,30 @@
 - Every case above is byte-identical to the oracle on Linux x86_64 with GSL
   (tests/data/oracle/SOURCE, milestone 3).
 
+## Milestone 4 — what the article's scripts use (2026-10-16)
+
+- [x] `-lrtest` with `-case pre` and with `-nodrift i` (it fell out: the same
+      mask), with and without `-bootstrap N`: every rank and every replication
+      fitted with the mask, the C's warning on stderr that case 3's tables do
+      not apply to the mixed case. cprank, cprboot (+ .boot), cprq (q = 1),
+      e1cprank (the E1 .pre files all free their mean: -case pre is case 3
+      there), e1ndrank (three series, a drift held). Every .out
+      byte-identical; cprboot.boot in 19 of 20 replications, the 20th is the C
+      defect below (tests/test_rank_drift.py). Bootstrap time: 7.5 s against
+      the C's 0.51 s (~15x).
+- [x] The entry gate of a plain fit at the diagonal rung (r = 0 with -diagar
+      -diagma -diagcov), with its optimality certificate (the logL at the start
+      brought in): dgate, dgate2, dgateq, dgatepq, e1gate byte-identical
+      (tests/test_gate.py). On E1 the C's own gate is NOT VERIFIED
+      (-4.120e-06, the rung-0 fit stops on criterion 3), as in e1rungs.
+
 ## Next
 
 - [ ] `-specs`: it fits -warma and -mawarma, neither of which is ported (the
       -warma branch of vec_shootx and init_guess, the -mawarma MA class).
-- [ ] The rank test with `-alpha`/`-weakex`/`-fixb2`, `-nodrift`/`-case pre`,
-      `-diagar`/`-diagcov` (the C has them; drvec-py refuses them, named).
+- [ ] The rank test with `-alpha`/`-weakex`/`-fixb2`, `-diagar`/`-diagcov` (the C
+      has them; drvec-py refuses them, named). `-rungs` with `-case pre`/`-nodrift`
+      is still refused too (not tried).
 - [ ] `-m 2` (the xi sequence not truncated), `-matest`, `-artest`, `-eval`,
       `-seed*`, `-noladder`, `-seedjoh`, `-seedb2`, `-rankadm`, `-writeinp`,
       `-writeres`, `-warma`/`-mawarma`: refused by drvec-py, named.
@@ -83,6 +101,26 @@
       objective exact to an ulp, and AS 311's is ~1e-14 relative (E1, |Sigma| ~
       1e-11), so the printed s.e. carry ~0.1-0.5 % of numerical noise (fourth
       significant digit). Not a crash; a matter for the article's quoted s.e.
+
+## C defects found in milestone 4 (not patched; for the lead)
+
+- [ ] **The r = 0 ladder's cache key loses the data when a drift is held**
+      (`bugs/drvec-c-ladder-key`, `repro.py` exits 1 while open). ladder_key()
+      (drvec.c:5310) is a double: p*1e6 + ... + 1e12 * 2^(i-1) per held drift +
+      sum rawmat * 1e-7 (t%97 + i). With a drift held (-nodrift, -case pre) it is
+      ~1e12, where the spacing is 1.2e-4, and the data's terms (~1e-6) are mostly
+      rounded away: two bootstrap replications can share a key, and the second
+      starts from the FIRST one's ladder (rungs 0 and 1 not fitted, its gate not
+      checked). On cprboot replications 15 and 16 share 1000002003000.062; the
+      C's LR* of rep 16 is 5.4210743829648322, its own ladder gives
+      5.4210743828848535 (8e-11; the stale seed was close; nothing bounds it).
+      Handing rep 15's ladder to rep 16 in the port reproduces the C's value bit
+      for bit. **Port difference**: the port keys its cache on the data object
+      (each replication its own ladder), so cprboot.boot differs from the
+      oracle's in that one line; the .out (p-value, percentiles) is identical.
+      Without a held drift the key is ~1e6 and keeps the data (rankboot, e1boot
+      unaffected). To byte-match the C instead, the port would have to emulate
+      the key's rounding: a decision for the lead.
 
 ## E1 is ill-defined: a ridge, not a maximum (2026-10-15)
 

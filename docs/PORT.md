@@ -211,8 +211,8 @@ Milestone 3 adds the blocks of `-fdhess`, `-alpha`/`-weakex`, `-fixb2`, `-f`,
 
 `-specs` (it fits `-warma` and `-mawarma`, neither ported), `-warma`/`-mawarma`,
 `-m 2`, `-matest`/`-artest`, `-eval`, the `-seed*` family, `-noladder`, `-rankadm`,
-`-writeinp`/`-writeres`; the rank test with `-alpha`/`-weakex`/`-fixb2`,
-`-nodrift`/`-case pre` or the diagonal flags; an `-xlink` input with an ARMA
+`-writeinp`/`-writeres`; the rank test with `-alpha`/`-weakex`/`-fixb2` or the
+diagonal flags (with `-nodrift`/`-case pre` since milestone 4, §12); an `-xlink` input with an ARMA
 model or deterministic variables; the .inp route. drvec-py refuses each of them
 by name (exit 2). The -lrtest internal rescaling is ported but not exercised (no
 fixture triggers it).
@@ -275,3 +275,41 @@ fixture triggers it).
 Every milestone-3 case (tests/data/oracle/SOURCE) is byte-identical to the
 oracle on Linux x86_64 with GSL: the .out, and the .forecast/.recursive but for
 their first line.
+
+## 12. Milestone 4
+
+* **`-lrtest` with `-case pre` / `-nodrift i`** (`api.rank_test(case="pre",
+  nodrift=)`). The C's mask is global (`nodrift[]`, drvec.c:779-798), so every
+  rank of the test and every bootstrap replication is fitted with it: in the
+  port the rank test's Spec carries `drift`, which fit_rank, simulate_h0 and
+  the replications already honoured. The header says "(drifts as in the .pre
+  files)" / "(some drifts held by -nodrift)" only when a drift is held (the
+  E1 .pre files all free their mean: -case pre is plain case 3 there); the
+  critical values are case 3's, "NOT TABULATED HERE"; the CLI writes the C's
+  warning (drvec.c:10701) on stderr. -nodrift was the same mask and came for
+  free.
+* **Port difference, the ladder cache** (C defect, bugs/drvec-c-ladder-key):
+  the C caches the r = 0 ladder in one slot keyed by a double that, with a
+  drift held (+1e12 per held drift), rounds the data's contribution away; a
+  bootstrap replication whose key equals the previous one's reuses that
+  replication's ladder. The port keys the cache on the data object (one per
+  replication, `Data.with_raw`), so it fits every replication's own ladder:
+  cprboot.boot differs in replication 16 by 8e-11, and the .out is identical.
+  Emulating the C's key would byte-match it (the repro and
+  tests/test_rank_drift.py show the stale ladder reproduces the C's LR* bit for
+  bit); not done, a decision for the lead.
+* **The entry gate of a plain fit** (`FitResult.gate`, report._coint_block).
+  At r = 0 with -diagar -diagma -diagcov, report_fit calls gate_contract after
+  the Granger block (drvec.c:8903); main() has evaluated the logL at the
+  start fit_search receives (drvec.c:11571-11595, truncated xi, concentrated),
+  so the gate adds the optimality certificate: that logL, the fit's, their gap,
+  and AN OPTIMUM / A SPECIFICATION at 1e-3. On this route the start is
+  init_guess's (the ladder is the model itself at the diagonal rung and is
+  not run, ladder_seed_r0), so the verdict is always A SPECIFICATION. The
+  "largest coefficient movement" line needs load_seed_pre's univariate seeds
+  (the .inp route's) and is never written here. In the rank test and -rungs
+  the gate has no certificate, as in the C (gate_have_start is only set by
+  the plain fit).
+
+Every milestone-4 case (tests/data/oracle/SOURCE) is byte-identical to the
+oracle on Linux x86_64 with GSL, but for cprboot.boot's replication 16.

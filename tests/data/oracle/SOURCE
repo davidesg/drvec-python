@@ -53,3 +53,21 @@ alpha_invest = alpha_income), each with `-name <label>`:
   e1rungs   e1invest.pre e1income.pre e1cons.pre 2 1 1 -case 2 -rungs
   rungs3    mmpre.muskrat.pre minkmu.pre 2 0 0 -case 3 -rungs
 Every run takes under 0.3 s.
+
+Milestone 4 (2026-10-16), same binary, run in a directory holding the
+fixtures (mmpre.*.pre, minkmu.pre, e1*.pre), each with `-name <label>`:
+  cprank    mmpre.muskrat.pre minkmu.pre 2 0 0 -case pre -lrtest
+  cprboot   mmpre.muskrat.pre minkmu.pre 2 0 1 -case pre -lrtest -bootstrap 20   (+ .boot)
+  cprq      mmpre.muskrat.pre minkmu.pre 2 1 1 -case pre -lrtest
+  e1cprank  e1invest.pre e1income.pre e1cons.pre 2 0 1 -case pre -lrtest
+  e1ndrank  e1invest.pre e1income.pre e1cons.pre 2 0 1 -case 3 -nodrift 2 -lrtest
+  dgate     mmpre.muskrat.pre minkmu.pre 2 0 0 -case pre -diagar -diagma -diagcov
+  dgate2    mmpre.muskrat.pre mmpre.mink.pre 2 0 0 -case 2 -diagar -diagma -diagcov
+  dgateq    mmpre.muskrat.pre mmpre.mink.pre 2 1 0 -case 2 -diagar -diagma -diagcov
+  dgatepq   mmpre.muskrat.pre minkmu.pre 2 1 0 -case pre -diagar -diagma -diagcov
+  e1gate    e1invest.pre e1income.pre e1cons.pre 2 1 0 -case 2 -diagar -diagma -diagcov
+The E1 .pre files all estimate their mean, so e1cprank is case 3 with every
+drift free; e1ndrank is the three-series case with a drift held. Wall time:
+cprboot 0.51 s, e1ndrank 0.48 s, e1cprank 0.37 s, cprq 0.33 s, the rest
+under 0.05 s. cprboot.boot's replication 16 is the C's stale-ladder defect
+(bugs/drvec-c-ladder-key).

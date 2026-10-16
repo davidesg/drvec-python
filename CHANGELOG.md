@@ -25,3 +25,10 @@
   the command line `drvec-py` (the C's .pre-route syntax and products). Every
   oracle case byte-identical on Linux x86_64. C defect found: -alpha accepts a
   rank-deficient A (bugs/drvec-c-alpha-rank).
+- Milestone 4: `rank_test(..., case="pre")` and `rank_test(..., nodrift=[i])`
+  (also with `bootstrap=N`; the CLI's `-lrtest -case pre`/`-nodrift`, with the
+  C's warning on the mixed case); the entry gate with its optimality
+  certificate in a plain fit at the diagonal rung (`FitResult.gate`). Every
+  oracle case byte-identical on Linux x86_64 but one bootstrap replication of
+  cprboot.boot, where the C reuses the previous replication's ladder: C defect
+  bugs/drvec-c-ladder-key.
