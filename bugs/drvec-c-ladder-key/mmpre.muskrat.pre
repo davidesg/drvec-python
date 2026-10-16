@@ -1,0 +1,93 @@
+************************************************
+* Input file for program FUE                   *
+* written by hand for the .pre-route test      *
+************************************************
+** Frequency of time series: either 1(A), 4(Q) or 12(M):
+ 1
+** Number of observations and starting date of time series:
+ 62 1 1850 muskrat
+** Number of deterministic variables (including seasonal components):
+0
+** Number and orders of regular AR operators:
+0
+** Number and orders of annual AR operators:
+0
+** Number and orders of regular MA operators:
+0
+** Number and orders of anual MA operators:
+0
+** Number and frequencies of regular AR(2) operators with fixed frequency:
+0
+** Number and frequencies of regular MA(2) operators with fixed frequency:
+0
+** Mean and estimation flag:
+0.0 0
+** Box-Cox lambda, regular and seasonal differences:
+1.0 1 0
+** Fixed-frequency annual difference factors:
+ 0
+** Confidence bands and rescaling factor:
+0.95 1.0
+** Series:
+12.0752347600
+12.1791227400
+12.5863225000
+13.1101936300
+13.1466481000
+12.7531125400
+12.4638340300
+12.6190660100
+12.6555610200
+12.4460575800
+12.0855477300
+12.2357285300
+12.7230344000
+12.7856591100
+13.1417129600
+12.9441214900
+12.6786479700
+12.9291766100
+13.3343748000
+12.9095982800
+12.3555739600
+13.0035775900
+13.4656537500
+13.5514095900
+13.4179868300
+13.1688690300
+13.2764894900
+12.9879653200
+13.0940256300
+13.1218172300
+13.0775291800
+13.6280164500
+13.8443856300
+13.8824053600
+13.8953073900
+13.6133980500
+12.7572241400
+12.8482738400
+12.7509460100
+12.3176766300
+12.6828036000
+13.2616765200
+13.5999668000
+13.7479231300
+13.3827056000
+13.4221879300
+13.6086819400
+13.2207887000
+13.2515197100
+13.4609576500
+13.5512077200
+13.7410014300
+14.3164155300
+14.2131363500
+13.7369423500
+13.8702383000
+13.4517678400
+12.9177275000
+12.0576770400
+12.6188277800
+13.5266838300
+13.7784284400

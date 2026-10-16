@@ -290,7 +290,7 @@ def rank_test_out(t, data, base):
     """The whole <base>.out of `-lrtest [-bootstrap N]`."""
     spec = t.spec
     M = spec.M
-    out = header(data, spec.but(r=1), base + ".out", lrtest=True)
+    out = header(data, spec.but(r=1), base + ".out", lrtest=True, how=t.drift_how)
     out += "\n=== Sequential LR test for the cointegration rank ===\n"
     if any(c != 1.0 for c in t.scale):
         out += ("  Internal scaling (the LR does not depend on it; logLs below are in the\n"

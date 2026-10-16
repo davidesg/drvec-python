@@ -447,8 +447,13 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
 
 
 def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
-              progress=None, trend=False, xsys=None, xpre=None, xlink=None, multistart=0):
+              progress=None, trend=False, xsys=None, xpre=None, xlink=None, multistart=0,
+              nodrift=None):
     """The sequential LR test for the rank (`-lrtest [-bootstrap N]`).
+
+    case="pre" and nodrift= are the mask on case 3's drifts, as in fit(): every
+    rank, observed or simulated, is fitted with it (the C's global mask); the
+    asymptotic tables are case 3's and do not apply to the mixed case.
 
     The C declares the rank test with exogenous inputs (-xsys, -xlink) and with
     -trend as not done yet; so does the port, with its messages."""
@@ -472,9 +477,12 @@ def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
             "       -estwin, -writeinp, -writeres or the modes -lrtest, -specs,\n"
             "       -rungs, -matest, -artest and -eval (not yet).")
     data = _data(pre_files)
-    spec = Spec(data.M, p, q, 0, case, ma)
-    return _rank_test(data, spec, bootstrap, boot_path, progress,
-                      njitter=multistart if multistart > 1 else 1)
+    case, drift, how = _drift_mask(data, case, nodrift)
+    spec = Spec(data.M, p, q, 0, case, ma, drift=drift)
+    out = _rank_test(data, spec, bootstrap, boot_path, progress,
+                     njitter=multistart if multistart > 1 else 1)
+    out.drift_how = how
+    return out
 
 
 def rungs(pre_files, p, q, r=0, case=2, ma="free"):

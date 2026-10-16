@@ -52,9 +52,9 @@ def number_after(text, key):
     return float(m.group(1))
 
 
-def boot_rows():
+def boot_rows(name="rankboot.boot"):
     rows = []
-    for line in open(os.path.join(ORACLE, "rankboot.boot")):
+    for line in open(os.path.join(ORACLE, name)):
         if line[0].isdigit():
             h0, rep, st, lr = line.strip().split(",")
             rows.append((int(h0), int(rep), st, float(lr) if lr else None))

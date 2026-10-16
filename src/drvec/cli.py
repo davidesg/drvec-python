@@ -84,6 +84,9 @@ MSG_IRFBOOT = ("-irfboot bootstraps the responses of a single fit in the levels\
                "       layout: it cannot be combined with -differenced, -xlink, -trend,\n"
                "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
                "       -specs, -rungs, -matest, -artest and -eval (not yet).")
+MSG_MIXED = ("WARNING: with some drifts held (-nodrift / -case pre) the rank test's\n"
+             "         asymptotic tables are case 3's, which do not apply to the\n"
+             "         mixed case: read the bootstrap (-bootstrap N), not the table.\n")
 MSG_TREND = ("-trend (case 4) goes on case 3's drifts (-case 3 or -case pre)\n"
              "       for a single fit: it cannot be combined with -warma, -f,\n"
              "       -estwin, -writeinp, -writeres or the modes -lrtest, -specs,\n"
@@ -439,7 +442,6 @@ def _refusals(o):
             raise CliError("ERROR: " + MSG_FIXB2ROW, code=2)
         late = [n for n, on in (("-alpha", o["alpha"]), ("-weakex", o["weakex"]),
                                 ("-fixb2", o["fixb2"] is not None),
-                                ("-nodrift", o["nodrift"]), ("-case pre", o["case"] == "pre"),
                                 ("-diagar", o["diag_ar"]), ("-diagcov", o["diag_cov"]))
                 if on]
         if late:
@@ -497,12 +499,14 @@ def _execute(o, out, err):
             out.write(f"Done. Output written to {base}.out\n")
             return 0
         if o["lrtest"]:
+            if o["nodrift"] or o["case"] == "pre":
+                err.write(MSG_MIXED)
             boot = base + ".boot" if o["bootstrap"] > 0 else None
             t = drvec.rank_test(o["files"], o["p"], o["q"], case=o["case"],
                                 ma=o["ma"] or "free", bootstrap=o["bootstrap"],
                                 boot_path=boot, trend=o["trend"], xsys=o["xsys"] or None,
                                 xpre=o["xpre"] or None, xlink=o["xlink"],
-                                multistart=o["multistart"])
+                                multistart=o["multistart"], nodrift=o["nodrift"] or None)
             text = t.out_text(base)
             _write(base + ".out", text)
             for rr in range(t.spec.M - 1):

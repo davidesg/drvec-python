@@ -189,6 +189,7 @@ class RankTest:
     bootstraps: list = field(default_factory=list)
     boot_n: int = 0                 # -bootstrap N (0: none)
     data: object = None             # the data as read (for the .out's header)
+    drift_how: str = None           # "pre" / "nodrift" when case 3's drifts are masked
 
     def lr(self, r):
         return 2.0 * (self.ll[r + 1] - self.ll[r])
