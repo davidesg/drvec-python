@@ -1,0 +1,48 @@
+Fixtures of this directory and where they come from.
+
+mmpre.muskrat.pre, mmpre.mink.pre, minkmu.pre, xrev.pre, xnet1.txt,
+mmpre.step.pre: copied byte for byte from atsw-gui engines/drvec/tests/fixtures
+at the tag drvec-v0.12 (their README there: Jenkins and Alavi's muskrat and
+mink, Mauricio's mink_muskrat dataset; xrev.pre is the mink series reversed in
+time and one year earlier; minkmu.pre the mink model with its mean freed;
+mmpre.step.pre the mink model with a step of 5 in 1900, the C's own test of
+the .pre route's deterministic terms, run_tests.sh block 2).
+
+e1*.pre: Lutkepohl's E1, see e1-inp/SOURCE.
+
+Milestone 5 (2026-10-16): written by make_m5.py, which edits COPIES of the
+files above -- the series are the public ones, unchanged; only the model
+sections (the deterministic block, the ARMA block, the mean, d, and for the
+monthly ones the calendar) are replaced by hand-chosen values. They are
+specifications, not optima: on the .pre route drvec reads only the
+deterministic block (and, for an -xpre input, its ARMA and mean), so that
+does not matter. Each was checked to be accepted by the oracle.
+
+  mmdet.mink.pre      mink; step 1900 with omega 0.3 and delta 0.95 (near one),
+                      impulse 1880 with delta 0.5, compimp 1870 with omega of
+                      order 1
+  mmdet.minkmu.pre    the same with the mean freed (0.0 1), for -case pre
+  mmdet.muskrat.pre   muskrat; cos 0.1 (the ten-year cycle; on annual data the
+                      harmonic is cos(2 pi 0.1 t)) with a second-order delta,
+                      sin 0.1, alter, ramp 1895, trend
+  e1seas.invest.pre   E1 (quarterly): cos 1, sin 1, alter, impulse 3 1970 with
+                      omega of order 1
+  e1seas.income.pre   E1: step 1 1975 with delta 0.9, cos 1
+  e1seas.cons.pre     E1: alter, sin 1
+  mmmon.muskrat.pre   muskrat RELABELLED as 62 monthly observations from
+                      1990/1 (an artificial calendar on public data, for the
+                      monthly types): easter, cos 1, sin 2, step 6 1992 with
+                      delta 0.8; the ifadf line has the seven monthly flags
+  mmmon.mink.pre      mink relabelled the same way: cos 1, ramp 3 1993
+  xrevarma.pre        xrev with an AR(1) 0.6 and an MA(1) -0.3, mean 0.01 free
+                      (d = 1: the backcast runs on the differences)
+  xrevar0.pre         xrev with d = 0, two first-order AR factors 0.5 and -0.2,
+                      MA(1) 0.4, the mean held at 10.6 (the backcast on levels)
+  xrevdet.pre         xrev with a step 1890 (delta 0.7) and an impulse 1860,
+                      an AR(2) and an MA(1) (an input with deterministic terms)
+  xmon.pre            xrev relabelled monthly, 63 observations from 1989/12
+                      (one presample value observed), d = 0, mean 10.6 held,
+                      cos 1, an AR(1), an annual MA(1), a fixed-frequency AR(2)
+                      at f = 3 and a fixed-frequency MA(2) at f = 2
+  xnet2.txt           mink <- xrev 0 1 0: r = 1, the whole sample backcast
+  xnetm.txt           mink <- xmon 0 1 1

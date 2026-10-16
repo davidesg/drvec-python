@@ -1,0 +1,1 @@
+mink <- xrev 0 1 0   # r = 1: the whole sample backcast

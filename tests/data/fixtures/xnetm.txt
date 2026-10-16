@@ -1,0 +1,1 @@
+mink <- xmon 0 1 1   # monthly: r = 1, s = 1

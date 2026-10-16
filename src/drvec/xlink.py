@@ -10,10 +10,14 @@ model is frozen at its .pre and used only for the presample: observations of X
 before the system's sample first, then a backcast. The parameters go last in
 x, after B2 (par_blocks' tail).
 
-Ported: inputs at most I(1) with D = 0 and no deterministic variables, and a
-backcast for an input WITHOUT an ARMA model (the C's xl_backcast with p = q =
-0, which is what the oracle's fixture exercises). An input with an ARMA model
-is refused: its backcast is not ported (TODO.md).
+Each input is read as the C reads it (prefile.read): w = refactor * BoxCox(z)
+minus its own deterministic component (build_det_component on the input's own
+sample, drvec.c:7041-7051); inputs at most I(1) at frequency zero with no
+seasonal unit roots. The presample the sample does not cover is backcast with
+the input's ARMA from its .pre, the factors multiplied out
+(expand_ar_factors/expand_ma_factors) and its mean's VALUE whatever the flag
+(BUG-38): xl_backcast, on the levels (d = 0) or on the differences, cumulated
+backwards (d = 1).
 """
 from __future__ import annotations
 
@@ -68,42 +72,78 @@ def _parse_net(path, names, innames):
     return tuple(links)
 
 
+def backcast(w, ph, th, mu, L):
+    """xl_backcast (drvec.c:6965): drtran's backcast_arma. The ARMA in elf's
+    sign convention is symmetric under time reversal, so backcasting is
+    forecasting the reversed series with the same phi and theta. -> out[0..L-1],
+    out[k-1] the value k periods before w[0]."""
+    n, p, q = len(w), len(ph), len(th)
+    if L <= 0 or n <= 0:
+        return []
+    u = [0.0] * (n + 1)
+    e = [0.0] * (n + 1)
+    for t in range(1, n + 1):
+        u[t] = w[n - t] - mu
+    for t in range(1, n + 1):
+        acc = u[t]
+        for i in range(1, p + 1):
+            if i >= t:
+                break
+            acc -= ph[i - 1] * u[t - i]
+        for j in range(1, q + 1):
+            if j >= t:
+                break
+            acc += th[j - 1] * e[t - j]
+        e[t] = acc
+    out = [0.0] * (L + 1)
+    for k in range(1, L + 1):
+        acc = 0.0
+        for i in range(1, p + 1):
+            ix = k - i
+            acc += ph[i - 1] * (out[ix] - mu if ix >= 1 else u[n + ix])
+        for j in range(1, q + 1):
+            ix = n + k - j
+            if ix <= n:
+                acc -= th[j - 1] * e[ix]
+        out[k] = acc + mu
+    return out[1:]
+
+
 def load(data, xpre, xnet):
     """xl_load: -> (links, Inputs)."""
-    import fue
+    from . import prefile
     first = abs_period(data.start[0], data.start[1], data.freq)
     nobs_raw = data.nobs_raw
-    ws, sts, innames, ds, mus = [], [], [], [], []
+    ws, sts, innames, ds, mus, phs, ths = [], [], [], [], [], [], []
     for f in xpre:
-        ts, m = fue.load(str(f))
-        freq = int(ts.freq) if ts.freq else 1
+        try:
+            pf = prefile.read(f)
+        except ValueError as e:
+            raise ValueError(f"{e}\nERROR: cannot read the input {f}") from None
+        freq = pf.freq
         if freq != data.freq:
             raise ValueError(f"the input {f} has frequency {freq} and the system {data.freq}")
-        d, D = int(m.d or 0), int(m.D or 0)
-        if D != 0 or d > 1:
+        d, D = pf.nrdiff, pf.nadiff
+        if D != 0 or d > 1 or pf.ornsop != d:
             raise ValueError(f"the input {f} is not at most I(1) at frequency zero with no\n"
                              f"       seasonal unit roots (d={d}, D={D}).  Its level would "
                              "not be\n       a transfer input W could stay stationary with.")
-        if m.interventions:
-            raise NotImplementedError(f"{f} declares deterministic variables: not carried "
-                                      "for an input yet")
-        if m.ar or m.ma or m.ar_s or m.ma_s or m.ar_f or m.ma_f:
-            raise NotImplementedError(f"{f} carries an ARMA model: the backcast of its "
-                                      "presample (xl_backcast) is not ported yet")
-        refac = float(m.refactor) if m.refactor else 1.0
-        lam = float(m.boxlam)
+        refac = pf.refactor if pf.refactor != 0.0 else 1.0
+        lam = pf.boxlam
+        det = prefile.det_component(pf, pf.nobs) if pf.ndet > 0 else [0.0] * pf.nobs
         w = []
-        for z in ts.data:
-            z = float(z)
+        for t, z in enumerate(pf.data):
             if abs(lam - 1.0) > 1.0e-12 and z <= 0.0:
                 raise ValueError(f"{f}: Box-Cox with lambda {lam:g} at a value {z:g}")
-            w.append(boxcox_w(z, lam, refac))
-        st = abs_period(ts.start[0], ts.start[1], freq)
+            w.append(boxcox_w(z, lam, refac) - det[t])
+        st = abs_period(pf.begyear, pf.begtime, freq)
         if st + len(w) - 1 < first + nobs_raw - 1:
             raise ValueError(f"the input {f} ends before the system's sample does.  An\n"
                              "       exogenous input must be observed over the whole sample.")
-        ws.append(w); sts.append(st); innames.append(ts.name or str(f)); ds.append(d)
-        mus.append(float(m.mu or 0.0))
+        ws.append(w); sts.append(st); innames.append(pf.name); ds.append(d)
+        mus.append(pf.mu)
+        phs.append(prefile.expand_ar(pf))
+        ths.append(prefile.expand_ma(pf))
     links = _parse_net(xnet, list(data.names), innames)
     maxbs = max(L.b + L.s for L in links)
     anyr = any(L.r > 0 for L in links)
@@ -124,13 +164,13 @@ def load(data, xpre, xnet):
         nreal.append(npre - L)
         nbc.append(L)
         if L > 0:
-            # xl_backcast with p = q = 0: every backcast value is the mean
-            mu = mus[i]
-            out = [0.0 + mu for _ in range(L)]
             if ds[i] == 0:
+                out = backcast(w, phs[i], ths[i], mus[i], L)
                 for k in range(1, L + 1):
                     X[i, k0 - k - 1] = out[k - 1]
             else:
+                u = [w[t + 1] - w[t] for t in range(len(w) - 1)]
+                out = backcast(u, phs[i], ths[i], mus[i], L)
                 for k in range(1, L + 1):
                     X[i, k0 - k - 1] = X[i, k0 - k] - out[k - 1]
     return links, Inputs(innames, X, npre, nreal, nbc, ds)

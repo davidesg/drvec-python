@@ -71,3 +71,33 @@ drift free; e1ndrank is the three-series case with a drift held. Wall time:
 cprboot 0.51 s, e1ndrank 0.48 s, e1cprank 0.37 s, cprq 0.33 s, the rest
 under 0.05 s. cprboot.boot's replication 16 is the C's stale-ladder defect
 (bugs/drvec-c-ladder-key).
+
+Milestone 5 (2026-10-16), same binary (sha256 9cf9d8ea01c3fd373cf781429dea
+7894465d7fbecd178980f421b2689aea5d76), run in a directory holding every
+fixture of tests/data/fixtures (milestone 5's are make_m5.py's, see
+tests/data/fixtures/SOURCE), each with `-name <label>`:
+  ddet201  mmpre.muskrat.pre mmdet.mink.pre 2 0 1 -case 2
+  ddet211  mmdet.muskrat.pre mmdet.mink.pre 2 1 1 -mean -case 2
+  dstep    mmpre.muskrat.pre mmpre.step.pre 2 1 1 -mean -case 2
+  e1seas   e1seas.invest.pre e1seas.income.pre e1seas.cons.pre 2 0 1 -case 2
+  mon201   mmmon.muskrat.pre mmmon.mink.pre 2 0 1 -case 2
+  drank    mmdet.muskrat.pre mmdet.mink.pre 2 0 1 -case 2 -lrtest
+  dboot    mmdet.muskrat.pre mmdet.mink.pre 2 0 1 -case 2 -lrtest -bootstrap 10  (+ .boot)
+  e1srank  e1seas.invest.pre e1seas.income.pre e1seas.cons.pre 2 0 1 -case 2 -lrtest
+  dfc      mmdet.muskrat.pre mmdet.mink.pre 2 0 1 -case 2 -f 8              (+ .forecast)
+  dfcmon   mmmon.muskrat.pre mmmon.mink.pre 2 0 1 -case 2 -f 12             (+ .forecast)
+  e1sfc    e1seas.invest.pre e1seas.income.pre e1seas.cons.pre 2 0 1 -case 2 -f 8 -estwin 70
+           (+ .forecast, .recursive)
+  dcpfc    mmdet.muskrat.pre mmdet.minkmu.pre 2 0 1 -case pre -f 5          (+ .forecast)
+  dfdh     mmdet.muskrat.pre mmdet.mink.pre 2 0 1 -case 2 -fdhess
+  dcpre    mmdet.muskrat.pre mmdet.minkmu.pre 2 0 1 -case pre
+  dcprank  mmdet.muskrat.pre mmdet.minkmu.pre 2 0 1 -case pre -lrtest
+  dxsys    mmdet.muskrat.pre mmdet.mink.pre 3 0 1 -case 2 -xsys 1
+  xarma    mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -xpre xrevarma.pre -xlink xnet2.txt
+  xarma1   mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -xpre xrevarma.pre -xlink xnet1.txt
+  xar0     mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -xpre xrevar0.pre -xlink xnet2.txt
+  xdet     mmdet.muskrat.pre mmdet.mink.pre 2 0 1 -case 2 -xpre xrevdet.pre -xlink xnet2.txt
+  xmon     mmmon.muskrat.pre mmmon.mink.pre 2 0 1 -case 2 -xpre xmon.pre -xlink xnetm.txt
+ddet211 and dstep are ill-defined (four starts over 4-5 logL units, the best
+a criterion-3 stop). Wall time: e1srank 0.47 s, dstep 0.35 s, xar0 0.30 s,
+ddet211 0.28 s, the rest under 0.25 s.

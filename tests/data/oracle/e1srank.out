@@ -1,0 +1,170 @@
+Program          : DRVEC 0.12
+Input Data File  : the .pre files
+Output File      : e1srank.out
+Model            : VARMA-VECM(2,0), M = 3 series, cointegration rank r = 0..2 (sequential test)
+Estimation       : Exact Unconditional Maximum Likelihood, Algorithm AS 311 (Mauricio 1997), xi sequence truncated at 1e-3
+Transformation   : VECM to stationary VARMA (Mauricio 2006)
+Deterministic    : case 2 -- E[nabla Y2] = 0, E[W] free
+Structure        : F free, Theta absent (q = 0), Sigma free
+Series           : invest income cons   (2 in the nabla Y2 block, 1 in Y1)
+Sample           : 91 observations from 1960/2, quarterly (raw 92)
+
+=== Sequential LR test for the cointegration rank ===
+
+=== The ladder below the rank: r = 0, from the gate up ===
+  rung 0  (F diag, Theta diag, Sigma diag)   logL = 610.1052800317
+
+=== Entry gate: the factorisation contract ===
+
+At r = 0 with diagonal Phi, Theta and Sigma the likelihood factorises,
+so the joint fit must equal the sum of the univariate fits exactly.
+
+  univariate 1 (p=2, q=0)   logL =     139.7967137155
+  univariate 2 (p=2, q=0)   logL =     251.3343223291
+  univariate 3 (p=2, q=0)   logL =     218.9742439872
+                                 sum  =     610.1052800317
+                                 joint=     610.1052800317
+  (both sides untruncated; the fit's own logL, xi truncated at 1e-03, is 610.1052800317)
+
+  crossing identity (joint - sum) = -7.174e-11   (tolerance 1.0e-06)   VERIFIED
+  rung 1  (F diag, Theta diag, Sigma free)   logL = 621.2646341362
+  rung 2  (F free, Theta free, Sigma free)   logL = 660.8531547366
+
+--- rank r = 0 ---
+
+Search: 2 starting points, 2 converged; logL from 660.853155 to 660.853155.  The best is `seed'.
+  start        logL            stop  iters  admissible start
+  seed            660.853155     grad      1  as given
+  cold            660.853155     grad     19  as given
+  The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.
+
+=============================================================
+  OPTIMIZER CONVERGED after 1 iterations
+  Objective function = 0.999999999999
+  Convergence criterion: norm of scaled gradient <= gradtol
+=============================================================
+
+
+=============================================================
+  OPTIMIZER CONVERGED after 36 iterations
+  Objective function = 0.875107868590
+  Convergence criterion: norm of scaled gradient <= gradtol
+=============================================================
+
+
+=== -seedgate: the VEC block profiled on the rung below ===
+
+  r = 0 optimum (F, Theta, Sigma)        logL =     660.8531547366
+  admissible entry, Lambda x 0.50          logL =     660.5101488237
+  + Lambda and B2 profiled on it         logL =     666.5802183672
+
+  The starting point for the free fit below is that second value, not
+  a conditional regression.  Holding the rung below and estimating only
+  Lambda and B2 lands in the INTERIOR by construction: at Lambda = 0 the
+  transformed system has an AR root of modulus exactly one, so the rung
+  below cannot be carried up unchanged, and the step off that boundary
+  is chosen here by the likelihood rather than by a constant.
+
+  the pre-estimates the conditional step produced
+    Lambda (3 x 1):
+          0.024330
+          0.029940
+          0.005748
+    B2 (2 x 1):
+          1.579703
+         -2.721587
+    mean block (1):      -2.401083
+
+--- rank r = 1 ---
+
+Search: 3 starting points, 3 converged; logL from 691.031389 to 691.031389.  The best is `johansen'.
+  start        logL            stop  iters  admissible start
+  seed            691.031389     grad    112  as given
+  cold            691.031389     grad     77  as given
+  johansen        691.031389     grad     74  as given
+  The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.
+
+=============================================================
+  OPTIMIZER CONVERGED after 74 iterations
+  Objective function = 0.587814828232
+  Convergence criterion: norm of scaled gradient <= gradtol
+=============================================================
+
+
+=============================================================
+  OPTIMIZER CONVERGED after 30 iterations
+  Objective function = 0.853391918088
+  Convergence criterion: norm of scaled gradient <= gradtol
+=============================================================
+
+
+=== -seedgate: the VEC block profiled on the rung below ===
+
+  r = 0 optimum (F, Theta, Sigma)        logL =     660.8531547366
+  admissible entry, Lambda x 1.00          logL =     663.9575129055
+  + Lambda and B2 profiled on it         logL =     671.1709181284
+
+  The starting point for the free fit below is that second value, not
+  a conditional regression.  Holding the rung below and estimating only
+  Lambda and B2 lands in the INTERIOR by construction: at Lambda = 0 the
+  transformed system has an AR root of modulus exactly one, so the rung
+  below cannot be carried up unchanged, and the step off that boundary
+  is chosen here by the likelihood rather than by a constant.
+
+  the pre-estimates the conditional step produced
+    Lambda (3 x 2):
+         -0.016388     0.033549
+         -0.055878     0.019483
+         -0.049675    -0.096907
+    B2 (1 x 2):
+         -0.976780    -1.071632
+    mean block (2):       1.011210     0.474923
+
+--- rank r = 2 ---
+
+Search: 3 starting points, 3 converged; logL from 698.997609 to 698.997609.  The best is `seed'.
+  start        logL            stop  iters  admissible start
+  seed            698.997609     grad     80  as given
+  cold            698.997609     grad     85  as given
+  johansen        698.997609     grad     76  as given
+  The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.
+
+=============================================================
+  OPTIMIZER CONVERGED after 80 iterations
+  Objective function = 0.542495426141
+  Convergence criterion: norm of scaled gradient <= gradtol
+=============================================================
+
+
+  r    npar        logL         AIC         BIC
+  ---------------------------------------------------
+  0      14     660.8532    -14.2166    -13.8303
+  1      20     691.0314    -14.7479    -14.1961
+  2      24     698.9976    -14.8351    -14.1729
+
+  H0: P = r   vs   H1: P = r+1        LR = 2*[L(r+1) - L(r)]
+  (asymptotic critical values: case 2, restricted constant)
+
+  r    M-r        LR      10%      5%      1%
+  ---------------------------------------------------
+  0       3    60.3565    19.77    22.00    26.81   reject H0 at 1%
+  1       2    15.9324    13.75    15.67    20.20   reject H0 at 5%
+
+  Distribution is the non-standard Johansen one.  That MA terms do
+  not affect it (Yap and Reinsel 1995, Thm. 3; Mauricio 2006, Remark 5)
+  is proven for the CONDITIONAL likelihood, a trace test and a strictly
+  invertible MA -- not for this exact lambda-max, nor at an MA root on
+  the unit circle (BUG-27).
+  Values: case 1, MacKinnon-Haug-Michelis (1999) with no deterministic
+  term; case 2, urca 1.3.4 ca.jo(ecdet="const"), Osterwald-Lenum (1992).
+  CAUTION: the tables are for Johansen's CONDITIONAL LR.  This one is
+  the EXACT likelihood, which carries W's stationary initial state and
+  is not nested at Lambda = 0: under H0 it sits about log T below
+  Johansen's and can be negative, so against these tables the test is
+  UNDERSIZED (case 1, T = 500: 3.5% at a nominal 5%).  -bootstrap N
+  calibrates the statistic that is actually computed (BUG-26).
+  r = 0 is the no-cointegration null (Pi = 0, a plain VARMA on
+  nabla Y); r = M would be a stationary process in levels and is not
+  expressible here, so the sequence ends at r = M-1.  Read it with
+  AIC/BIC, and check the optimizer banner of every rank before
+  trusting a statistic.

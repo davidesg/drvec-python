@@ -1,20 +1,27 @@
-"""The `.pre` route: one fue model per series, read with `fue.load()`.
+"""The `.pre` route: one fue model per series, read as the C reads it.
 
-C: `read_pre_inputs` (drvec.c:6777-6965) and `build_y2_levels` (696-765).
+C: `read_pre_inputs` (drvec.c:6777-6965) and `build_y2_levels` (696-765); the
+reader itself is `prefile.read`, the C's read_fue_pre transcribed.
 
-What is taken from each file: the series, its calendar, lambda and the
-rescaling factor. What is NOT: the univariate ARMA and the mean (on this route
-drvec re-estimates the diagonal rung itself, docs/PORT.md §4). Each series is
-carried in w units, refactor * BoxCox(z), in LEVELS: drvec differences the
-nabla-Y2 block itself, rank by rank.
+What is taken from each file: the series, its calendar, lambda, the rescaling
+factor, the mean's value and flag (-case pre) and its DETERMINISTIC VARIABLES.
+What is NOT: the univariate ARMA (on this route drvec re-estimates the diagonal
+rung itself, docs/PORT.md §4). Each series is carried in w units,
+refactor * BoxCox(z) - det, in LEVELS: drvec differences the nabla-Y2 block
+itself, rank by rank.
+
+The deterministic component (drvec.c:6862-6893): build_det_component over the
+FILE's own sample (its dates: t = 1 is its first observation), the exact
+rational filter omega(B)/delta(B), not truncated (BUG-40 closed WON'T FIX,
+2026-09-24); the rows before the common sample are skipped after filtering. It
+is kept over the common sample AND the forecast horizon for the back-transform
+of the levels (bt_det, BUG-36): `Data.det_path`.
 
 The files are lined up by DATE, on the intersection of their samples (the C's
 rule, 6810-6840), which is not drvarma's ladder rule (same last date).
 
-Refused here, where the C would carry on (docs/PORT.md §1, REVIEW §5.6):
-deterministic variables (the C subtracts its own exact filter; fue truncates
-at 40 lags, BUG-40: the decision is pending) and seasonal differences D > 0
-(the C reads them and silently applies none).
+Refused here, where the C would carry on: seasonal differences D > 0 (the C
+reads them and silently applies none).
 """
 from __future__ import annotations
 
@@ -70,6 +77,7 @@ class Data:
     xl: object = None       # -xpre/-xlink: xlink.Inputs (the inputs, with presample)
     lambdas: list = field(default_factory=list)          # each series' Box-Cox lambda
     estwin: int = None      # -estwin E: the fit sees rows 1..E of nabla Y (drvec.c:740)
+    det_src: list = field(default_factory=list)          # per series: (PreFile, off) or None
     _ranks: dict = field(default_factory=dict, repr=False)
     ladder_cache: dict = field(default_factory=dict, repr=False)
 
@@ -87,7 +95,18 @@ class Data:
         return Data(np.asarray(raw, float), list(self.names), self.freq,
                     self.start, list(self.files), list(self.refactors),
                     list(self.pre_mean_free), list(self.pre_mu),
-                    lambdas=list(self.lambdas))
+                    lambdas=list(self.lambdas), det_src=list(self.det_src))
+
+    def det_path(self, i, T):
+        """bt_det[i][1..T] (drvec.c:6876-6882): series i's deterministic
+        component on the common sample and beyond, in w units, 0-based (row t
+        is raw observation t + 1). Zeros when the file declares none."""
+        src = self.det_src[i] if i < len(self.det_src) else None
+        if src is None:
+            return [0.0] * T
+        from .prefile import det_component
+        pf, off = src
+        return det_component(pf, off + T)[off:off + T]
 
     @property
     def nobs(self):
@@ -135,62 +154,67 @@ class Data:
 
 def read_pre(files):
     """Read M fue files and line them up by date (read_pre_inputs)."""
-    import fue
+    from . import prefile
     if len(files) < 2:
         raise ValueError(f"a VEC model needs at least two series, got {len(files)}")
     series = []
     freq0 = None
     first = last = None
     for k, f in enumerate(files):
-        ts, model = fue.load(str(f))
-        if ts.nobs < 4:
-            raise ValueError(f"{f} carries {ts.nobs} observations")
-        freq = int(ts.freq) if ts.freq else 1
+        try:
+            pf = prefile.read(f)
+        except ValueError as e:
+            raise ValueError(f"{e}\nERROR: cannot read {f}") from None
+        if pf.nobs < 4:
+            raise ValueError(f"{f} carries {pf.nobs} observations")
+        freq = pf.freq
         if freq0 is None:
             freq0 = freq
         elif freq != freq0:
-            raise ValueError(f"{f} has frequency {freq} and {files[0]} has {freq0}. "
-                             "A VEC model is one system on one calendar; the series "
-                             "cannot be mixed.")
-        if model.interventions:
+            raise ValueError(f"{f} has frequency {freq} and {files[0]} has {freq0}.  "
+                             "A VEC model is one\n       system on one calendar; the "
+                             "series cannot be mixed.")
+        if pf.nadiff > 0:
             raise NotImplementedError(
-                f"{f} declares deterministic variables: not carried yet (the C "
-                "subtracts its exact filter, fue truncates it at 40 lags, BUG-40)")
-        if int(model.D or 0) > 0:
-            raise NotImplementedError(
-                f"{f} declares D = {model.D}: drvec differences only the nabla-Y2 "
+                f"{f} declares D = {pf.nadiff}: drvec differences only the nabla-Y2 "
                 "block, regularly; the C ignores D in silence, the port refuses it")
-        y, sub = ts.start
-        st = abs_period(y, sub, freq)
-        en = st + int(ts.nobs) - 1
+        st = abs_period(pf.begyear, pf.begtime, freq)
+        en = st + pf.nobs - 1
         first = st if first is None else max(first, st)
         last = en if last is None else min(last, en)
-        series.append((f, ts, model, st))
+        series.append((f, pf, st))
     if last - first + 1 < 4:
         raise ValueError(f"the .pre files overlap in {last - first + 1} observation(s); "
-                         "at least 4 are needed.  They are lined up by DATE, not by position.")
+                         "at least 4 are\n       needed.  They are lined up by DATE, not "
+                         "by position.")
     n = last - first + 1
     M = len(series)
     raw = np.zeros((n, M))
-    names, refs, mfree, mus, lams = [], [], [], [], []
-    for i, (f, ts, model, st) in enumerate(series):
+    names, refs, mfree, mus, lams, dets = [], [], [], [], [], []
+    for i, (f, pf, st) in enumerate(series):
         off = first - st
-        refac = float(model.refactor) if model.refactor else 1.0
-        lam = float(model.boxlam)
-        names.append(ts.name or str(f))
+        refac = pf.refactor if pf.refactor != 0.0 else 1.0
+        lam = pf.boxlam
+        names.append(pf.name)
         refs.append(refac)
         lams.append(lam)
-        mfree.append(bool(getattr(model, "estimate_mu", False)))
-        mus.append(float(getattr(model, "mu", 0.0) or 0.0))
+        mfree.append(pf.imu != 0)
+        mus.append(pf.mu)
+        if pf.ndet > 0:
+            det = prefile.det_component(pf, pf.nobs)
+            dets.append((pf, off))
+        else:
+            det = [0.0] * pf.nobs
+            dets.append(None)
         for t in range(n):
-            z = float(ts.data[off + t])
+            z = pf.data[off + t]
             if abs(lam - 1.0) > 1.0e-12 and z <= 0.0:
                 raise ValueError(f"{f} asks for a Box-Cox with lambda = {lam:g} and "
                                  f"observation {off + t + 1} is {z:g}")
-            raw[t, i] = boxcox_w(z, lam, refac)
+            raw[t, i] = boxcox_w(z, lam, refac) - det[off + t]
     if freq0 <= 1:
         start = (first, 1)
     else:
         start = (first // freq0, first % freq0 + 1)
     return Data(raw, names, freq0, start, [str(f) for f in files], refs, mfree, mus,
-                lambdas=lams)
+                lambdas=lams, det_src=dets)

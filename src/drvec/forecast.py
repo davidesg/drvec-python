@@ -9,17 +9,19 @@ the shocks after the origin at zero; the levels are rebuilt from the origin's
 Y2 level (the Y2 block cumulated, then Y1 = W - B2'Y2). The bands come from
 the psi weights through the level map G_m (level_error_map), Var(h) = sum of
 G_m Sigma G_m'. Levels are handed back in each series' own units, z =
-BoxCox^-1(w / refactor) -- the .pre route reads no deterministic variables
-(data.py), so the C's det path is zero here -- and the s.e. by the delta method.
+BoxCox^-1((w + det) / refactor), det the series' deterministic component at
+that raw observation (bt_det, data.Data.det_path: known over the sample and
+the horizon, a step or a trend goes on), and the s.e. by the delta method.
 """
 from __future__ import annotations
 
 import math
 
 
-def bt_level(lam, refac, w):
-    """w (the system's units) -> z (the series' own units), det = 0."""
-    c = w / refac
+def bt_level(lam, refac, w, det=0.0):
+    """w (the system's units) -> z (the series' own units) at a raw
+    observation whose deterministic component is det."""
+    c = (w + det) / refac
     if abs(lam) < 1.0e-8:
         return math.exp(c)
     if abs(lam - 1.0) < 1.0e-12:
@@ -29,9 +31,9 @@ def bt_level(lam, refac, w):
     return pow(lam * c + 1.0, 1.0 / lam)
 
 
-def bt_jac(lam, refac, w):
+def bt_jac(lam, refac, w, det=0.0):
     """dz/dw at w: the delta-method factor."""
-    c = w / refac
+    c = (w + det) / refac
     if abs(lam) < 1.0e-8:
         return math.exp(c) / refac
     if abs(lam - 1.0) < 1.0e-12:
@@ -75,6 +77,17 @@ def forecast_core(M, r, p, q, phi, theta, mu, w, a, y2, B2, o, H):
     return Yb, lev
 
 
+def _det_at(data, H):
+    """bt_det over t = 1..nobs_raw + H (bt_alloc's horizon, drvec.c:6852):
+    -> f(i, t) for a 1-based raw observation t, 0.0 outside it."""
+    T = data.nobs_raw + H
+    paths = [data.det_path(i, T) for i in range(data.M)]
+
+    def at(i, t):
+        return paths[i][t - 1] if 1 <= t <= T else 0.0
+    return at
+
+
 def _date(start, freq, k):
     """ObsToDate: the date of raw observation k (1-based)."""
     from .diagnose import obs_to_date
@@ -99,6 +112,7 @@ def forecast_vec(res, fv, H, base, conf=0.95):
     lam = [float(v) for v in data.lambdas]
     ref = [float(v) for v in data.refactors]
     names = data.names
+    det = _det_at(data, H)
     Psi = compute_psi_weights(M, p, q, phi, theta, H)
     Sig = [[res.sigma2 * qq[i][j] for j in range(M)] for i in range(M)]
     Yb, lev = forecast_core(M, r, p, q, phi, theta, mu, w, a, fv.rd.y2, fv.B2, n, H)
@@ -150,8 +164,10 @@ def forecast_vec(res, fv, H, base, conf=0.95):
         o += "%4d" % h
         for i in range(M):
             SE[h - 1][i] = math.sqrt(Var[i][i]) if Var[i][i] > 0.0 else 0.0
-            o += "  %14.6f %10.6f" % (bt_level(lam[i], ref[i], lev[h - 1][i]),
-                                      bt_jac(lam[i], ref[i], lev[h - 1][i]) * SE[h - 1][i])
+            dt = det(i, raw_origin + h)
+            o += "  %14.6f %10.6f" % (bt_level(lam[i], ref[i], lev[h - 1][i], dt),
+                                      bt_jac(lam[i], ref[i], lev[h - 1][i], dt)
+                                      * SE[h - 1][i])
         o += "\n"
     o += ("\n  ! the Y1 s.e. inherits the CUMULATED error of the nabla Y2 block,\n"
           "    because the two are tied by the cointegrating relation\n")
@@ -173,9 +189,11 @@ def forecast_vec(res, fv, H, base, conf=0.95):
             d = ("  %3d/%-5d" % (sub, per)) if data.freq > 1 else ("  %-9d" % per)
             L = lev[h - 1][i]
             e = SE[h - 1][i]
+            dt = det(i, raw_origin + h)
             f.append(d + " %14.6f %14.6f %14.6f %12.6f" % (
-                bt_level(lam[i], ref[i], L), bt_level(lam[i], ref[i], L - z * e),
-                bt_level(lam[i], ref[i], L + z * e), bt_jac(lam[i], ref[i], L) * e))
+                bt_level(lam[i], ref[i], L, dt), bt_level(lam[i], ref[i], L - z * e, dt),
+                bt_level(lam[i], ref[i], L + z * e, dt),
+                bt_jac(lam[i], ref[i], L, dt) * e))
         f.append("")
     return o, "\n".join(f) + "\n"
 
@@ -210,6 +228,7 @@ def rolling_eval(res, E, H):
     lam = [float(v) for v in data.lambdas]
     ref = [float(v) for v in data.refactors]
     names = data.names
+    det = _det_at(data, H)
     sae = [[0.0] * M for _ in range(H)]
     sse = [[0.0] * M for _ in range(H)]
     spe = [[0.0] * M for _ in range(H)]
@@ -226,9 +245,9 @@ def rolling_eval(res, E, H):
         for h in range(1, H + 1):
             for i in range(M):
                 act = rd.y2[o + h - 1][i] if i < s else rd.dm[o + h - 1][i]
-                tr = o + h + 1                       # raw index (unused: det = 0)
-                act = bt_level(lam[i], ref[i], act)
-                fc = bt_level(lam[i], ref[i], lev[h - 1][i])
+                tr = o + h + 1                       # the raw observation
+                act = bt_level(lam[i], ref[i], act, det(i, tr))
+                fc = bt_level(lam[i], ref[i], lev[h - 1][i], det(i, tr))
                 e = act - fc
                 sae[h - 1][i] += abs(e)
                 sse[h - 1][i] += e * e
@@ -236,7 +255,6 @@ def rolling_eval(res, E, H):
                     spe[h - 1][i] += abs(e / act)
                 cnt[h - 1][i] += 1
                 csv.append("%d,%d,%s,%.10f,%.10f,%.10f" % (o, h, names[i], act, fc, e))
-                del tr
         o += 1
     out = ("\n=== Rolling-origin evaluation (out of sample) ===\n"
            "  Estimated ONCE on observations 1..%d; parameters held FIXED.\n"
