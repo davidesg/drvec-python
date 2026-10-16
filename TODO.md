@@ -70,18 +70,24 @@
 The 211 invocations of the article's revision-suite scripts that carry no
 -bootstrap and no -irfboot, C (drvec-v0.12) against drvec-py, on copies of the
 article's inputs (private: nothing of them in this repo).
-- [ ] **Deterministic variables in a .pre: the blocker.** 47 of the article's
-      50 .pre files declare them (seasonal cos/sin, alter, step), so drvec-py
-      refuses all 211. BUG-40 is not pending: atsw-gui's BUGS.md closed it as
-      WON'T FIX (2026-09-24, the analyst's decision), and drvec keeps the exact
-      rational filter omega(B)/delta(B) (fue_pre_reader.c build_det_component,
-      ~394). The port subtracts the same component, by date.
-- [ ] **-xpre/-xlink with an input that has an ARMA model** (xl_backcast): 10 of
-      the 211.
+- [x] **Deterministic variables in a .pre** (milestone 5, below): 47 of the
+      article's 50 .pre files declare them (seasonal cos/sin, alter, step,
+      impulse). BUG-40 is not pending: atsw-gui's BUGS.md closed it as WON'T
+      FIX (2026-09-24), drvec keeps the exact rational filter omega(B)/delta(B)
+      (fue_pre_reader.c build_det_component), and the port subtracts the same
+      component, by date.
+- [x] **-xpre/-xlink with an input that has an ARMA model** (xl_backcast): 10 of
+      the 211 (milestone 5).
 - With the deterministic block removed from every .pre (both programs on the
   same edited files): 201 accepted, every .out byte-identical except one line
   in 159 of them, a C defect (below); 10 refused (the -xlink item above). Wall
   time, sum over jobs: C 278 s, Python 3153 s (~11x).
+- **Rerun after milestone 5 (2026-10-16), on the REAL inputs (deterministic
+  blocks and ARMA inputs as the article has them), C against drvec-py, 6
+  jobs in parallel: 211 accepted, 0 refused; 42 byte-identical, 169 differing
+  only in the C's truncated "Input Data File" line (below), 0 other
+  differences.** Wall time 654 s for both; sum over jobs C 261 s, Python
+  3478 s (~13x, under the parallel load).
 - [ ] **C defect: "Input Data File : the .pre fil"** -- drvec.c ~10370 sizes
       inputf as strlen(argv[1]) + 8, and ~10905 writes "the .pre files" into it
       with that size: a first file name of 6 characters or fewer truncates the
@@ -91,6 +97,24 @@ article's inputs (private: nothing of them in this repo).
   end at logL -1.50 to 6.48, the best on the step criterion; off Linux x86_64 it
   stops ~1e-3 elsewhere (CI run 38912495044). The test compares the logL to 1e-2
   there; e1gate's to 1e-4.
+
+## Milestone 5 — what blocks the article (2026-10-16)
+
+- [x] Deterministic variables in a .pre, every type the C's reader accepts
+      (impulse, compimp, step, ramp, easter, trend/time, cos, sin, alter):
+      build_det_component's exact omega(B)/delta(B) on each file's own dates,
+      subtracted from w; bt_det over the horizon for -f and -estwin; the same
+      for an -xpre input. The reader is the C's, transcribed (drvec.prefile).
+- [x] -xpre/-xlink inputs with an ARMA model: xl_backcast with the factors
+      multiplied out (regular, annual, fixed-frequency), d = 0 and d = 1.
+- [x] Fixtures from the public data (tests/data/fixtures/make_m5.py, SOURCE)
+      and 21 oracle cases (fits, -lrtest, -bootstrap 10, -f, -estwin,
+      -fdhess, -case pre, -xsys, -xpre/-xlink with ARMA and deterministic
+      inputs, annual/quarterly/monthly): every product byte-identical on
+      Linux x86_64 (tests/test_m5.py). ddet211 and dstep are ill-defined
+      (criterion-3 stops, a spread of 4-5 logL units): off the oracle's
+      platform they check the declaration only.
+- No C defect found in the deterministic or backcast paths.
 
 ## Next
 
@@ -104,9 +128,6 @@ article's inputs (private: nothing of them in this repo).
       `-writeres`, `-warma`/`-mawarma`: refused by drvec-py, named.
 - [ ] `-irfboot` with `-fixb2` (no value): the C re-reads B2_fixed from each
       replication's static OLS (init_guess's side effect); not checked.
-- [ ] -xlink: the backcast of an input WITH an ARMA model (xl_backcast with
-      expand_ar_factors/expand_ma_factors; refused today), inputs with
-      deterministic variables.
 - [ ] The goldens on the `.inp` route (base2, case1, ... in golden.sh's CASES) are
       out of the port's scope (the .pre route only).
 - [ ] Run the suite once off Linux x86_64 and measure the milestone-3 tiers
@@ -238,8 +259,9 @@ What this says:
   S^(-1/2) are numpy where the C uses svdcp/GSL: byte-identical on every case here,
   but a printed fourth decimal could round the other way elsewhere (PORT.md §8).
 - `nrerror` (the line search's ROUNDOFF) is an exception, not an exit (D3).
-- The `.pre` reader: deterministic variables and D > 0 are refused; alignment is
-  the C's (date intersection), not drvarma's ladder rule.
+- The `.pre` reader is the C's, transcribed (drvec.prefile, milestone 5): D > 0
+  is refused (the C ignores it); alignment is the C's (date intersection), not
+  drvarma's ladder rule.
 - C defect candidate, not filed: the bootstrap generator's `unsigned long`
   (drvec.c:2203) is 32-bit on Windows, so the C's bootstrap stream (and its
   `.boot` goldens) are platform-dependent. The port computes the 64-bit stream.

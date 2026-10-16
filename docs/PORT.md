@@ -136,11 +136,14 @@ in the parameters: the estimates are only reproduced if the same start wins.
 
 ## 7. The `.pre` route — `data.py`
 
-Each file is read with `fue.load()`; the series is taken in w units, refactor *
-BoxCox(z) (`lambda = 1` is z * refactor), in levels; the files are lined up by
-DATE on the intersection of their samples (6810-6840; drvarma's ladder requires a
-common last date instead). Not read: the ARMA, the mean. Refused, where the C
-carries on: deterministic variables (BUG-40 pending) and D > 0 (the C ignores it).
+Each file is read with the C's own reader, transcribed (`prefile.py`:
+read_fue_pre's fgets/fscanf grammar, gen_detvar, build_det_component; since
+milestone 5, §13; before it, `fue.load()`). The series is taken in w units,
+refactor * BoxCox(z) (`lambda = 1` is z * refactor) MINUS its deterministic
+component, in levels; the files are lined up by DATE on the intersection of
+their samples (6810-6840; drvarma's ladder requires a common last date
+instead). Not read: the ARMA (but for an -xpre input, §13). Refused, where the
+C carries on: D > 0 (the C ignores it).
 
 ## 8. The .out writer — `report.py`, `diagnose.py`
 
@@ -194,7 +197,7 @@ Milestone 3 adds the blocks of `-fdhess`, `-alpha`/`-weakex`, `-fixb2`, `-f`,
   the cast; the cold start sets them BEFORE W is built (BUG-33); the free model
   is fitted for the LR as the C does (cold start and search, no ladder).
 * `-nodrift i`, `-case pre` (`Spec.drift`): a mask on case 3's drifts by series;
-  `-case pre` reads each .pre's mean flag (fue's `estimate_mu`), a mean held at
+  `-case pre` reads each .pre's mean flag (the flag of its mean line), a mean held at
   a non-zero value goes free; the ladder is keyed on the mask.
 * `-trend` (`Spec.trend`): r slopes after the means; W detrended on centred t in
   the cold start, `w - dtr (t - (n+1)/2)` in the cast.
@@ -212,8 +215,8 @@ Milestone 3 adds the blocks of `-fdhess`, `-alpha`/`-weakex`, `-fixb2`, `-f`,
 `-specs` (it fits `-warma` and `-mawarma`, neither ported), `-warma`/`-mawarma`,
 `-m 2`, `-matest`/`-artest`, `-eval`, the `-seed*` family, `-noladder`, `-rankadm`,
 `-writeinp`/`-writeres`; the rank test with `-alpha`/`-weakex`/`-fixb2` or the
-diagonal flags (with `-nodrift`/`-case pre` since milestone 4, §12); an `-xlink` input with an ARMA
-model or deterministic variables; the .inp route. drvec-py refuses each of them
+diagonal flags (with `-nodrift`/`-case pre` since milestone 4, §12); the .inp
+route. drvec-py refuses each of them
 by name (exit 2). The -lrtest internal rescaling is ported but not exercised (no
 fixture triggers it).
 
@@ -254,7 +257,7 @@ fixture triggers it).
   on Ybar from the origin with the shocks after it at zero, the levels through
   B2, the bands through the psi weights and level_error_map, the one-step
   self-check, and the back-transform to each series' units (bt_level/bt_jac;
-  the det path is zero on this route, data.py refuses deterministic variables).
+  the det path is each file's deterministic component since milestone 5, §13).
   The `.forecast` file's first line names the port and its version.
 * **`-estwin E`** (`Data.estwin`, rolling_eval 5990): the fit on rows 1..E of
   nabla Y; the rolling evaluation filters the WHOLE sample with those parameters
@@ -313,3 +316,42 @@ their first line.
 
 Every milestone-4 case (tests/data/oracle/SOURCE) is byte-identical to the
 oracle on Linux x86_64 with GSL, but for cprboot.boot's replication 16.
+
+## 13. Milestone 5
+
+* **Deterministic variables in a .pre** (`prefile.py`, `data.py`). BUG-40 is
+  closed WON'T FIX (atsw-gui engines/drvec/docs/BUGS.md, 2026-09-24): drvec
+  keeps the EXACT rational filter omega(B)/delta(B) and the port does what the
+  C does. read_pre_inputs (drvec.c:6862-6893) calls build_det_component
+  (fue_pre_reader.c:367) on each FILE's own sample: every variable is
+  regenerated from its spec line by gen_detvar on the file's calendar (t = 1 is
+  its first observation; impulse, compimp, step, ramp take `year` on annual
+  data and `sub year` otherwise; cos/sin r are cos(2 pi r t / freq); alter is
+  (-1)^t; trend/time is t; easter is monthly only), filtered by omega(B) =
+  w0 - w1 B - ... and 1/delta(B) = 1/(1 - d1 B - ...) from zero initial
+  conditions at the file's start, never truncated, and summed. The rows before
+  the common sample are skipped AFTER filtering, so the date, not the
+  position, places each term. w - det is what everything downstream sees (the
+  ladder, the fits, the rank test and its bootstrap, -xsys).
+  An unknown type is refused with the reader's message (the C exits 1).
+* **Forecasts in levels** (`forecast.py`): bt_det, the same component on the
+  common sample and over the horizon (built over off + nobs_raw + H, drvec.c:
+  6876-6882: a step or a trend goes on), is added back before the Box-Cox
+  inverse in the .out's table, `<base>.forecast` and the rolling evaluation of
+  -estwin (`Data.det_path`); the delta-method s.e. at the same point.
+* **-xpre inputs** (`xlink.py`): w - det of the input on its own sample
+  (drvec.c:7041-7051), and the presample backcast with its ARMA (xl_backcast,
+  drvec.c:6965, drtran's backcast_arma): the factors multiplied out as
+  expand_ar_factors/expand_ma_factors do (regular, annual at multiples of the
+  period, fixed-frequency AR(2)/MA(2) with c1 = 2 cos(2 pi f / s) sqrt(-c2)),
+  the mean's value whatever its flag, on the levels (d = 0) or on the
+  differences and cumulated backwards (d = 1). An input with seasonal
+  differencing or ifadf factors is refused, as the C refuses it.
+* The reader is the C's, not fue's: they agree on every fixture (series,
+  calendar, lambda, mean flag, omegas and deltas: tests/test_m5.py), and where
+  they could differ the C's wins (a `time` variable, an empty name, an
+  annual dated term written `sub year`).
+
+Every milestone-5 case (tests/data/oracle/SOURCE) is byte-identical to the
+oracle on Linux x86_64 with GSL: the .out, the .boot, and the .forecast and
+.recursive but for their first line.

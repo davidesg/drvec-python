@@ -24,13 +24,14 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
 # Pure Python. The numerics that need to be fast live in the dependencies:
-# drvarma's compiled exact likelihood (AS 311) and its optimiser, and fue's
-# reader of the .pre files. drvarma >=0.2.0: the first release whose binary
-# wheels carry the engine on every platform, Windows included (BUG-0022).
+# drvarma's compiled exact likelihood (AS 311) and its optimiser. drvarma
+# >=0.2.0: the first release whose binary wheels carry the engine on every
+# platform, Windows included (BUG-0022). The .pre files are read with the C's
+# own reader, transcribed (drvec.prefile, milestone 5); fue's reader is the
+# tests' cross-check.
 dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
-    "fue>=0.1.17",
     "drvarma>=0.2.0",
 ]
 
@@ -45,7 +46,7 @@ Issues = "https://github.com/davidesg/drvec-python/issues"
 Changelog = "https://github.com/davidesg/drvec-python/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-test = ["pytest>=7"]
+test = ["pytest>=7", "fue>=0.1.17"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

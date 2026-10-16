@@ -32,3 +32,12 @@
   oracle case byte-identical on Linux x86_64 but one bootstrap replication of
   cprboot.boot, where the C reuses the previous replication's ladder: C defect
   bugs/drvec-c-ladder-key.
+- Milestone 5: deterministic variables in a `.pre` (impulse, compimp, step,
+  ramp, easter, trend/time, cos, sin, alter): each file's exact
+  omega(B)/delta(B) component on its own dates subtracted from w, and added
+  back to the forecasts in levels (BUG-40 closed WON'T FIX: the C's filter,
+  not truncated). `-xpre` inputs with an ARMA model (the presample backcast,
+  xl_backcast) and with deterministic variables. The `.pre` files are read
+  with the C's reader, transcribed (`drvec.prefile`); fue moves to the test
+  extra, as the reader's cross-check. 21 oracle cases, every product
+  byte-identical on Linux x86_64.
