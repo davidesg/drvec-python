@@ -16,7 +16,7 @@ sections (the deterministic block, the ARMA block, the mean, d, and for the
 monthly ones the calendar) are replaced by hand-chosen values. They are
 specifications, not optima: on the .pre route drvec reads only the
 deterministic block (and, for an -xpre input, its ARMA and mean), so that
-does not matter. Each was checked to be accepted by the oracle.
+does not matter. Each was checked to be accepted by the oracle and by fue.load.
 
   mmdet.mink.pre      mink; step 1900 with omega 0.3 and delta 0.95 (near one),
                       impulse 1880 with delta 0.5, compimp 1870 with omega of
@@ -44,5 +44,9 @@ does not matter. Each was checked to be accepted by the oracle.
                       (one presample value observed), d = 0, mean 10.6 held,
                       cos 1, an AR(1), an annual MA(1), a fixed-frequency AR(2)
                       at f = 3 and a fixed-frequency MA(2) at f = 2
+  mmb40.mink.pre      mink; step 1860 with omega 0.3 and delta 0.95: 52 periods
+                      after the step, so fue's nu(B), truncated at 40 lags
+                      (BUG-40), and the C's exact filter part (the tail is
+                      0.46 at its largest)
   xnet2.txt           mink <- xrev 0 1 0: r = 1, the whole sample backcast
   xnetm.txt           mink <- xmon 0 1 1

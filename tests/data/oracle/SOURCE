@@ -101,3 +101,11 @@ tests/data/fixtures/SOURCE), each with `-name <label>`:
 ddet211 and dstep are ill-defined (four starts over 4-5 logL units, the best
 a criterion-3 stop). Wall time: e1srank 0.47 s, dstep 0.35 s, xar0 0.30 s,
 ddet211 0.28 s, the rest under 0.25 s.
+Milestone 5, the BUG-40 case (2026-10-16), the same binary and directory:
+  b40      mmpre.muskrat.pre mmb40.mink.pre 2 0 1 -case 2 -f 8               (+ .forecast)
+  b40rank  mmpre.muskrat.pre mmb40.mink.pre 2 0 1 -case 2 -lrtest
+The port reads the .pre files through fue's cast, which truncates a rational
+term's nu(B) at 40 lags (BUG-40); the C applies the exact filter. On b40 the
+step's tail reaches 0.46, the logL moves by 0.47 and the rank test's verdict
+at 10% flips; tests/test_m5.py checks the port against these files fed the
+oracle's component (tests/cdet.py), and the difference on fue's.

@@ -10,12 +10,14 @@ model is frozen at its .pre and used only for the presample: observations of X
 before the system's sample first, then a backcast. The parameters go last in
 x, after B2 (par_blocks' tail).
 
-Each input is read as the C reads it (prefile.read): w = refactor * BoxCox(z)
-minus its own deterministic component (build_det_component on the input's own
-sample, drvec.c:7041-7051); inputs at most I(1) at frequency zero with no
-seasonal unit roots. The presample the sample does not cover is backcast with
-the input's ARMA from its .pre, the factors multiplied out
-(expand_ar_factors/expand_ma_factors) and its mean's VALUE whatever the flag
+Each input is read and cast by fue, as the system's series are
+(data.levels_cast): w = refactor * BoxCox(z) minus its own deterministic
+component on the input's own sample (drvec.c:7041-7051; fue's regressor, so
+BUG-40's 40-lag truncation applies to a rational term here too); inputs at
+most I(1) at frequency zero with no seasonal unit roots. The presample the
+sample does not cover is backcast with the input's ARMA from its .pre, fue's
+factors multiplied out (the phi and theta of fue's cast, `_unscramble` with
+the fixed-frequency AR(2)/MA(2)) and its mean's VALUE whatever the flag
 (BUG-38): xl_backcast, on the levels (d = 0) or on the differences, cumulated
 backwards (d = 1).
 """
@@ -26,7 +28,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .data import abs_period, boxcox_w
+from .data import abs_period, levels_cast, load_model
 
 XL_MAXORD = 12
 
@@ -111,39 +113,35 @@ def backcast(w, ph, th, mu, L):
 
 def load(data, xpre, xnet):
     """xl_load: -> (links, Inputs)."""
-    from . import prefile
+    from fue.forecast import _nonsop_coefs
     first = abs_period(data.start[0], data.start[1], data.freq)
     nobs_raw = data.nobs_raw
     ws, sts, innames, ds, mus, phs, ths = [], [], [], [], [], [], []
     for f in xpre:
-        try:
-            pf = prefile.read(f)
-        except ValueError as e:
-            raise ValueError(f"{e}\nERROR: cannot read the input {f}") from None
-        freq = pf.freq
+        ts, m = load_model(f, "ERROR: cannot read the input")
+        freq = int(ts.freq) if ts.freq else 1
         if freq != data.freq:
             raise ValueError(f"the input {f} has frequency {freq} and the system {data.freq}")
-        d, D = pf.nrdiff, pf.nadiff
-        if D != 0 or d > 1 or pf.ornsop != d:
+        d, D = int(m.d or 0), int(m.D or 0)
+        ornsop = len(_nonsop_coefs(d, D, freq, ifadf=(m.ifadf or None)))
+        if D != 0 or d > 1 or ornsop != d:
             raise ValueError(f"the input {f} is not at most I(1) at frequency zero with no\n"
                              f"       seasonal unit roots (d={d}, D={D}).  Its level would "
                              "not be\n       a transfer input W could stay stationary with.")
-        refac = pf.refactor if pf.refactor != 0.0 else 1.0
-        lam = pf.boxlam
-        det = prefile.det_component(pf, pf.nobs) if pf.ndet > 0 else [0.0] * pf.nobs
-        w = []
-        for t, z in enumerate(pf.data):
-            if abs(lam - 1.0) > 1.0e-12 and z <= 0.0:
-                raise ValueError(f"{f}: Box-Cox with lambda {lam:g} at a value {z:g}")
-            w.append(boxcox_w(z, lam, refac) - det[t])
-        st = abs_period(pf.begyear, pf.begtime, freq)
+        lam = float(m.boxlam)
+        for z in ts.data:
+            if abs(lam - 1.0) > 1.0e-12 and float(z) <= 0.0:
+                raise ValueError(f"{f}: Box-Cox with lambda {lam:g} at a value {float(z):g}")
+        phi, theta, mu, z = levels_cast(m)
+        w = [float(v) for v in z]
+        st = abs_period(ts.start[0], ts.start[1], freq)
         if st + len(w) - 1 < first + nobs_raw - 1:
             raise ValueError(f"the input {f} ends before the system's sample does.  An\n"
                              "       exogenous input must be observed over the whole sample.")
-        ws.append(w); sts.append(st); innames.append(pf.name); ds.append(d)
-        mus.append(pf.mu)
-        phs.append(prefile.expand_ar(pf))
-        ths.append(prefile.expand_ma(pf))
+        ws.append(w); sts.append(st); innames.append(ts.name or str(f)); ds.append(d)
+        mus.append(mu)
+        phs.append(phi)
+        ths.append(theta)
     links = _parse_net(xnet, list(data.names), innames)
     maxbs = max(L.b + L.s for L in links)
     anyr = any(L.r > 0 for L in links)
