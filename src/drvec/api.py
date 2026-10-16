@@ -47,6 +47,7 @@ class FitResult:
     fdhess: object = None   # -fdhess: fdhess.FdHess (se and cov are its when .ok)
     forecast_h: int = 0     # -f H
     estwin: int = 0         # -estwin E
+    gate: object = None     # r = 0, all diagonal: fit.Gate with the certificate
 
     def forecast_text(self, base):
         """<base>.forecast, as the C writes it (None without -f)."""
@@ -424,6 +425,15 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
                     e.termcode, e.iters, e.fk, list(e.dev), res, info,
                     ma_min_modulus(theta), data, e.cov)
     out.drift_how = how
+    if r == 0 and spec.diag_ar and spec.ma == "diag" and spec.diag_cov and not links:
+        # the diagonal rung as a plain fit: the entry gate with the optimality
+        # certificate, the logL AT the start brought in (drvec.c:11571-11595)
+        from .fit import gate_contract
+        from .loglik import XITOL, concentrated, elf
+        out.gate = gate_contract(spec, rd, res.x, res.ll)
+        f1, f2, _a, ifs = elf(spec, rd, res.seed, XITOL, False)
+        if ifs == 0:
+            out.gate.ll_start = concentrated(spec.M, rd.n, f1, f2)
     out.forecast_h = int(forecast or 0)
     out.estwin = int(estwin or 0)
     out.alpha_free = alpha_free

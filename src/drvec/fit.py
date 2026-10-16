@@ -196,6 +196,7 @@ class SearchResult:
     s2: float
     best: Candidate
     candidates: list
+    seed: list = None        # the start brought in (fit_search's x on entry)
 
     @property
     def nok(self):
@@ -285,8 +286,9 @@ def fit_search(spec, rd, seed, njitter=1, log=None):
             TRY("jitter %d" % k, xt)
     if best is None:
         first = cands[0]
-        return SearchResult(first.est.ifault if first.est else 6, seed, 0.0, 0.0, None, cands)
-    return SearchResult(0, best.est.x, best.ll, best.est.s2, best, cands)
+        return SearchResult(first.est.ifault if first.est else 6, seed, 0.0, 0.0, None, cands,
+                            seed)
+    return SearchResult(0, best.est.x, best.ll, best.est.s2, best, cands, seed)
 
 
 # --------------------------------------------------------------------------- #
@@ -301,6 +303,7 @@ class Gate:
     fit_ll: float
     p: int
     q: int
+    ll_start: float = None   # the optimality certificate's "values brought in" (a fit)
 
     @property
     def gap(self):

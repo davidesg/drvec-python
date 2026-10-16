@@ -125,6 +125,21 @@ def gate_block(g):
               "  the transformation, the rank's differencing, the parameter",
               "  walk, the deterministic terms or the scaling -- and never in",
               "  elf() itself."]
+    if g.ll_start is not None:
+        # the optimality certificate (drvec.c:3141-3178): a plain fit only,
+        # where main() evaluated the start before fit_search
+        gap = g.fit_ll - g.ll_start
+        L += ["", "  --- optimality certificate ---",
+              "  logL AT the values brought in   = %18.10f" % g.ll_start,
+              "  logL of the diagonal fit        = %18.10f" % g.fit_ll,
+              "  optimality gap (fit - brought)  = %+.3e" % gap,
+              "", "  The gap is >= 0 always, and zero exactly when what came in were",
+              "  the univariate optima.  Here they %s: this input is %s." % (
+                  ("were", "AN OPTIMUM") if gap <= 1.0e-3 else ("were not", "A SPECIFICATION"))]
+        if gap < -1.0e-6:
+            L += ["", "  A NEGATIVE gap cannot happen at a converged fit: the fitted",
+                  "  point is worse than the one it started from, so the optimiser",
+                  "  did not converge here and the fit should not be read."]
     return "\n".join(L) + "\n"
 
 
@@ -930,6 +945,8 @@ def _coint_block(res, fv, ro):
                           else "Not zero, but below", RANKADM_TOL))
             else:
                 o += "  admissible (tolerance %.2f)\n" % RANKADM_TOL
+    if getattr(res, "gate", None) is not None:
+        o += gate_block(res.gate)            # gate_contract(vp), drvec.c:8903
     if r > 0 and s > 0:
         rd = fv.rd
         n = rd.n
