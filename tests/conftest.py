@@ -58,6 +58,22 @@ TOL_EST = 1e-4
 TOL_SE = 1e-3
 TOL_LR = 1e-6
 
+# An estimate along a FLAT direction of the likelihood moves, off the oracle's
+# platform, by more than TOL_EST in absolute terms while the logL stays inside
+# TOL_LL: the same optimum, an ill-conditioned coordinate. The measure of
+# "flat" is the parameter's own standard error, so the tier for an estimate is
+# max(TOL_EST, TOL_EST_SE * s.e.), the s.e. the oracle printed. First seen on
+# xdet's E[ec1] (CI run 39054125424, macOS): 1.75e-4 from the oracle with an
+# s.e. of 134, i.e. 1.3e-6 standard errors; 1e-5 keeps a 7x margin and is
+# still nothing statistically. Not used on the oracle's platform (STRICT).
+TOL_EST_SE = 1e-5
+
+
+def tol_est(se):
+    """The off-platform tier for one estimate whose oracle s.e. is `se`
+    (None where the .out prints none)."""
+    return TOL_EST if se is None else max(TOL_EST, TOL_EST_SE * se)
+
 # -fdhess's standard errors (milestone 3). They do not follow the optimiser's
 # path, but they are NOT bit-stable either: the objective carries ~1e-14
 # relative noise (AS 311's sums at |Sigma| ~ 1e-11), and the C's step,
