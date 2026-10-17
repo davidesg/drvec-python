@@ -9,7 +9,7 @@ SOURCE):
   e1fc   E1 2 0 1 -case 2 -f 8 -estwin 70              (quarterly; logs: z = exp(w))
 
 The first line of the .forecast and the .recursive names the program and its
-version (DRVEC 0.12 against the port's), and is not compared. On the oracle's
+version (the oracle's DRVEC 0.12 or 0.13 against the port's), and is not compared. On the oracle's
 platform everything else is byte-identical; elsewhere the numbers follow the
 estimates and are compared to 1e-3 relative."""
 import os

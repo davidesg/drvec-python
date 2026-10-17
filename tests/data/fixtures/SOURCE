@@ -45,8 +45,9 @@ does not matter. Each was checked to be accepted by the oracle and by fue.load.
                       cos 1, an AR(1), an annual MA(1), a fixed-frequency AR(2)
                       at f = 3 and a fixed-frequency MA(2) at f = 2
   mmb40.mink.pre      mink; step 1860 with omega 0.3 and delta 0.95: 52 periods
-                      after the step, so fue's nu(B), truncated at 40 lags
-                      (BUG-40), and the C's exact filter part (the tail is
-                      0.46 at its largest)
+                      after the step, so fue's nu(B), truncated at 40 lags,
+                      and drvec C 0.12's exact filter part (BUG-40; the tail
+                      is 0.46 at its largest). drvec C 0.13 applies fue's
+                      rule (lib/fuedet): BUG-40 closed by agreeing with fue
   xnet2.txt           mink <- xrev 0 1 0: r = 1, the whole sample backcast
   xnetm.txt           mink <- xmon 0 1 1

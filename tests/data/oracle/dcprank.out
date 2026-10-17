@@ -1,4 +1,4 @@
-Program          : DRVEC 0.12
+Program          : DRVEC 0.13
 Input Data File  : the .pre files
 Output File      : dcprank.out
 Model            : VARMA-VECM(2,0), M = 2 series, cointegration rank r = 0..1 (sequential test)
@@ -25,7 +25,7 @@ so the joint fit must equal the sum of the univariate fits exactly.
                                  joint=     -47.4386935301
   (both sides untruncated; the fit's own logL, xi truncated at 1e-03, is -47.4386935301)
 
-  crossing identity (joint - sum) = -5.002e-12   (tolerance 1.0e-06)   VERIFIED
+  crossing identity (joint - sum) = -5.009e-12   (tolerance 1.0e-06)   VERIFIED
   rung 1  (F diag, Theta diag, Sigma free)   logL = -43.8036850507
   rung 2  (F free, Theta free, Sigma free)   logL = -29.4941825830
 
@@ -46,7 +46,7 @@ Search: 2 starting points, 2 converged; logL from -29.494183 to -29.494183.  The
 
 =============================================================
   OPTIMIZER CONVERGED after 42 iterations
-  Objective function = 0.881789598433
+  Objective function = 0.881789598432
   Convergence criterion: norm of scaled gradient <= gradtol
 =============================================================
 
@@ -54,8 +54,8 @@ Search: 2 starting points, 2 converged; logL from -29.494183 to -29.494183.  The
 === -seedgate: the VEC block profiled on the rung below ===
 
   r = 0 optimum (F, Theta, Sigma)        logL =     -29.4941825830
-  admissible entry, Lambda x -0.25         logL =     -32.4647752864
-  + Lambda and B2 profiled on it         logL =     -28.6278203266
+  admissible entry, Lambda x -0.25         logL =     -32.4647752862
+  + Lambda and B2 profiled on it         logL =     -28.6278203263
 
   The starting point for the free fit below is that second value, not
   a conditional regression.  Holding the rung below and estimating only
@@ -70,7 +70,7 @@ Search: 2 starting points, 2 converged; logL from -29.494183 to -29.494183.  The
           0.030347
     B2 (1 x 1):
           6.243220
-    mean block (1):      91.675586
+    mean block (1):      91.675584
 
 --- rank r = 1 ---
 
@@ -83,7 +83,7 @@ Search: 3 starting points, 2 converged; logL from -26.643996 to -25.728214.  The
 
 =============================================================
   OPTIMIZER CONVERGED after 55 iterations
-  Objective function = 0.941196147032
+  Objective function = 0.941196147018
   Convergence criterion: norm of scaled gradient <= gradtol
 =============================================================
 

@@ -1,5 +1,20 @@
-Oracle: atsw-gui tag drvec-v0.12 (4a89c00), engines/drvec, built with
-gcc and the system GSL on Linux; bin/drvec sha256 9cf9d8ea01c3fd37...
+Oracle: drvec C 0.13, atsw-gui commit ae95446 (main, PR #48; the tag
+drvec-v0.13 comes with the suite's release), engines/drvec with lib/optim,
+lib/diagmv and lib/fuedet, built with gcc 13.3 and the system GSL 2.8 on
+Linux x86_64 from `git archive ae95446 engines/drvec lib`; bin/drvec sha256
+747fb37ee1f2c888add87b39428cd535dc812801ce53b228669c4c569e4453b7
+(~/.local/share/atsw/drvec-ref-0.13/bin/drvec). 0.13 is the tag drvec-v0.12
+with one change: a .pre's deterministic component follows fue's rule (nu(B)
+truncated at 40 lags, the variables summed, one subtraction; BUG-40 closed
+by agreeing with fue).
+
+Milestones 1 to 4 were cut with drvec-v0.12 (4a89c00), bin/drvec sha256
+9cf9d8ea01c3fd373cf781429dea7894465d7fbecd178980f421b2689aea5d76
+(~/.local/share/atsw/drvec-ref/bin/drvec); rerun with 0.13 on 2026-10-17,
+each of their files is byte-identical after golden.sh's filter (none of their
+fixtures declares a deterministic variable), so they were not regenerated and
+still name DRVEC 0.12 in their banner. Milestone 5's files are 0.13's (below).
+
 Commands, run in a directory holding the two fixtures:
   drvec mmpre.muskrat.pre mmpre.mink.pre 2 1 1 -mean -case 2 -name proute
   drvec mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -lrtest -bootstrap 20 -name rankboot
@@ -72,8 +87,8 @@ cprboot 0.51 s, e1ndrank 0.48 s, e1cprank 0.37 s, cprq 0.33 s, the rest
 under 0.05 s. cprboot.boot's replication 16 is the C's stale-ladder defect
 (bugs/drvec-c-ladder-key).
 
-Milestone 5 (2026-10-16), same binary (sha256 9cf9d8ea01c3fd373cf781429dea
-7894465d7fbecd178980f421b2689aea5d76), run in a directory holding every
+Milestone 5 (2026-10-16; regenerated with drvec C 0.13 on 2026-10-17, sha256
+747fb37e... above), run in a directory holding every
 fixture of tests/data/fixtures (milestone 5's are make_m5.py's, see
 tests/data/fixtures/SOURCE), each with `-name <label>`:
   ddet201  mmpre.muskrat.pre mmdet.mink.pre 2 0 1 -case 2
@@ -98,14 +113,24 @@ tests/data/fixtures/SOURCE), each with `-name <label>`:
   xar0     mmpre.muskrat.pre mmpre.mink.pre 2 0 1 -case 2 -xpre xrevar0.pre -xlink xnet2.txt
   xdet     mmdet.muskrat.pre mmdet.mink.pre 2 0 1 -case 2 -xpre xrevdet.pre -xlink xnet2.txt
   xmon     mmmon.muskrat.pre mmmon.mink.pre 2 0 1 -case 2 -xpre xmon.pre -xlink xnetm.txt
-ddet211 and dstep are ill-defined (four starts over 4-5 logL units, the best
-a criterion-3 stop). Wall time: e1srank 0.47 s, dstep 0.35 s, xar0 0.30 s,
+ddet211 and dstep are ill-defined (several starts over 1.4 and 5.3 logL
+units, the best a criterion-3 stop). Wall time: e1srank 0.47 s, dstep 0.35 s, xar0 0.30 s,
 ddet211 0.28 s, the rest under 0.25 s.
 Milestone 5, the BUG-40 case (2026-10-16), the same binary and directory:
   b40      mmpre.muskrat.pre mmb40.mink.pre 2 0 1 -case 2 -f 8               (+ .forecast)
   b40rank  mmpre.muskrat.pre mmb40.mink.pre 2 0 1 -case 2 -lrtest
-The port reads the .pre files through fue's cast, which truncates a rational
-term's nu(B) at 40 lags (BUG-40); the C applies the exact filter. On b40 the
-step's tail reaches 0.46, the logL moves by 0.47 and the rank test's verdict
-at 10% flips; tests/test_m5.py checks the port against these files fed the
-oracle's component (tests/cdet.py), and the difference on fue's.
+A step with delta 0.95 and 52 periods after it: fue's rule truncates its
+nu(B) at 40 lags, and drvec C 0.12 applied the exact filter (the tail reaches
+0.46; the logL moved by 0.47, and b40rank's LR(0), 13.2989 against 13.7873,
+crossed the 10% critical value). drvec C 0.13 applies fue's rule: 13.7873,
+"reject H0 at 10%", as the port.
+
+The 0.13 regeneration (2026-10-17) changed 24 of milestone 5's 30 files:
+b40 (.out, .forecast), b40rank, dboot (.out, .boot), dcpfc (.out,
+.forecast), dcprank, dcpre, ddet201, ddet211, dfc (.out, .forecast), dfcmon
+(.out, .forecast), dfdh, drank, dxsys, e1seas, e1sfc.recursive, e1srank,
+mon201, xdet, xmon -- each a case with a file carrying two or more
+deterministic variables or a rational one. Unchanged: dstep (one step, no
+delta), xarma, xarma1, xar0 (no deterministic variable), and e1sfc.out and
+e1sfc.forecast (several variables, but the rounding does not reach what they
+print; its .recursive moved). Every one of the 83 files is now byte-identical to the port.

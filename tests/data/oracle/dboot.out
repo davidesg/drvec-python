@@ -1,4 +1,4 @@
-Program          : DRVEC 0.12
+Program          : DRVEC 0.13
 Input Data File  : the .pre files
 Output File      : dboot.out
 Model            : VARMA-VECM(2,0), M = 2 series, cointegration rank r = 0..1 (sequential test)
@@ -12,7 +12,7 @@ Sample           : 61 observations from 1851, annual (raw 62)
 === Sequential LR test for the cointegration rank ===
 
 === The ladder below the rank: r = 0, from the gate up ===
-  rung 0  (F diag, Theta diag, Sigma diag)   logL = -47.9072602235
+  rung 0  (F diag, Theta diag, Sigma diag)   logL = -47.9072602234
 
 === Entry gate: the factorisation contract ===
 
@@ -22,8 +22,8 @@ so the joint fit must equal the sum of the univariate fits exactly.
   univariate 1 (p=2, q=0)   logL =     -27.1020487852
   univariate 2 (p=2, q=0)   logL =     -20.8052114381
                                  sum  =     -47.9072602233
-                                 joint=     -47.9072602235
-  (both sides untruncated; the fit's own logL, xi truncated at 1e-03, is -47.9072602235)
+                                 joint=     -47.9072602234
+  (both sides untruncated; the fit's own logL, xi truncated at 1e-03, is -47.9072602234)
 
   crossing identity (joint - sum) = -1.578e-10   (tolerance 1.0e-06)   VERIFIED
   rung 1  (F diag, Theta diag, Sigma free)   logL = -44.3045648528
@@ -46,7 +46,7 @@ Search: 2 starting points, 2 converged; logL from -30.313813 to -30.313813.  The
 
 =============================================================
   OPTIMIZER CONVERGED after 43 iterations
-  Objective function = 0.880481230005
+  Objective function = 0.880481229988
   Convergence criterion: norm of scaled gradient <= gradtol
 =============================================================
 
@@ -54,8 +54,8 @@ Search: 2 starting points, 2 converged; logL from -30.313813 to -30.313813.  The
 === -seedgate: the VEC block profiled on the rung below ===
 
   r = 0 optimum (F, Theta, Sigma)        logL =     -30.3138127270
-  admissible entry, Lambda x -0.25         logL =     -32.4211805312
-  + Lambda and B2 profiled on it         logL =     -28.5389371358
+  admissible entry, Lambda x -0.25         logL =     -32.4211805313
+  + Lambda and B2 profiled on it         logL =     -28.5389371353
 
   The starting point for the free fit below is that second value, not
   a conditional regression.  Holding the rung below and estimating only
@@ -69,8 +69,8 @@ Search: 2 starting points, 2 converged; logL from -30.313813 to -30.313813.  The
          -0.003630
           0.030064
     B2 (1 x 1):
-          6.372743
-    mean block (1):      93.327948
+          6.372742
+    mean block (1):      93.327933
 
 --- rank r = 1 ---
 
@@ -83,7 +83,7 @@ Search: 3 starting points, 2 converged; logL from -26.643996 to -25.728214.  The
 
 =============================================================
   OPTIMIZER CONVERGED after 55 iterations
-  Objective function = 0.941196147032
+  Objective function = 0.941196147018
   Convergence criterion: norm of scaled gradient <= gradtol
 =============================================================
 

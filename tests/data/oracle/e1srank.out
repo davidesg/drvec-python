@@ -1,4 +1,4 @@
-Program          : DRVEC 0.12
+Program          : DRVEC 0.13
 Input Data File  : the .pre files
 Output File      : e1srank.out
 Model            : VARMA-VECM(2,0), M = 3 series, cointegration rank r = 0..2 (sequential test)
@@ -47,7 +47,7 @@ Search: 2 starting points, 2 converged; logL from 660.853155 to 660.853155.  The
 
 =============================================================
   OPTIMIZER CONVERGED after 36 iterations
-  Objective function = 0.875107868590
+  Objective function = 0.875107868591
   Convergence criterion: norm of scaled gradient <= gradtol
 =============================================================
 
@@ -55,8 +55,8 @@ Search: 2 starting points, 2 converged; logL from 660.853155 to 660.853155.  The
 === -seedgate: the VEC block profiled on the rung below ===
 
   r = 0 optimum (F, Theta, Sigma)        logL =     660.8531547366
-  admissible entry, Lambda x 0.50          logL =     660.5101488237
-  + Lambda and B2 profiled on it         logL =     666.5802183672
+  admissible entry, Lambda x 0.50          logL =     660.5101488218
+  + Lambda and B2 profiled on it         logL =     666.5802183652
 
   The starting point for the free fit below is that second value, not
   a conditional regression.  Holding the rung below and estimating only
@@ -71,15 +71,15 @@ Search: 2 starting points, 2 converged; logL from 660.853155 to 660.853155.  The
           0.029940
           0.005748
     B2 (2 x 1):
-          1.579703
-         -2.721587
-    mean block (1):      -2.401083
+          1.579702
+         -2.721586
+    mean block (1):      -2.401082
 
 --- rank r = 1 ---
 
 Search: 3 starting points, 3 converged; logL from 691.031389 to 691.031389.  The best is `johansen'.
   start        logL            stop  iters  admissible start
-  seed            691.031389     grad    112  as given
+  seed            691.031389     grad    114  as given
   cold            691.031389     grad     77  as given
   johansen        691.031389     grad     74  as given
   The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.
@@ -93,7 +93,7 @@ Search: 3 starting points, 3 converged; logL from 691.031389 to 691.031389.  The
 
 =============================================================
   OPTIMIZER CONVERGED after 30 iterations
-  Objective function = 0.853391918088
+  Objective function = 0.853391918041
   Convergence criterion: norm of scaled gradient <= gradtol
 =============================================================
 
@@ -101,8 +101,8 @@ Search: 3 starting points, 3 converged; logL from 691.031389 to 691.031389.  The
 === -seedgate: the VEC block profiled on the rung below ===
 
   r = 0 optimum (F, Theta, Sigma)        logL =     660.8531547366
-  admissible entry, Lambda x 1.00          logL =     663.9575129055
-  + Lambda and B2 profiled on it         logL =     671.1709181284
+  admissible entry, Lambda x 1.00          logL =     663.9575128965
+  + Lambda and B2 profiled on it         logL =     671.1709181218
 
   The starting point for the free fit below is that second value, not
   a conditional regression.  Holding the rung below and estimating only
@@ -122,7 +122,7 @@ Search: 3 starting points, 3 converged; logL from 691.031389 to 691.031389.  The
 
 --- rank r = 2 ---
 
-Search: 3 starting points, 3 converged; logL from 698.997609 to 698.997609.  The best is `seed'.
+Search: 3 starting points, 3 converged; logL from 698.997609 to 698.997609.  The best is `cold'.
   start        logL            stop  iters  admissible start
   seed            698.997609     grad     80  as given
   cold            698.997609     grad     85  as given
@@ -130,8 +130,8 @@ Search: 3 starting points, 3 converged; logL from 698.997609 to 698.997609.  The
   The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.
 
 =============================================================
-  OPTIMIZER CONVERGED after 80 iterations
-  Objective function = 0.542495426141
+  OPTIMIZER CONVERGED after 85 iterations
+  Objective function = 0.491840430308
   Convergence criterion: norm of scaled gradient <= gradtol
 =============================================================
 

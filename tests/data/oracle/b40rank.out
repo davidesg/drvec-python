@@ -1,4 +1,4 @@
-Program          : DRVEC 0.12
+Program          : DRVEC 0.13
 Input Data File  : the .pre files
 Output File      : b40rank.out
 Model            : VARMA-VECM(2,0), M = 2 series, cointegration rank r = 0..1 (sequential test)
@@ -12,7 +12,7 @@ Sample           : 61 observations from 1851, annual (raw 62)
 === Sequential LR test for the cointegration rank ===
 
 === The ladder below the rank: r = 0, from the gate up ===
-  rung 0  (F diag, Theta diag, Sigma diag)   logL = -43.0391546403
+  rung 0  (F diag, Theta diag, Sigma diag)   logL = -42.9697893126
 
 === Entry gate: the factorisation contract ===
 
@@ -20,21 +20,21 @@ At r = 0 with diagonal Phi, Theta and Sigma the likelihood factorises,
 so the joint fit must equal the sum of the univariate fits exactly.
 
   univariate 1 (p=2, q=0)   logL =     -24.1491940083
-  univariate 2 (p=2, q=0)   logL =     -18.8899606316
-                                 sum  =     -43.0391546399
-                                 joint=     -43.0391546403
-  (both sides untruncated; the fit's own logL, xi truncated at 1e-03, is -43.0391546403)
+  univariate 2 (p=2, q=0)   logL =     -18.8205953039
+                                 sum  =     -42.9697893122
+                                 joint=     -42.9697893126
+  (both sides untruncated; the fit's own logL, xi truncated at 1e-03, is -42.9697893126)
 
-  crossing identity (joint - sum) = -4.076e-10   (tolerance 1.0e-06)   VERIFIED
-  rung 1  (F diag, Theta diag, Sigma free)   logL = -35.3395834000
-  rung 2  (F free, Theta free, Sigma free)   logL = -19.7054340258
+  crossing identity (joint - sum) = -4.122e-10   (tolerance 1.0e-06)   VERIFIED
+  rung 1  (F diag, Theta diag, Sigma free)   logL = -35.2809205014
+  rung 2  (F free, Theta free, Sigma free)   logL = -19.4773132525
 
 --- rank r = 0 ---
 
-Search: 2 starting points, 2 converged; logL from -19.705434 to -19.705434.  The best is `seed'.
+Search: 2 starting points, 2 converged; logL from -19.477313 to -19.477313.  The best is `seed'.
   start        logL            stop  iters  admissible start
-  seed            -19.705434     grad      0  as given
-  cold            -19.705434     grad      7  as given
+  seed            -19.477313     grad      0  as given
+  cold            -19.477313     grad      7  as given
   The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.
 
 =============================================================
@@ -46,16 +46,16 @@ Search: 2 starting points, 2 converged; logL from -19.705434 to -19.705434.  The
 
 =============================================================
   OPTIMIZER CONVERGED after 30 iterations
-  Objective function = 0.905549607548
+  Objective function = 0.909051993917
   Convergence criterion: norm of scaled gradient <= gradtol
 =============================================================
 
 
 === -seedgate: the VEC block profiled on the rung below ===
 
-  r = 0 optimum (F, Theta, Sigma)        logL =     -19.7054340258
-  admissible entry, Lambda x 1.00          logL =     -20.3724005097
-  + Lambda and B2 profiled on it         logL =     -17.3463973467
+  r = 0 optimum (F, Theta, Sigma)        logL =     -19.4773132525
+  admissible entry, Lambda x 1.00          logL =     -20.0012334761
+  + Lambda and B2 profiled on it         logL =     -17.0929673601
 
   The starting point for the free fit below is that second value, not
   a conditional regression.  Holding the rung below and estimating only
@@ -66,39 +66,39 @@ Search: 2 starting points, 2 converged; logL from -19.705434 to -19.705434.  The
 
   the pre-estimates the conditional step produced
     Lambda (2 x 1):
-          0.004055
-          0.041267
+          0.002391
+          0.042578
     B2 (1 x 1):
-          5.410982
-    mean block (1):      77.782801
+          5.215355
+    mean block (1):      75.369446
 
 --- rank r = 1 ---
 
-Search: 3 starting points, 3 converged; logL from -13.055998 to -13.055998.  The best is `johansen'.
+Search: 3 starting points, 3 converged; logL from -12.583659 to -12.583659.  The best is `johansen'.
   start        logL            stop  iters  admissible start
-  seed            -13.055998     grad     28  as given
-  cold            -13.055998     grad     46  as given
-  johansen        -13.055998     grad     26  as given
+  seed            -12.583659     grad     28  as given
+  cold            -12.583659     grad     37  as given
+  johansen        -12.583659     grad     24  as given
   The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.
 
 =============================================================
-  OPTIMIZER CONVERGED after 26 iterations
-  Objective function = 0.983699440060
+  OPTIMIZER CONVERGED after 24 iterations
+  Objective function = 0.983086875270
   Convergence criterion: norm of scaled gradient <= gradtol
 =============================================================
 
 
   r    npar        logL         AIC         BIC
   ---------------------------------------------------
-  0       6     -19.7054      0.8428      1.0504
-  1      10     -13.0560      0.7559      1.1020
+  0       6     -19.4773      0.8353      1.0429
+  1      10     -12.5837      0.7404      1.0865
 
   H0: P = r   vs   H1: P = r+1        LR = 2*[L(r+1) - L(r)]
   (asymptotic critical values: case 2, restricted constant)
 
   r    M-r        LR      10%      5%      1%
   ---------------------------------------------------
-  0       2    13.2989    13.75    15.67    20.20   H0 not rejected
+  0       2    13.7873    13.75    15.67    20.20   reject H0 at 10%
 
   Distribution is the non-standard Johansen one.  That MA terms do
   not affect it (Yap and Reinsel 1995, Thm. 3; Mauricio 2006, Remark 5)

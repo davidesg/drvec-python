@@ -127,7 +127,8 @@ edit("xrev.pre", "xmon.pre", freq=12, sample="63 12 1989 xmon", ifadf="0 0 0 0 0
      mean="10.6 0", d=0, dets=[("cos 1", [0.04], [])],
      arma=dict(ar=[[0.5]], ma_s=[[0.4]], ar_f=[(3, -0.5)], ma_f=[(2, -0.3)]))
 # BUG-40: a step with delta near one and 52 periods after it (1860..1911), so
-# that fue's nu(B), truncated at 40 lags, and the C's exact omega(B)/delta(B)
-# part from lag 41 on: the tail is 0.3 (0.95^41 - 0.95^(m+1)) / 0.05 after m
-# periods, 0.29 at the end of the sample.
+# that fue's nu(B), truncated at 40 lags, and drvec C 0.12's exact
+# omega(B)/delta(B) part from lag 41 on: the tail is 0.3 (0.95^41 -
+# 0.95^(m+1)) / 0.05 after m periods, 0.29 at the end of the sample. Closed in
+# drvec C 0.13 by agreeing with fue (lib/fuedet): the case is byte-identical.
 edit("mmpre.mink.pre", "mmb40.mink.pre", dets=[("step 1860", [0.3], [0.95])])
