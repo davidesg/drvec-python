@@ -66,3 +66,14 @@
   271 generalized eigenproblems (190 with M = 2, 81 with M = 3) and 117
   nonsymmetric ones (n = 2, 3, 4, 6), all equal; the suite is unchanged,
   byte-identical to the oracle.
+- Packaging for PyPI (not published; the suite is released together): the
+  name `drvec`, the metadata (description, keywords, classifiers for Python
+  3.10-3.13, URLs, `license-files`), `MANIFEST.in` (the sdist carries the
+  docs and the test suite with its public data; not TODO.md, tools/, bugs/),
+  a README for the PyPI page with absolute links, and `publish.yml`: on a
+  `v*` tag, sdist + pure wheel, `twine check`, a check that nothing private
+  ships, both smoke-tested on Python 3.10-3.13 from PyPI's dependencies, then
+  trusted publishing. The tests can run against the installed package
+  (`DRVEC_TEST_INSTALLED=1`; the CI does), and `tests.yml` has a manual run
+  that builds fue and drvarma from git refs, to measure off the oracle's
+  platform before they are released.

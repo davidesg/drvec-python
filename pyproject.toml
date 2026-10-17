@@ -4,24 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "drvec"
-version = "0.1.0.dev0"
-description = "VARMA-VEC cointegration models by exact maximum likelihood (Mauricio 2006): the Python port of drvec, on drvarma's exact VARMA likelihood and fue's univariate models"
+version = "0.1.0"
+description = "VARMA-VEC cointegration models by exact maximum likelihood (Mauricio 2006): rank tests with a parametric bootstrap, restrictions, forecasts and impulse responses. The Python port of the ATSW suite's drvec, on drvarma's exact VARMA likelihood and fue's univariate models"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-2.0-or-later"
+license-files = ["COPYING"]
 authors = [
     { name = "David E. Guerrero", email = "davidesg@ucm.es" },
 ]
 keywords = [
-    "cointegration", "VECM", "VARMA", "error correction", "Johansen",
-    "exact maximum likelihood", "time series", "econometrics", "Box-Jenkins",
+    "cointegration", "VECM", "VARMA", "VARMA-VEC", "error correction",
+    "Johansen", "rank test", "bootstrap", "exact maximum likelihood",
+    "time series", "econometrics", "Box-Jenkins", "forecasting",
 ]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 # Pure Python. The numerics that need to be fast live in the dependencies:
 # drvarma's compiled exact likelihood (AS 311) and its optimiser, and fue's
@@ -48,6 +56,8 @@ drvec-py = "drvec.cli:main"
 Homepage = "https://github.com/davidesg/drvec-python"
 Repository = "https://github.com/davidesg/drvec-python"
 Issues = "https://github.com/davidesg/drvec-python/issues"
+# The field PyPI shows highest: how the C was ported, decision by decision.
+Documentation = "https://github.com/davidesg/drvec-python/blob/main/docs/PORT.md"
 Changelog = "https://github.com/davidesg/drvec-python/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]

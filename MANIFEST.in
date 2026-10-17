@@ -1,0 +1,25 @@
+# The sdist carries the package, its documentation and the test suite with its
+# PUBLIC data (Jenkins and Alavi's muskrat and mink, Lutkepohl's E1, and the
+# oracle's outputs on them), so that it can test itself without the repository.
+# Listed one by one, and what does not ship is excluded explicitly: `include`
+# only adds, and an old egg-info's SOURCES.txt drags in whatever was once in.
+#
+# Not shipped: TODO.md (a working record: milestones, measurements, the runs on
+# a private article's inputs, of which nothing is in the repository either),
+# tools/ (the bootstrap timing, against those runs' C times), bugs/ (the repros
+# of the C program's defects: they belong to the C, atsw-gui) and any notes.
+include README.md
+include CHANGELOG.md
+include COPYING
+include docs/PORT.md
+recursive-include tests *.py
+recursive-include tests/data *
+prune tests/__pycache__
+global-exclude *.py[cod] __pycache__
+
+exclude TODO.md
+prune tools
+prune bugs
+prune build
+prune dist
+exclude docs/PROCESOS-drvec.md
