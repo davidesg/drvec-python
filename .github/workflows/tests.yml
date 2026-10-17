@@ -1,12 +1,33 @@
 name: Tests
 
 # The port against its oracle (drvec C 0.13, atsw-gui ae95446), on the released
-# fue (>= 0.1.18, which comes with the suite's release) and drvarma:
-# the compiled likelihood arrives with drvarma's binary wheels.
+# fue (>= 0.1.18) and drvarma (>= 0.3.0), which come with the suite's release:
+# the compiled likelihood and GSL's eigensolvers arrive with drvarma's binary
+# wheels. The suite runs against the INSTALLED package (DRVEC_TEST_INSTALLED),
+# not src/.
+#
+# BEFORE THAT RELEASE neither version is on PyPI, and a push or a pull request
+# cannot pass. The manual run (workflow_dispatch) is the way to measure off the
+# oracle's platform first: give it git refs and it builds fue and drvarma from
+# their repositories, with GSL from each platform's package manager (as their
+# own wheel builds get it: apt, Homebrew, vcpkg), instead of installing them
+# from PyPI. fue's ref must carry 0.1.18 (its master does); drvarma's must
+# carry 0.3.0 (the branch gsl-gensymmv, once pushed). drvec's own ref is the
+# one the run is launched on.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      fue_ref:
+        description: "fue from git (davidesg/fue-python) at this ref; empty = PyPI"
+        required: false
+        default: "master"
+      drvarma_ref:
+        description: "drvarma from git (davidesg/drvarma-python) at this ref; empty = PyPI"
+        required: false
+        default: "gsl-gensymmv"
 
 jobs:
   test:
@@ -17,17 +38,47 @@ jobs:
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, macos-14, windows-latest]
         python: ["3.10", "3.13"]
+    env:
+      FUE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.fue_ref || '' }}
+      DRVARMA_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.drvarma_ref || '' }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "${{ matrix.python }}"}
+
+      # Only to BUILD fue and drvarma from git; the released wheels bundle GSL.
+      - name: GSL headers, to build from git
+        if: env.FUE_REF != '' || env.DRVARMA_REF != ''
+        run: |
+          case "${{ runner.os }}" in
+            Linux)   sudo apt-get update -q && sudo apt-get install -y -q libgsl-dev ;;
+            macOS)   brew install gsl ;;
+            Windows) vcpkg install gsl:x64-windows-static-md ;;
+          esac
+      - name: fue and drvarma from git
+        if: env.FUE_REF != '' || env.DRVARMA_REF != ''
+        run: |
+          python -m pip install --upgrade pip
+          if [ -n "$FUE_REF" ]; then
+            python -m pip install "fue @ git+https://github.com/davidesg/fue-python@${FUE_REF}"
+          fi
+          if [ -n "$DRVARMA_REF" ]; then
+            python -m pip install "drvarma @ git+https://github.com/davidesg/drvarma-python@${DRVARMA_REF}"
+          fi
+          python -c "import fue, drvarma; print('fue', fue.__version__, '| drvarma', drvarma.__version__)"
+
       - name: Install
         run: python -m pip install ".[test]"
       - name: The engine is the compiled one
         run: python -c "import drvarma._engine as E; b = E.engine_backend(); print('drvarma engine:', b); assert b == 'c', E.engine_load_error()"
       # GSL's eigensolvers come from drvarma's engine (>= 0.3.0) on every
-      # platform: no system libgsl is installed, and none is looked for.
+      # platform: no system libgsl is installed for them, and none is looked for.
       - name: Johansen's seed is GSL's
         run: python -c "from drvec._gsl import backend; b = backend(); print('drvec eigensolver:', b); assert b == 'gsl'"
-      - name: Tests
+      - name: Tests, against the installed package
+        env:
+          DRVEC_TEST_INSTALLED: "1"
         run: python -m pytest -q

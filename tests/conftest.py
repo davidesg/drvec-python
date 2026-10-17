@@ -1,4 +1,6 @@
-"""Run against the source tree without installing (src/ on sys.path).
+"""Run against the source tree without installing (src/ on sys.path), or,
+with DRVEC_TEST_INSTALLED=1, against the installed drvec (a wheel or an sdist
+install: the sdist carries the tests and their data).
 
 THE PLATFORM CONVENTION (as in fue and drtran). The oracle is the C on Linux
 x86_64, and the port is bit-identical to it THERE: drvarma's compiled
@@ -30,7 +32,9 @@ import sys
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))
+INSTALLED = os.environ.get("DRVEC_TEST_INSTALLED") == "1"
+if not INSTALLED:
+    sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))
 DATA = os.path.join(HERE, "data")
 FIXTURES = os.path.join(DATA, "fixtures")
 PRE = [os.path.join(FIXTURES, "mmpre.muskrat.pre"), os.path.join(FIXTURES, "mmpre.mink.pre")]

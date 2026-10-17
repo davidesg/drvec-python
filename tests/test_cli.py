@@ -28,7 +28,8 @@ def scratch(tmp_path, monkeypatch):
 
 
 def _cli(args, cwd):
-    env = dict(os.environ, PYTHONPATH=SRC + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    env = dict(os.environ) if os.environ.get("DRVEC_TEST_INSTALLED") == "1" else \
+        dict(os.environ, PYTHONPATH=SRC + os.pathsep + os.environ.get("PYTHONPATH", ""))
     return subprocess.run([sys.executable, "-m", "drvec.cli"] + args, cwd=cwd, env=env,
                           capture_output=True, text=True)
 
