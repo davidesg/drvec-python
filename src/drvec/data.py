@@ -20,11 +20,11 @@ factor, the mean's value and flag (-case pre) and z. What is NOT: the
 univariate ARMA (on this route drvec re-estimates the diagonal rung itself,
 docs/PORT.md §4).
 
-BUG-40 (closed WON'T FIX in the C, 2026-09-24): for a rational term (delta !=
-0) fue truncates nu(B) at 40 lags, and the C drvec applies the exact filter
-omega(B)/delta(B). Where a delta term reaches beyond lag 40 inside the sample
-(or the forecast horizon) the port's w is fue's, not the C's: the difference
-is the tail sum_{k>40} nu_k I_{t-k} (docs/PORT.md §13).
+The component follows fue's rule, the suite's: nu(B) truncated at 40 lags for
+a rational term (delta != 0), the variables summed and subtracted once (atsw-gui
+lib/fuedet; fue >= 0.1.18). The oracle, drvec C 0.13, applies the same rule, so
+w is the C's bit for bit; BUG-40, the C's old exact filter, is closed by
+agreeing with fue (docs/PORT.md §13).
 
 The deterministic component is kept over the common sample AND the forecast
 horizon for the back-transform of the levels (bt_det, BUG-36): `Data.det_path`,

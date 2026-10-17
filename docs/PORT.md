@@ -1,7 +1,10 @@
 # The port: what drvec-python reproduces of the C, and how
 
-Oracle: atsw-gui tag `drvec-v0.12`, directory `engines/drvec` (and `lib/optim`).
-File:line references below are to that tag; `drvec.c` means
+Oracle: drvec C 0.13, atsw-gui commit `ae95446` (the tag `drvec-v0.13` comes
+with the suite's release), directory `engines/drvec` (and `lib/optim`,
+`lib/fuedet`). It is the tag `drvec-v0.12` with one change: the deterministic
+component of a .pre follows fue's rule (§13); nothing else in its sources moved.
+File:line references below are to `drvec-v0.12`, valid for both; `drvec.c` means
 `engines/drvec/src/drvec.c`. The homologation target is the oracle's output on
 the two milestone runs (tests/data/oracle):
 
@@ -359,60 +362,43 @@ construction is the same:
   job). `easter` off monthly data is refused (fue would carry an identically
   null regressor; the C refuses it).
 
-**BUG-40's consequence** (WON'T FIX in the C, atsw-gui engines/drvec/docs/
-BUGS.md, 2026-09-24). The C builds each component its own way
-(fue_pre_reader.c build_det_component, drvec.c:6862-6893): omega(B) on the
-indicator, then 1/delta(B) by its recursion, never truncated, the variables
-summed into det and subtracted once. fue convolves the indicator with nu(B),
-truncated at 40 lags when delta != 0, and subtracts one variable at a time. So
-the port's w is the C's only where every file has no deterministic variable or
-a single one with no delta; elsewhere it differs by the tail
-sum_{k>40} nu_k I_{t-k} where a rational term reaches past lag 40 (in the
-sample or the forecast horizon), and by rounding (a few ulps) otherwise. An ulp
-in w moves the optimiser's path, so those .out files are not byte-identical
-even where every number agrees but in its last printed digit. The oracle cases
-are classified in tests/test_m5.py (`test_the_groups` checks the class):
+**The deterministic component: fue's rule, in the port and in the oracle.**
+The rule is fue's everywhere in the suite: nu(B) = omega(B)/delta(B)
+truncated at 40 lags for a rational term (Nomega lags otherwise), every
+variable summed, one subtraction. It lives in one library, atsw-gui
+`lib/fuedet` (ae95446); drvec C 0.13 calls it (`build_det_component`), and fue
+>= 0.1.18 carries the same routine (`csrc/fuedet.c`) behind `cast_us_py`'s
+step [6] and `forecast._build_xi`. BUG-40 (atsw-gui engines/drvec/docs/
+BUGS.md) -- drvec C 0.12 applied the exact filter, never truncated, and fue
+<= 0.1.17 subtracted one variable at a time -- is FIXED by agreeing with fue.
+The port's w is fue's cast bit for bit, the oracle's is the same, and every
+oracle case of tests/test_m5.py is byte-identical on Linux x86_64 with GSL
+(23 cases, 30 files): ddet201, ddet211, dstep, e1seas, mon201, drank, dboot
+(+ .boot), e1srank, dfc, dfcmon, e1sfc (+ .recursive), dcpfc, dfdh, dcpre,
+dcprank, dxsys, xarma, xarma1, xar0, xdet, xmon, b40 and b40rank (+ the
+.forecast of each -f case). ddet211 and dstep are ill-defined (a ridge, the
+best start a criterion-3 stop) and byte-identical all the same.
 
-* **BYTE**, w bit for bit the C's, every product byte-identical on Linux
-  x86_64 with GSL: dstep (a step without delta), xarma, xarma1, xar0 (inputs
-  with an ARMA, no deterministic variable).
-* **FUE**, w is fue's: ddet201, e1seas, e1sfc, e1srank, mon201, xmon (rounding
-  only: several variables, or a rational one within 40 lags), and ddet211,
-  dfc, dcpfc, dfdh, dcpre, dxsys, xdet, drank, dcprank, dboot
-  (mmdet.muskrat's harmonic with a second-order delta, a tail of ~1e-12),
-  dfcmon (mmmon.muskrat's step with delta 0.8 passes lag 40 in the forecast
-  horizon: a tail of 3e-5 in the forecast's deterministic path), and b40,
-  b40rank (added for this: mmb40.mink's step with delta 0.95 and 52 periods
-  after it, a tail of up to 0.46). Tested there: (a) the port's levels,
-  differenced as fue differences them, are fue's stationary w bit for bit;
-  (b) the oracle's component minus fue's is the tail plus rounding (to
-  1e-14 relative), over the sample and the horizon; (c) fed the oracle's
-  component (tests/cdet.py, a test-only transcription of the C's
-  arithmetic on fue's indicators), the port reproduces every oracle product
-  byte for byte, so the component is the only difference; and on fue's w
-  the .out's sections, npar, ranks and rank-test verdicts agree, and the logL
-  to 1e-8 (measured: 7e-11 at most, the optimiser's stop). ddet211 is
-  ill-defined (a ridge, four starts over 4-5 logL units): an ulp moves the
-  winner, and the port's start ends 0.17 above the C's criterion-3 stop.
-  dboot: the same replication statuses and LR* within 1e-6 (measured 3e-10).
-* **b40 at BUG-40's size**: the logL moves from -13.0560 to -12.5837 (+0.472):
-  0.463 of it is the data's change at the C's optimum (l(x_C; w_fue) -
-  l(x_C; w_C), the envelope theorem's first-order term), 0.009 the
-  re-optimisation (second order, non-negative); the estimates move by up to
-  1.15 (E[ec1]), the forecasts by up to 0.15 in levels. **b40rank: LR(0) moves
-  from 13.2989 to 13.7873, across the 10% critical value 13.75 -- the verdict
-  at 10% flips.** A rational term that reaches past lag 40 with a slow
-  delta is a model the port estimates differently from the C, by design.
+b40 and b40rank are BUG-40's case at its size (mmb40.mink's step with delta
+0.95 and 52 periods after it: the tail past lag 40 reaches 0.46). Against the
+old oracle (0.12, exact filter) the logL moved by +0.47 and b40rank's LR(0)
+from 13.2989 ("H0 not rejected") to 13.7873, across the 10% critical value
+13.75; drvec C 0.13 gives 13.7873 and "reject H0 at 10%", as the port does.
+The difference between the 0.12 and 0.13 oracle files of milestone 5 is the
+deterministic component alone: the port fed 0.12's component (a test-only
+transcription of its arithmetic, removed with this change) reproduced every
+0.12 file byte for byte.
+
+The transfer functions of an -xlink input (`xlink.compute`, the link's own
+nu_k(B)) keep the exact filter, untruncated, as in the C: they are a
+parameter of the VEC fit, not a .pre's deterministic component.
 
 On the article's 211 runs (TODO.md; private inputs) no input has a delta
-term, so BUG-40 never acts there; but every run but two has a file with two or
-more variables, and the ulps of fue's order of subtraction make 209 of the 211
-.out files differ from the C's. Fed the C's component, the port gives the C's
-files back (42 identical, 167 but the C's truncated "Input Data File" line).
-On fue's w 183 of the 209 agree in every decision and in logL to 1e-6; the
-rest are ties between starts, criterion-3 banners and ill-conditioned fits at
-r = M - 1 (up to 72 logL units on a rank whose fit fails in both programs). No
-tabulated rank-test verdict changes. Byte identity would come back only if fue
-built the component as the C does (TODO.md, for the lead).
+term, but every run but two has a file with two or more variables. With fue
+0.1.17, which subtracted them one at a time, 209 of the 211 .out files
+differed from the C's by the ulps of that order. With fue 0.1.18 and drvec C
+0.13 (2026-10-17): 42 byte-identical and 169 with only the C's truncated
+"Input Data File" line (a cosmetic C defect, TODO.md), 0 other; no rank-test
+verdict changes, and C 0.13 gives C 0.12's files on all 211.
 
 No C defect found in the deterministic or backcast paths.

@@ -12,8 +12,9 @@ x, after B2 (par_blocks' tail).
 
 Each input is read and cast by fue, as the system's series are
 (data.levels_cast): w = refactor * BoxCox(z) minus its own deterministic
-component on the input's own sample (drvec.c:7041-7051; fue's regressor, so
-BUG-40's 40-lag truncation applies to a rational term here too); inputs at
+component on the input's own sample (drvec.c:7041-7051; fue's regressor and
+rule, nu(B) truncated at 40 lags for a rational term, as in the C 0.13; the
+link's own nu_k(B) above is the exact filter, untruncated, as in the C); inputs at
 most I(1) at frequency zero with no seasonal unit roots. The presample the
 sample does not cover is backcast with the input's ARMA from its .pre, fue's
 factors multiplied out (the phi and theta of fue's cast, `_unscramble` with

@@ -68,12 +68,13 @@
 ## The article's runs: acceptance test (2026-10-16)
 
 The 211 invocations of the article's revision-suite scripts that carry no
--bootstrap and no -irfboot, C (drvec-v0.12) against drvec-py, on copies of the
+-bootstrap and no -irfboot, C against drvec-py, on copies of the
 article's inputs (private: nothing of them in this repo).
 - [x] **Deterministic variables in a .pre** (milestone 5, below): 47 of the
       article's 50 .pre files declare them (seasonal cos/sin, alter, step,
-      impulse), none with a delta: BUG-40's tail does not reach them, but
-      several variables per file make fue's w differ from the C's by ulps.
+      impulse), none with a delta: BUG-40's tail does not reach them; with
+      fue <= 0.1.17 several variables per file made fue's w differ from the
+      C's by ulps (gone with fue 0.1.18, below).
 - [x] **-xpre/-xlink with an input that has an ARMA model** (xl_backcast): 10 of
       the 211 (milestone 5).
 - With the deterministic block removed from every .pre (both programs on the
@@ -89,7 +90,8 @@ article's inputs (private: nothing of them in this repo).
   of these runs has a delta term), 209 other.** The 209 are all the
   deterministic component's rounding: each run has a file with 2 to 15
   variables, which fue subtracts one at a time and the C sums first,
-  |w_fue - w_C| <= 1.1e-13. Rerun with the C's component (tests/cdet.py), the same 209 give 42
+  |w_fue - w_C| <= 1.1e-13. Rerun with the C's component (tests/cdet.py, since
+  removed), the same 209 give 42
   byte-identical and 167 with the "Input Data File" line only, the previous
   acceptance exactly. On fue's w, 183 of the 209 agree in every decision and
   in logL to 1e-6; 26 do not: 13 winning starts change among starts tied to
@@ -101,15 +103,21 @@ article's inputs (private: nothing of them in this repo).
   fit fails in both programs (LR < 0), three by 0.008 to 0.26. No
   tabulated rank-test verdict changes. Wall time 641 s; sum over jobs C
   270 s, Python 3427 s (~13x, under the parallel load).
-- [ ] **For the lead: byte identity with the C on multi-variable files.** It
-  would come back if fue's cast built the component as the C does (summed,
-  then subtracted once; omega(B) then 1/delta(B) by recursion, no 40-lag
-  truncation). That is a fue change and a release; drvec would take it with
-  no change of its own. Nothing else was missing from fue: drvec uses
-  fue.load, cast_us.build_est_spec, cast_us_py and _build_initial_x, and
-  forecast._build_xi and _nonsop_coefs -- the private names drtran-python
-  already uses; a public "levels cast" (the series z and its component over a
-  horizon) would let both ports drop them.
+- **Rerun with drvec C 0.13 and fue 0.1.18 (2026-10-17), the same 211 on the
+  real inputs, 3 jobs in parallel: 211 accepted, 0 refused; 42
+  byte-identical, 169 differing only in the C's truncated "Input Data File"
+  line, 0 other.** Every decision agrees, the 26 of the previous rerun
+  included. C 0.13 against C 0.12: all 211 byte-identical but the version
+  banner (no input has a delta term, and with none the two rules give the
+  same bits); no tabulated rank-test verdict changes between them or
+  against the port (63 jobs carry a rank table). Wall time 725 s; sum over
+  jobs C 146 s, Python 1979 s (~13.5x).
+- [x] **Byte identity with the C on multi-variable files** (for the lead,
+  2026-10-16): done by the suite's one deterministic routine (lib/fuedet;
+  drvec C 0.13 and fue 0.1.18), with no change of drvec's own. drvec still
+  uses fue's private names (cast_us.build_est_spec, cast_us_py,
+  _build_initial_x, forecast._build_xi, _nonsop_coefs), as drtran-python
+  does; a public "levels cast" would let both ports drop them.
 - [ ] **C defect: "Input Data File : the .pre fil"** -- drvec.c ~10370 sizes
       inputf as strlen(argv[1]) + 8, and ~10905 writes "the .pre files" into it
       with that size: a first file name of 6 characters or fewer truncates the
@@ -139,21 +147,21 @@ article's inputs (private: nothing of them in this repo).
       `time` is one); a non-standard variable WITH its column, with the C's
       message; easter off monthly data (fue would carry a null regressor).
 - [x] Fixtures from the public data (tests/data/fixtures/make_m5.py, SOURCE)
-      and 23 oracle cases, two of them new for BUG-40 (b40, b40rank), in two
-      groups (tests/test_m5.py, docs/PORT.md §13). BYTE (dstep, xarma,
-      xarma1, xar0: no variable or a single one without delta, fue's w is the
-      C's bit for bit): every product byte-identical on Linux x86_64. FUE
-      (the other 19): the port's w is fue's cast bit for bit; the C's
-      component minus fue's is the BUG-40 tail plus rounding; fed the C's
-      component (tests/cdet.py) the port reproduces every oracle product
-      byte for byte; on fue's w the sections, npar, verdicts and logL (1e-8)
-      agree, except on ddet211 (a ridge: the port's start ends 0.17 higher)
-      and b40/b40rank (below).
-- [ ] **BUG-40 decides a verdict on b40rank** (a step with delta 0.95, 52
-      periods on, tail up to 0.46): logL +0.47, LR(0) 13.2989 -> 13.7873
-      across the 10% critical value 13.75. By design (fue's cast is the
-      suite's); for the lead: whether fue should stop truncating, or warn
-      when a rational term reaches past lag 40 (atsw-gui BUGS.md BUG-40).
+      and 23 oracle cases, two of them for BUG-40 (b40, b40rank: a step with
+      delta 0.95, 52 periods on). The port's w is fue's cast bit for bit
+      (tests/test_m5.py, docs/PORT.md §13).
+- [x] **BUG-40 closed by agreeing with fue (2026-10-17).** The deterministic
+      component follows fue's rule everywhere (nu(B) truncated at 40 lags,
+      the variables summed, one subtraction), one routine for the suite:
+      atsw-gui lib/fuedet (ae95446), called by the oracle drvec C 0.13 and
+      vendored by fue 0.1.18 (csrc/fuedet.c, behind cast_us_py's step [6] and
+      _build_xi). Milestone 5's oracle files regenerated with 0.13 (24 of 30
+      changed, all through the component); every one of the 23 cases is
+      byte-identical on Linux x86_64 with GSL, b40rank's verdict ("reject H0
+      at 10%", LR(0) 13.7873) included. The BYTE/FUE/BUG40 split and
+      tests/cdet.py (the C 0.12's exact component, kept to prove it was the
+      only difference) removed. The transfer functions of -xlink inputs keep
+      the exact, untruncated filter, as in the C.
 - No C defect found in the deterministic or backcast paths.
 
 ## Next
@@ -301,11 +309,11 @@ What this says:
 - `nrerror` (the line search's ROUNDOFF) is an exception, not an exit (D3).
 - The `.pre` files go through fue's reader and cast (milestone 5): D > 0 is
   refused (the C ignores it); alignment is the C's (date intersection), not
-  drvarma's ladder rule. Any file with two or more deterministic variables,
-  or a rational one, gives a w a few ulps from the C's (fue subtracts them
-  one at a time, and convolves with nu(B) where the C recurses): the port is
-  then not byte-identical to the C, and on an ill-defined fit the winner can
-  move. With a rational term past lag 40, the BUG-40 tail (§ milestone 5).
+  drvarma's ladder rule. The deterministic component is the C's bit for bit
+  only with fue >= 0.1.18 and drvec C >= 0.13 (lib/fuedet): with fue 0.1.17
+  any file with two or more variables, or a rational one, moves w by ulps
+  (and by BUG-40's tail past lag 40), and 16 of the 22 cases of
+  tests/test_m5.py::test_products fail (measured).
 - C defect candidate, not filed: the bootstrap generator's `unsigned long`
   (drvec.c:2203) is 32-bit on Windows, so the C's bootstrap stream (and its
   `.boot` goldens) are platform-dependent. The port computes the 64-bit stream.
@@ -314,8 +322,9 @@ What this says:
   errors to 1e-3 relative, and line counts for the .out. ms201's winner
   (`jitter 1`) is a 1e-10 near-tie, asserted on the oracle's platform only.
 - -multistart's jitters use the 64-bit LCG; on Windows the C's are 32-bit (D4).
-- The suite was run against drvarma 0.2.0 and fue 0.1.17.dev0 installed as
-  EDITABLE dev trees; re-run against the released wheels.
+- The suite was run (2026-10-17) against drvarma 0.2.0 installed as an
+  EDITABLE dev tree and fue 0.1.18 built from its branch fue-det-unico (not
+  yet released): re-run against the released wheels.
 
 ## The port's first version (scope decided 2026-10-11)
 
