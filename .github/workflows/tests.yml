@@ -62,18 +62,26 @@ jobs:
         if: env.FUE_REF != '' || env.DRVARMA_REF != ''
         run: |
           python -m pip install --upgrade pip
+          if [ "${{ runner.os }}" = Windows ]; then
+            export GSL_ROOT="$VCPKG_INSTALLATION_ROOT/installed/x64-windows-static-md"
+            echo "GSL_ROOT=$GSL_ROOT"; ls "$GSL_ROOT/include/gsl" | head -3; ls "$GSL_ROOT/lib"
+          fi
+          # -v: both engines are OPTIONAL extensions, and pip hides why one did
+          # not compile; the log has to say it.
           if [ -n "$FUE_REF" ]; then
-            python -m pip install "fue @ git+https://github.com/davidesg/fue-python@${FUE_REF}"
+            python -m pip install -v "fue @ git+https://github.com/davidesg/fue-python@${FUE_REF}"
           fi
           if [ -n "$DRVARMA_REF" ]; then
-            python -m pip install "drvarma @ git+https://github.com/davidesg/drvarma-python@${DRVARMA_REF}"
+            python -m pip install -v "drvarma @ git+https://github.com/davidesg/drvarma-python@${DRVARMA_REF}"
           fi
           python -c "import fue, drvarma; print('fue', fue.__version__, '| drvarma', drvarma.__version__)"
 
       - name: Install
         run: python -m pip install ".[test]"
-      - name: The engine is the compiled one
-        run: python -c "import drvarma._engine as E; b = E.engine_backend(); print('drvarma engine:', b); assert b == 'c', E.engine_load_error()"
+      - name: The engines are the compiled ones
+        run: |
+          python -c "import fue._engine as E; b = E.engine_backend(); print('fue engine:', b, E.engine_load_error() or '')"
+          python -c "import drvarma._engine as E; b = E.engine_backend(); print('drvarma engine:', b); assert b == 'c', E.engine_load_error()"
       # GSL's eigensolvers come from drvarma's engine (>= 0.3.0) on every
       # platform: no system libgsl is installed for them, and none is looked for.
       - name: Johansen's seed is GSL's

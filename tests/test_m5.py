@@ -97,6 +97,14 @@ def _tail(text):
     return text.split("\n", 1)[1]
 
 
+def _diff(theirs, mine):
+    """The lines that differ, for an off-platform failure: the oracle's
+    first, then the port's."""
+    import difflib
+    return "\n".join(difflib.unified_diff(theirs.splitlines(), mine.splitlines(),
+                                           "oracle", "port", n=1, lineterm=""))
+
+
 def _verdicts(text):
     """[(r, LR, verdict)] of the rank test's table."""
     body = text.split("  r    M-r        LR      10%      5%      1%")[1]
@@ -174,6 +182,8 @@ def test_products(label):
     if STRICT:
         assert mine == theirs
     else:
+        if len(mine.splitlines()) != len(theirs.splitlines()):
+            print(_diff(theirs, mine))       # in full: pytest truncates the message
         assert len(mine.splitlines()) == len(theirs.splitlines())
     if fc is not None:
         if STRICT:
