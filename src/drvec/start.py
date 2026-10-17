@@ -45,8 +45,8 @@ def prelim_b2(spec, rd):
 def canonical_b2(spec, rd):
     """Johansen's reduced-rank B2 (canonical_b2), or None when it cannot be
     formed. The generalized symmetric eigenproblem is the C's own GSL
-    `gsl_eigen_gensymmv` through ctypes when libgsl is on the system, and
-    scipy's `eigh` otherwise (`_gsl.py`). scipy's is a few ulps off: 2 ulps
+    `gsl_eigen_gensymmv`, from drvarma's compiled engine, and scipy's `eigh`
+    when that engine is unavailable (`_gsl.py`). scipy's is a few ulps off: 2 ulps
     in B2 on mink-muskrat, which moves the `johansen` start by up to 9.5e-8
     in logL there, and by 0.47 on Lutkepohl's E1 (tests/test_johansen.py)."""
     M, r, s, p, n = spec.M, spec.r, spec.s, spec.p, rd.n

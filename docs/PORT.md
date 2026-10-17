@@ -21,8 +21,8 @@ one of its optima with difference 0.0; the cold start, the 24 est() calls of cas
 (in the C's order, each with the C's start and the C's final vector), the ladder,
 the entry gate (gap -7.567e-12), the route-(B) profile, the search table, the BFGS
 standard errors, the bootstrap generator and the simulated data are bit-identical.
-Johansen's canonical seed is too when libgsl is on the system (§6, decision D2);
-with scipy's eigensolver instead it is a few ulps off, which moves the `johansen`
+Johansen's canonical seed is too, with GSL's eigensolver from drvarma's compiled
+engine (§6, decision D2); with scipy's instead (no compiled engine) it is a few ulps off, which moves the `johansen`
 fits by up to 9.5e-8 in logL and two of the twenty LR* of the bootstrap by ~1e-13
 here, and by much more on E1 (§6). All of this holds on Linux x86_64, the oracle's
 platform; elsewhere the compiled likelihood rounds differently (tests/conftest.py).
@@ -115,9 +115,15 @@ in the parameters: the estimates are only reproduced if the same start wins.
   the C's; drvarma's `Ladder` class is not used (its rung 0 is the `.pre` models,
   drvec's is re-estimated). Reused from drvarma: `elf_c`, `_qnewt.raxopt`,
   `_qnewt.cholsol`, all matched line by line against qnewtopt.c and lib/optim/lnsrch.c.
-* **D2. Johansen's eigenproblem** -- revised in milestone 2: GSL's own
-  `gsl_eigen_gensymmv` through ctypes when libgsl is on the system (`_gsl.py`,
-  `DRVEC_EIGEN=auto|gsl|scipy`), scipy's `eigh` otherwise. Why: on the three-series
+* **D2. Johansen's eigenproblem** -- revised in milestone 2, and again on
+  2026-10-15: GSL's own `gsl_eigen_gensymmv` (+ `_sort`), from drvarma's compiled
+  engine (`drvarma._engine.gensymmv`, drvarma >= 0.3.0), which links GSL on every
+  platform drvarma ships a binary wheel for; scipy's `eigh` only when that engine
+  is unavailable (`_gsl.py`, `DRVEC_EIGEN=auto|gsl|scipy`). Until then `_gsl.py`
+  looked for a system libgsl through ctypes, which Windows and macOS without
+  Homebrew lack: off Linux the seed was scipy's. The two paths are bit-identical
+  where both exist (Linux x86_64, the same libgsl): checked on every eigenproblem
+  the full test suite solves, CHANGELOG 0.1.0. Why: on the three-series
   case (Lutkepohl's E1) scipy's few ulps moved the `johansen` start's optimum by 0.47
   in logL and one bootstrap LR* by 3.5e-5; with GSL the case is byte-identical
   (the search table, all 40 replications). The milestone-1 measurement with scipy: Measured: the
@@ -153,7 +159,7 @@ input, §13). Refused, where the C carries on: D > 0 (the C ignores it).
 
 The aim is byte identity with the oracle after tools/golden.sh's filter (the
 `Program : DRVEC` line and the `.boot` banner dropped, `/tmp` paths removed). On
-Linux x86_64 with libgsl, **every line** of the four milestone outputs is
+Linux x86_64 with drvarma's compiled engine, **every line** of the four milestone outputs is
 byte-identical: `proute.out` (805 lines), `rankboot.out`, `e1fit.out` (1290),
 `e1boot.out`, and the `.boot` files `rankboot.boot` (20 of 20 replications) and
 `e1boot.boot` (40 of 40). The first line names the port (`DRVEC <version>
@@ -165,7 +171,8 @@ What it takes, beyond the numbers being bit-identical:
   p-values of Hosking's portmanteau and Jarque-Bera: scipy's exact tail prints
   0.7452 where the C prints 0.7456 (`nla.chisq`);
 * GSL's `gsl_eigen_nonsymm` for the eigenvalues of Pi and the operator roots,
-  because the ORDER in which they are printed is GSL's (`_gsl.eigen_nonsymm`);
+  because the ORDER in which they are printed is GSL's (`_gsl.eigen_nonsymm`,
+  through `drvarma._engine.eigen_nonsymm`);
 * choldcp's determinant in mantissa and exponent for `|Sigma|` (`nla.choldcp_det`);
 * the transcription of diagnose.c's ASCII plot, histogram, ACF/PACF and CCF,
   with `round_local` and the C's string surgery.
@@ -180,8 +187,8 @@ boundary block (numpy's SVD; printed in absolute value), Hosking's C0 inverse an
 Jarque-Bera's S^(-1/2) (numpy). A p-value or a fourth decimal could round the
 other way on another data set; none does on these four.
 
-Without libgsl (scipy's eigh for Johansen, numpy's eigvals for Pi and the
-roots): the losing `johansen` row of a search table can differ, and the order
+Without GSL, that is without drvarma's compiled engine (scipy's eigh for
+Johansen, numpy's eigvals for Pi and the roots): the losing `johansen` row of a search table can differ, and the order
 of printed eigenvalues may differ. The `.boot` replications where the Johansen
 start wins move in the last digits (2 of 20 on rankboot, ~1e-13; on E1 up to
 3.5e-5): the tests then compare the LR* numerically and the line count of the

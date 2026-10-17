@@ -21,6 +21,7 @@
       measurement below (tools/time_bootstrap.py --case e1, tests/test_e1.py).
 - [x] Johansen's seed through GSL's gensymmv (ctypes) when libgsl is present:
       with scipy E1's `johansen` start and one LR* moved beyond tolerance.
+      (Since 2026-10-15 from drvarma's engine, not ctypes: see below.)
 - [x] The tests follow the suite's platform convention: exact on Linux x86_64,
       a tolerance tier elsewhere (tests/conftest.py).
 - [x] The .out writer (report.py, diagnose.py): proute.out, rankboot.out,
@@ -243,12 +244,22 @@ article's inputs (private: nothing of them in this repo).
 
 ## Johansen's eigensolver: GSL everywhere through drvarma (decided 2026-10-15)
 
-- [ ] Today drvec uses GSL through ctypes when libgsl is installed, scipy
+- [x] Today drvec uses GSL through ctypes when libgsl is installed, scipy
       otherwise. Decided with the user: the next drvarma release exposes GSL's
       `gsl_eigen_gensymmv` (+ `_sort`) from its compiled engine, which already
       links GSL on every wheel platform; drvec then calls it and drops `_gsl.py`'s
       system lookup. A secondary fix: it removes one source of platform
       difference, not the E1 ridge above.
+      DONE (unreleased): drvarma 0.3.0 exports `gensymmv` and, beside it,
+      `eigen_nonsymm` -- the other half of the ctypes lookup, the eigenvalues
+      of Pi and of the operator roots that the reports print in GSL's order.
+      `_gsl.py` calls them, keeps scipy/numpy when drvarma's engine is
+      unavailable, and no longer looks for a system libgsl; the CI installs no
+      libgsl. Bit identity with the ctypes path: every eigenproblem of the full
+      suite (`--runslow`) solved both ways and compared with `==`, before the
+      lookup was removed (CHANGELOG). Off Linux x86_64 the CI must now show the
+      GSL backend and, where the tolerance tier allowed scipy's seed before,
+      whether anything tightens: to be measured on the first off-platform run.
 
 ## Option (b): the measurement (milestone 2, 2026-10-15)
 
@@ -287,12 +298,14 @@ What this says:
 
 ## Open risks (docs/PORT.md)
 
-- Johansen's seed (decision D2, revised in milestone 2): GSL's gensymmv through
-  ctypes when libgsl is found (`drvec._gsl`), scipy's `eigh` otherwise. The risk the
-  milestone-1 note foresaw was seen on E1: with scipy the `johansen` start ends at
-  760.07 instead of 760.54 and one bootstrap LR* moves by 3.5e-5 (beyond 1e-6 in
-  logL). With GSL everything is byte-identical. Without libgsl (Windows, macOS
-  without Homebrew's gsl) a near-tie can still flip a winner.
+- Johansen's seed (decision D2, revised in milestone 2 and on 2026-10-15): GSL's
+  gensymmv from drvarma's compiled engine (`drvec._gsl`), scipy's `eigh` when that
+  engine is unavailable. The risk the milestone-1 note foresaw was seen on E1:
+  with scipy the `johansen` start ends at 760.07 instead of 760.54 and one
+  bootstrap LR* moves by 3.5e-5 (beyond 1e-6 in logL). With GSL everything is
+  byte-identical. Without drvarma's engine (before 2026-10-15: without a system
+  libgsl, i.e. Windows and macOS without Homebrew's gsl) a near-tie can still
+  flip a winner.
 - Off Linux x86_64 the compiled likelihood rounds differently and the tests run on
   the tolerance tier of tests/conftest.py (first CI run 38736500814).
 - The case-1 optimum is on the MA invertibility wall (BUG-49) and depends on the

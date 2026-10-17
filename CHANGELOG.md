@@ -17,7 +17,8 @@
 - Milestone 2: the `.out` writer (`FitResult.out_text`, `RankTest.out_text`),
   byte-identical to the oracle's on every PRE_CASE of its golden set;
   `fit(..., fixb2row=, nodrift=, case="pre", trend=, xsys=, xpre=, xlink=,
-  irfboot=)`; Johansen's seed through GSL (ctypes) when libgsl is present;
+  irfboot=)`; Johansen's seed through GSL (ctypes) when libgsl is present
+  (from drvarma's engine since, below);
   the tests exact on Linux x86_64 and on a tolerance tier elsewhere.
 - Milestone 3: `fit(..., fdhess=True)` (the finite-difference Hessian s.e.),
   `alpha=`, `weakex=`, `fixb2=` (restrictions with their LR against the free
@@ -54,3 +55,14 @@
   (24 of 30; those of milestones 1-4, without deterministic variables, are
   byte-identical under 0.13 and were kept); the BYTE/FUE split of
   tests/test_m5.py and tests/cdet.py, the C's old exact component, removed.
+- Johansen's seed and the printed eigenvalues come from GSL through
+  drvarma's compiled engine (`drvarma._engine.gensymmv` and `eigen_nonsymm`,
+  drvarma >= 0.3.0), on every platform drvarma ships a binary wheel for;
+  `drvec._gsl` no longer looks for a system libgsl through ctypes, and the CI
+  installs none. Without drvarma's engine, scipy's `eigh` and numpy's
+  `eigvals` as before (decided 2026-10-15, TODO.md). Verified bit-identical
+  to the ctypes path on Linux x86_64 before removing it: the full suite with
+  `--runslow`, with every call solved both ways and compared with `==` --
+  271 generalized eigenproblems (190 with M = 2, 81 with M = 3) and 117
+  nonsymmetric ones (n = 2, 3, 4, 6), all equal; the suite is unchanged,
+  byte-identical to the oracle.

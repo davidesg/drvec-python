@@ -21,12 +21,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "${{ matrix.python }}"}
-      - name: GSL, for Johansen's seed bit for bit (drvec._gsl; scipy otherwise)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y -q libgsl27
       - name: Install
         run: python -m pip install ".[test]"
       - name: The engine is the compiled one
         run: python -c "import drvarma._engine as E; b = E.engine_backend(); print('drvarma engine:', b); assert b == 'c', E.engine_load_error()"
+      # GSL's eigensolvers come from drvarma's engine (>= 0.3.0) on every
+      # platform: no system libgsl is installed, and none is looked for.
+      - name: Johansen's seed is GSL's
+        run: python -c "from drvec._gsl import backend; b = backend(); print('drvec eigensolver:', b); assert b == 'gsl'"
       - name: Tests
         run: python -m pytest -q

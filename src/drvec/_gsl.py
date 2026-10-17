@@ -1,6 +1,7 @@
-"""GSL's generalized symmetric eigensolver, through ctypes, when the library is
-on the system: the C's own `gsl_eigen_gensymmv` + `gsl_eigen_gensymmv_sort`
-(canonical_b2, drvec.c:1265-1272), so that Johansen's seed is the C's bit for bit.
+"""GSL's eigensolvers, from drvarma's compiled engine: the C's own
+`gsl_eigen_gensymmv` + `gsl_eigen_gensymmv_sort` (canonical_b2, drvec.c:1265-1272),
+so that Johansen's seed is the C's bit for bit, and `gsl_eigen_nonsymm` (eigenqr,
+nlatools.c:270), so that the eigenvalues the reports print come in the C's order.
 
 Why (docs/PORT.md, decision D2 revised): scipy's `eigh` is a few ulps off GSL,
 and on the two-series cases that only moved the `johansen` start by 1e-7 in
@@ -9,65 +10,32 @@ logL. On the three-series case (Lutkepohl's E1) it moves that start's optimum by
 With GSL the whole case is byte-identical (the fit's search table, the 40
 replications of the .boot).
 
-`DRVEC_EIGEN=scipy` forces scipy, `DRVEC_EIGEN=gsl` makes a missing GSL an
-error; the default (`auto`) uses GSL when it can be loaded.
+Where GSL comes from (decided 2026-10-15, TODO.md): drvarma >= 0.3.0 exports
+both routines from its compiled engine (`drvarma._engine.gensymmv`,
+`eigen_nonsymm`), which links GSL on every platform it ships a binary wheel for.
+Before, this module looked for a system libgsl through ctypes, which Windows
+and macOS without Homebrew do not have; it no longer does.
+
+When drvarma's engine is unavailable (its pure-Python fallback, or
+DRVARMA_NO_ENGINE), the seed is scipy's `eigh` and the eigenvalues numpy's, as
+before without libgsl: the same values to rounding, possibly in another order.
+`DRVEC_EIGEN=scipy` forces scipy, `DRVEC_EIGEN=gsl` makes a missing engine an
+error; the default (`auto`) uses GSL whenever drvarma's engine provides it.
 """
 from __future__ import annotations
 
-import ctypes
-import ctypes.util
 import os
 
 import numpy as np
 
-_lib = None
-_tried = False
 
-
-def _load():
-    global _lib, _tried
-    if _tried:
-        return _lib
-    _tried = True
-    names = [ctypes.util.find_library("gsl"), "libgsl.so.27", "libgsl.so", "libgsl.dylib",
-             "libgsl-27.dll", "gsl.dll"]
-    cblas = [ctypes.util.find_library("gslcblas"), "libgslcblas.so.0", "libgslcblas.so",
-             "libgslcblas.dylib", "libgslcblas-0.dll", "gslcblas.dll"]
-    for c in cblas:
-        if not c:
-            continue
-        try:
-            ctypes.CDLL(c, mode=ctypes.RTLD_GLOBAL)
-            break
-        except OSError:
-            pass
-    for n in names:
-        if not n:
-            continue
-        try:
-            lib = ctypes.CDLL(n)
-        except OSError:
-            continue
-        try:
-            P, S, D = ctypes.c_void_p, ctypes.c_size_t, ctypes.c_double
-            for f, res, args in (
-                    ("gsl_matrix_alloc", P, [S, S]), ("gsl_vector_alloc", P, [S]),
-                    ("gsl_eigen_gensymmv_alloc", P, [S]),
-                    ("gsl_matrix_set", None, [P, S, S, D]), ("gsl_matrix_get", D, [P, S, S]),
-                    ("gsl_vector_get", D, [P, S]),
-                    ("gsl_eigen_gensymmv", ctypes.c_int, [P, P, P, P, P]),
-                    ("gsl_eigen_gensymmv_sort", ctypes.c_int, [P, P, ctypes.c_int]),
-                    ("gsl_eigen_gensymmv_free", None, [P]), ("gsl_matrix_free", None, [P]),
-                    ("gsl_vector_free", None, [P]), ("gsl_set_error_handler_off", P, [])):
-                fn = getattr(lib, f)
-                fn.restype = res
-                fn.argtypes = args
-        except AttributeError:
-            continue
-        lib.gsl_set_error_handler_off()     # a failure is a return code, not abort()
-        _lib = lib
-        break
-    return _lib
+def _engine():
+    """drvarma's `_engine` module when it can run GSL's routines, else None."""
+    try:
+        from drvarma import _engine as E
+        return E if E.gsl_available() else None
+    except (ImportError, AttributeError):       # AttributeError: drvarma < 0.3.0
+        return None
 
 
 def backend():
@@ -75,20 +43,17 @@ def backend():
     mode = os.environ.get("DRVEC_EIGEN", "auto").lower()
     if mode == "scipy":
         return "scipy"
-    if _load() is not None:
+    if _engine() is not None:
         return "gsl"
     if mode == "gsl":
-        raise RuntimeError("DRVEC_EIGEN=gsl and libgsl cannot be loaded")
+        raise RuntimeError("DRVEC_EIGEN=gsl and drvarma's compiled engine cannot run "
+                           "GSL's eigensolvers (drvarma >= 0.3.0 with its engine)")
     return "scipy"
-
-
-_SORT_VAL_DESC = 1
 
 
 def gensymmv_desc(A, B):
     """Eigenvectors of A v = l B v, columns sorted by DECREASING eigenvalue, or
     None when the problem cannot be solved (B not positive definite)."""
-    M = A.shape[0]
     if backend() == "scipy":
         import scipy.linalg as sl
         try:
@@ -96,79 +61,23 @@ def gensymmv_desc(A, B):
         except (np.linalg.LinAlgError, ValueError):
             return None
         return V[:, ::-1]
-    g = _lib
-    Ag, Bg = g.gsl_matrix_alloc(M, M), g.gsl_matrix_alloc(M, M)
-    V, ev = g.gsl_matrix_alloc(M, M), g.gsl_vector_alloc(M)
-    ws = g.gsl_eigen_gensymmv_alloc(M)
     try:
-        for i in range(M):
-            for j in range(M):
-                g.gsl_matrix_set(Ag, i, j, float(A[i, j]))
-                g.gsl_matrix_set(Bg, i, j, float(B[i, j]))
-        if g.gsl_eigen_gensymmv(Ag, Bg, ev, V, ws) != 0:
-            return None
-        g.gsl_eigen_gensymmv_sort(ev, V, _SORT_VAL_DESC)
-        return np.array([[g.gsl_matrix_get(V, i, j) for j in range(M)] for i in range(M)])
-    finally:
-        g.gsl_eigen_gensymmv_free(ws)
-        g.gsl_vector_free(ev)
-        g.gsl_matrix_free(V)
-        g.gsl_matrix_free(Bg)
-        g.gsl_matrix_free(Ag)
-
-
-class _VecC(ctypes.Structure):
-    _fields_ = [("size", ctypes.c_size_t), ("stride", ctypes.c_size_t),
-                ("data", ctypes.POINTER(ctypes.c_double)), ("block", ctypes.c_void_p),
-                ("owner", ctypes.c_int)]
-
-
-def _nonsymm_ready(g):
-    if getattr(g, "_nonsymm", False):
-        return True
-    try:
-        P, S = ctypes.c_void_p, ctypes.c_size_t
-        g.gsl_vector_complex_alloc.restype = ctypes.POINTER(_VecC)
-        g.gsl_vector_complex_alloc.argtypes = [S]
-        g.gsl_vector_complex_free.restype = None
-        g.gsl_vector_complex_free.argtypes = [ctypes.POINTER(_VecC)]
-        g.gsl_eigen_nonsymm_alloc.restype = P
-        g.gsl_eigen_nonsymm_alloc.argtypes = [S]
-        g.gsl_eigen_nonsymm_free.restype = None
-        g.gsl_eigen_nonsymm_free.argtypes = [P]
-        g.gsl_eigen_nonsymm_params.restype = None
-        g.gsl_eigen_nonsymm_params.argtypes = [ctypes.c_int, ctypes.c_int, P]
-        g.gsl_eigen_nonsymm.restype = ctypes.c_int
-        g.gsl_eigen_nonsymm.argtypes = [P, ctypes.POINTER(_VecC), P]
-    except AttributeError:
-        return False
-    g._nonsymm = True
-    return True
+        _ev, V = _engine().gensymmv(A, B, sort="val_desc")   # GSL_EIGEN_SORT_VAL_DESC
+    except np.linalg.LinAlgError:
+        return None
+    return V
 
 
 def eigen_nonsymm(A):
     """eigenqr (nlatools.c:270): the eigenvalues of a real general matrix in
-    GSL's order (balanced, gsl_eigen_nonsymm), as (wr, wi) lists. Without libgsl,
+    GSL's order (balanced, gsl_eigen_nonsymm), as (wr, wi) lists. Without GSL,
     numpy's eigvals: the same values to rounding, possibly in another order."""
-    M = len(A)
-    g = _lib if backend() == "gsl" else None
-    if g is None or not _nonsymm_ready(g):
-        ev = np.linalg.eigvals(np.array(A, float))
-        return [float(e.real) for e in ev], [float(e.imag) for e in ev]
-    Ag = g.gsl_matrix_alloc(M, M)
-    ev = g.gsl_vector_complex_alloc(M)
-    w = g.gsl_eigen_nonsymm_alloc(M)
-    try:
-        for i in range(M):
-            for j in range(M):
-                g.gsl_matrix_set(Ag, i, j, float(A[i][j]))
-        g.gsl_eigen_nonsymm_params(0, 1, w)
-        g.gsl_eigen_nonsymm(Ag, ev, w)
-        v = ev.contents
-        wr = [v.data[2 * i * v.stride] for i in range(M)]
-        wi = [v.data[2 * i * v.stride + 1] for i in range(M)]
-        return wr, wi
-    finally:
-        g.gsl_eigen_nonsymm_free(w)
-        g.gsl_vector_complex_free(ev)
-        g.gsl_matrix_free(Ag)
+    A = np.array(A, float)
+    if backend() == "gsl":
+        try:
+            wr, wi = _engine().eigen_nonsymm(A, balance=True)
+            return [float(x) for x in wr], [float(x) for x in wi]
+        except np.linalg.LinAlgError:       # QR without convergence: the C aborts
+            pass
+    ev = np.linalg.eigvals(A)
+    return [float(e.real) for e in ev], [float(e.imag) for e in ev]

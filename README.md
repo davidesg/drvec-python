@@ -27,7 +27,9 @@ Like drtran's port, drvec reuses what its siblings already have:
   VARMA the likelihood evaluates.
 
 drvec is pure Python; the compiled engine arrives with drvarma's binary
-wheels. A compiled cast of its own is added only if the parametric bootstraps
+wheels, and with it GSL's eigensolvers (drvarma >= 0.3.0), so that
+Johansen's seed is the C's bit for bit on every platform without a system
+GSL. A compiled cast of its own is added only if the parametric bootstraps
 need it.
 
 ## Command line

@@ -1,6 +1,7 @@
 """Johansen's canonical seed: the C solves its eigenproblem with GSL's
-gsl_eigen_gensymmv. With libgsl on the system the port calls the same routine
-(drvec._gsl) and the seed is the C's bit for bit; without it, scipy's eigh is a
+gsl_eigen_gensymmv. The port calls the same routine from drvarma's compiled
+engine (drvec._gsl) and the seed is the C's bit for bit; without that engine,
+scipy's eigh is a
 few ulps off, and the effect is measured and bounded here."""
 import pytest
 
@@ -42,7 +43,7 @@ def test_the_johansen_fits():
             assert max(abs(a - b) for a, b in zip(er.x, x_c)) < 1e-6
 
 
-@pytest.mark.skipif(not GSL, reason="libgsl not found: scipy's eigh is in use")
+@pytest.mark.skipif(not GSL, reason="drvarma's engine has no GSL: scipy's eigh is in use")
 def test_scipy_is_still_within_a_few_ulps(monkeypatch):
     monkeypatch.setenv("DRVEC_EIGEN", "scipy")
     b2 = canonical_b2(drvec.Spec(2, 2, 0, 1, 2), DATA.at(1))[0][0]

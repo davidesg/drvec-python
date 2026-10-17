@@ -30,12 +30,14 @@ classifiers = [
 # drtran-python). fue >=0.1.18: the deterministic component by the suite's
 # one routine (lib/fuedet), summed and subtracted once, as the oracle 0.13
 # builds it. drvarma >=0.2.0: the first release whose binary wheels carry
-# the engine on every platform, Windows included (BUG-0022).
+# the engine on every platform, Windows included (BUG-0022). drvarma >=0.3.0:
+# GSL's eigensolvers (gensymmv, eigen_nonsymm) from that engine, for
+# Johansen's seed and the printed eigenvalues bit for bit with the C.
 dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
     "fue>=0.1.18",
-    "drvarma>=0.2.0",
+    "drvarma>=0.3.0",
 ]
 
 [project.scripts]
