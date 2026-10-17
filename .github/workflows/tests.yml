@@ -71,21 +71,12 @@ jobs:
           if [ -n "$FUE_REF" ]; then
             python -m pip install -v "fue @ git+https://github.com/davidesg/fue-python@${FUE_REF}"
           fi
-          # drvarma from a checkout at a SHORT path, not pip's git URL. Its
-          # setup.py hands cffi an ABSOLUTE build dir, so MSVC's object file
-          # lands at <build_temp>\<that absolute path>\_drvarma_engine.obj:
-          # under pip's temp clone (C:\Users\runneradmin\AppData\Local\Temp\
-          # pip-install-*\drvarma_<32 hex>) the path passes Windows' 260
-          # characters, cl.exe stops with "C1083: Cannot open compiler generated
-          # file: '': Invalid argument", and the optional extension is dropped
-          # in silence (CI run 39054783492; drvarma BUG-0024). Its own wheels
-          # build from the runner's short checkout path and never see it.
+          # DRVARMA_REQUIRE_ENGINE: the engine is not optional for this build,
+          # so a failure to compile it stops here instead of a warning
+          # (drvarma BUG-0024, a Windows path over 260 characters under pip's
+          # temp clone, was such a silence; fixed on gsl-gensymmv).
           if [ -n "$DRVARMA_REF" ]; then
-            src="$RUNNER_TEMP/dv"
-            git init -q "$src"
-            git -C "$src" fetch -q --depth 1 https://github.com/davidesg/drvarma-python "$DRVARMA_REF"
-            git -C "$src" checkout -q FETCH_HEAD
-            python -m pip install -v "$src"
+            DRVARMA_REQUIRE_ENGINE=1 python -m pip install -v "drvarma @ git+https://github.com/davidesg/drvarma-python@${DRVARMA_REF}"
           fi
           python -c "import fue, drvarma; print('fue', fue.__version__, '| drvarma', drvarma.__version__)"
 
