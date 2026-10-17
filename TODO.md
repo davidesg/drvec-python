@@ -118,7 +118,7 @@ article's inputs (private: nothing of them in this repo).
   uses fue's private names (cast_us.build_est_spec, cast_us_py,
   _build_initial_x, forecast._build_xi, _nonsop_coefs), as drtran-python
   does; a public "levels cast" would let both ports drop them.
-- [ ] **C defect: "Input Data File : the .pre fil"** -- drvec.c ~10370 sizes
+- [ ] **C defect: "Input Data File : the .pre fil"** (atsw-gui BUG-59) -- drvec.c ~10370 sizes
       inputf as strlen(argv[1]) + 8, and ~10905 writes "the .pre files" into it
       with that size: a first file name of 6 characters or fewer truncates the
       line. Cosmetic; the port prints it whole. Repro: `drvec c.pre e1income.pre
@@ -183,7 +183,7 @@ article's inputs (private: nothing of them in this repo).
 
 ## C defects found in milestone 3 (not patched; for the lead)
 
-- [ ] **-alpha accepts an A of deficient rank** (`bugs/drvec-c-alpha-rank`,
+- [ ] **-alpha accepts an A of deficient rank** (atsw-gui BUG-58) (`bugs/drvec-c-alpha-rank`,
       `repro.py` exits 1 while open). load_alpha_A checks the rank with
       choldcp(A'A), which only faults on a negative pivot: A = [1 1; 1 1; 0 0]
       passes, psi's seed divides by zero, the .out carries logL = nan and the
@@ -200,7 +200,7 @@ article's inputs (private: nothing of them in this repo).
 
 ## C defects found in milestone 4 (not patched; for the lead)
 
-- [ ] **The r = 0 ladder's cache key loses the data when a drift is held**
+- [ ] **The r = 0 ladder's cache key loses the data when a drift is held** (atsw-gui BUG-60)
       (`bugs/drvec-c-ladder-key`, `repro.py` exits 1 while open). ladder_key()
       (drvec.c:5310) is a double: p*1e6 + ... + 1e12 * 2^(i-1) per held drift +
       sum rawmat * 1e-7 (t%97 + i). With a drift held (-nodrift, -case pre) it is
