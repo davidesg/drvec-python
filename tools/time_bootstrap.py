@@ -13,7 +13,7 @@ Reports, per likelihood evaluation, the cast in Python and drvarma's compiled
 number of evaluations and the split of the wall time into the cast, the
 compiled likelihood with its wrapper, and the rest (drvarma's optimiser, which
 is pure Python, the starts, the simulation); the C's wall time for the same run
-when the oracle binary is found (default ~/.local/share/atsw/drvec-ref/bin/drvec),
+when the oracle binary is found (default ~/.local/share/atsw/drvec-ref-0.13/bin/drvec),
 and the extrapolation to the article's bootstraps.
 """
 import os
@@ -119,7 +119,7 @@ def main():
     args = sys.argv[1:]
     B = int(args[0]) if args and args[0].isdigit() else 20
     case = args[args.index("--case") + 1] if "--case" in args else "mm"
-    oracle = os.path.expanduser("~/.local/share/atsw/drvec-ref/bin/drvec")
+    oracle = os.path.expanduser("~/.local/share/atsw/drvec-ref-0.13/bin/drvec")
     if "--oracle" in args:
         oracle = args[args.index("--oracle") + 1]
     files = CASES[case]

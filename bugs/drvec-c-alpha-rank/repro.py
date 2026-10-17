@@ -1,4 +1,5 @@
-"""C defect (drvec-v0.12): -alpha accepts a matrix A of deficient rank.
+"""C defect (drvec-v0.12, still open in 0.13 at ae95446): -alpha accepts a
+matrix A of deficient rank.
 
 load_alpha_A (drvec.c:2665-2717) checks A's rank through choldcp(A'A), but the
 modified Cholesky only faults on a NEGATIVE pivot beyond sqrt(eps)*maxoffl; an
@@ -19,7 +20,7 @@ import shutil
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 exe = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(
-    "~/.local/share/atsw/drvec-ref/bin/drvec")
+    "~/.local/share/atsw/drvec-ref-0.13/bin/drvec")
 with tempfile.TemporaryDirectory() as d:
     for f in ("e1invest.pre", "e1income.pre", "e1cons.pre", "sing.txt"):
         shutil.copy(os.path.join(HERE, f), d)

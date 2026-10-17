@@ -1,5 +1,6 @@
-"""C defect (drvec-v0.12): the r = 0 ladder's cache key loses the data when a
-drift is held, so a bootstrap replication can reuse the previous one's ladder.
+"""C defect (drvec-v0.12, still open in 0.13 at ae95446): the r = 0 ladder's
+cache key loses the data when a drift is held, so a bootstrap replication can
+reuse the previous one's ladder.
 
 fit_r0_ladder (drvec.c:5345) caches its optimum under ladder_key()
 (drvec.c:5310-5323), a double: p*1e6 + q*1e4 + case*1e3 + ... + the drift mask
@@ -36,7 +37,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "src"))
 exe = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(
-    "~/.local/share/atsw/drvec-ref/bin/drvec")
+    "~/.local/share/atsw/drvec-ref-0.13/bin/drvec")
 FILES = ("mmpre.muskrat.pre", "minkmu.pre")
 
 with tempfile.TemporaryDirectory() as d:
