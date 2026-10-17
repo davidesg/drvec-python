@@ -62,11 +62,15 @@ TOL_LR = 1e-6
 # platform, by more than TOL_EST in absolute terms while the logL stays inside
 # TOL_LL: the same optimum, an ill-conditioned coordinate. The measure of
 # "flat" is the parameter's own standard error, so the tier for an estimate is
-# max(TOL_EST, TOL_EST_SE * s.e.), the s.e. the oracle printed. First seen on
-# xdet's E[ec1] (CI run 39054125424, macOS): 1.75e-4 from the oracle with an
-# s.e. of 134, i.e. 1.3e-6 standard errors; 1e-5 keeps a 7x margin and is
-# still nothing statistically. Not used on the oracle's platform (STRICT).
-TOL_EST_SE = 1e-5
+# max(TOL_EST, TOL_EST_SE * s.e.), the s.e. the oracle printed. A move of k
+# standard errors along a parameter costs about k^2 / 2 in logL; at k = 1e-3
+# that is 5e-7, inside TOL_LL, so this tier admits nothing the logL tier does
+# not already admit (and it only widens TOL_EST where the s.e. exceeds 0.1).
+# Seen in CI: xdet's E[ec1] on macOS (run 39054125424), 1.75e-4 from the
+# oracle with an s.e. of 134 (1.3e-6 s.e.); xar0's E[ec1] on Windows (run
+# 39055641897), 5.04e-4 with an s.e. of 6.75 (7.5e-5 s.e.). Not used on the
+# oracle's platform (STRICT).
+TOL_EST_SE = 1e-3
 
 
 def tol_est(se):

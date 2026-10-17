@@ -73,6 +73,14 @@ RANKS = {
 ALL = sorted(set(FITS) | set(RANKS))
 # ill-defined: several starts over some logL units, the C's best a criterion-3 stop
 ILL = {"ddet211", "dstep"}
+# a TIE: every start reaches the same optimum (the oracle's table prints one
+# logL, 4.121937, for all three), and which of them wins is decided by bits
+# below TOL_LL. Off the oracle's platform another start can win, with its own
+# stopping rule: on Windows (CI run 39055641897) `johansen', stopped on
+# criterion 3, beats the oracle's `cold' (gradient), at the same point to
+# 1e-9 in logL, and the report adds the criterion-3 caveat line.
+TIED = {"xmon"}
+_CAVEAT_3 = "  ! " + "the estimates are a stationary-ish point"
 _DONE = {}
 
 
@@ -123,6 +131,23 @@ def _no_outlier_rows(text):
     return "\n".join(l for l in text.split("\n") if not _OUTLIER_ROW.match(l))
 
 
+def _search_rows(text):
+    """{start: logL as printed} from the .out's search table."""
+    body = text.split("  start        logL            stop  iters  admissible start\n")[1]
+    rows = {}
+    for line in body.splitlines():
+        tok = line.split()
+        if len(tok) < 4 or tok[2] not in ("grad", "step", "tc3", "iter", "maxl"):
+            break
+        rows[tok[0]] = tok[1]
+    return rows
+
+
+def _no_caveat_3(text):
+    """The .out without the line that follows a criterion-3 stop's verdict."""
+    return "\n".join(l for l in text.split("\n") if not l.startswith(_CAVEAT_3))
+
+
 def _verdicts(text):
     """[(r, LR, verdict)] of the rank test's table."""
     body = text.split("  r    M-r        LR      10%      5%      1%")[1]
@@ -160,9 +185,16 @@ def test_fit(label):
     res = _run(label)
     out = out_text(label + ".out")
     if label in ILL:
-        assert res.termcode == 3
         assert "NOT a convergence" in out
-        if not EXACT:
+        if EXACT:
+            assert res.termcode == 3
+        else:
+            # off the oracle's platform the best start stops elsewhere on the
+            # ridge, and which of the two criteria that stop WITHOUT the
+            # gradient fires first is a property of that point: ddet211 stops
+            # on steptol (2) on Windows (CI run 39055641897), on the line
+            # search (3) on Linux and macOS
+            assert res.termcode in (2, 3)
             return
     assert abs(res.loglik - number_after(out, "logelf           :")) < (1e-6 if EXACT else TOL_LL)
     table = param_table(out)
@@ -202,6 +234,10 @@ def test_products(label):
     else:
         if label in ILL:
             mine, theirs = _no_outlier_rows(mine), _no_outlier_rows(theirs)
+        if label in TIED:
+            best = _search_rows(theirs)
+            assert len(set(best.values())) == 1          # the tie, in the oracle
+            mine, theirs = _no_caveat_3(mine), _no_caveat_3(theirs)
         if len(mine.splitlines()) != len(theirs.splitlines()):
             print(_diff(theirs, mine))       # in full: pytest truncates the message
         assert len(mine.splitlines()) == len(theirs.splitlines())
