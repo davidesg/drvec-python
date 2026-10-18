@@ -15,3 +15,4 @@ from .api import FitResult, Param, fit, rank_test, rungs   # noqa: E402,F401
 from .data import Data, read_pre                           # noqa: E402,F401
 from .fit import LineSearchRoundoff                        # noqa: E402,F401
 from .params import Spec                                   # noqa: E402,F401
+from .levels import LevelsVarma, to_levels_varma           # noqa: E402,F401
