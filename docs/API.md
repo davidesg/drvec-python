@@ -89,6 +89,30 @@ is error-correcting). The residuals and the stationary representation are
 alone carries no LR: the C prints none. The bands from the C engine carry the
 8 significant digits of its `.irfboot` file.
 
+`forecasts()` and the `.forecast`/`.out` writers are one computation:
+`forecast.forecast_arrays` computes the numbers and `forecast_vec` prints the
+C's files from them, so an array and the file cannot disagree.
+
+## The VEC in levels, forecast by drvarma (`to_levels_varma`)
+
+`drvec.to_levels_varma(fit)` writes the fitted VEC as a VARMA in levels,
+`Phi(B) Y_t = c + Theta(B) e_t`, of order (p + 1, q), with `Phi(1)` of rank r
+(PLAN-vec A4: a VEC is a VARMA in levels; the suite forecasts it with the
+VARMA system's code). It returns a `LevelsVarma` (`phi`, `theta`, `sigma`,
+`const`, `w`, `a`, `names`, `lambdas`, `refactors`, `r`, `origin`) built from
+the public accessors (`stationary`, `residuals`, `beta2`), and
+`LevelsVarma.forecast(H, conf=0.95, z=None)` forecasts it with drvarma's
+`forecast.forecast_given` (drvarma >= 0.3.0), each file's deterministic path
+added back and the Box-Cox inverted. The band's multiplier is drvec's
+(1.959964 at 95%) unless `z` is given; drvarma's ladder uses 1.96.
+
+drvec's own forecaster (`fit(forecast=H)`, the C's `-f`) stays: it is under
+byte identity with the oracle. The two agree to 1e-12 relative in the model's
+units on every golden case with a `.forecast` (`tests/test_levels.py`), and
+the oracle's `.forecast` rebuilt from drvarma's numbers is byte-identical on
+Linux x86_64. `-trend` (case 4) and `-xlink` are refused, as `-f` refuses
+them.
+
 ## The bootstrap: workers, seed and engine
 
 Both bootstraps -- the rank test's and `fit(irfboot=N)`'s -- take:

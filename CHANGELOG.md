@@ -2,6 +2,12 @@
 
 ## 0.1.0 — unreleased
 
+- `drvec.to_levels_varma(fit)` (PLAN-vec A4): the fitted VEC as a VARMA in
+  levels, forecast by drvarma's `forecast_given` (drvarma >= 0.3.0); it
+  agrees with drvec's own `-f` to 1e-12 relative on every golden `.forecast`
+  (docs/API.md). drvec's forecaster stays, under byte identity, and is now
+  one computation: `forecast_arrays` computes, `forecast_vec` prints the
+  `.out` section and the `.forecast` from its numbers.
 - The package: pure Python on drvarma's exact likelihood and fue's reader.
   Its oracle is drvec C 0.13 (atsw-gui ae95446; milestones 1-4 were
   homologated against drvec-v0.12, which 0.13 reproduces on them).

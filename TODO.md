@@ -263,8 +263,15 @@ article's inputs (private: nothing of them in this repo).
 
 ## What sima 0.2.0 needs: accessors, parallel bootstrap, the C engine (2026-10-18)
 
-PLAN-vec (sima-python, branch estudio-vec) phases A1, A2, A3, A5 and B; A4
-(the VEC in levels for drvarma's forecaster) is a separate branch.
+PLAN-vec (sima-python, branch estudio-vec) phases A1-A5 and B.
+
+- [x] A4, the VEC in levels (`drvec.levels`, `to_levels_varma`), forecast by
+      drvarma's `forecast_given` (drvarma gsl-gensymmv 7822189); built from
+      the public accessors. Agrees with drvec's `-f` to 1e-12 relative in the
+      model's units on the ten golden `.forecast` cases and four corners
+      (tests/test_levels.py); the oracle's `.forecast` rebuilt from drvarma's
+      numbers byte-identical on Linux x86_64. drvec's `-f` is one computation
+      (`forecast_arrays`; `forecast_vec` prints from it).
 
 - [x] A1, the accessors (STUDY-vec §4.2 items 1-6): docs/API.md. Every one
       equals the number the .out prints on every golden fit

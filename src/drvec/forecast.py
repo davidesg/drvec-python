@@ -94,9 +94,81 @@ def _date(start, freq, k):
     return obs_to_date(start[0], start[1], k, freq)
 
 
+def z_of(conf):
+    """The band's multiplier, the C's three constants (forecast_vec)."""
+    return 2.575829 if conf >= 0.99 else 1.959964 if conf >= 0.95 else 1.644854
+
+
+def forecast_arrays(res, fv, H, conf=0.95):
+    """THE forecast computation (drvec.c:6456's arithmetic, loop for loop):
+    the recursion, the psi-weight variance through the level map, and the
+    back-transform. forecast_vec prints the .out section and <base>.forecast
+    from these numbers, and FitResult.forecasts hands them over as arrays, so
+    there is one code and the two cannot disagree.
+    -> dict with dates [(period, sub)] (H), and (H, M) lists in each series'
+    own units: level, low, high, se (the delta-method s.e. the file prints),
+    plus model_level and model_se (the level and its theoretical s.e. in the
+    model's units, before the deterministic path and the back-transform), z."""
+    from .report import compute_psi_weights, level_error_map
+    spec, data = res.spec, res.data
+    M, r, p, q = spec.M, spec.r, spec.p, spec.q
+    n = fv.rd.n
+    phi = [fv.phi[k].tolist() for k in range(p)]
+    theta = [fv.theta[k].tolist() for k in range(q)]
+    mu = [float(v) for v in fv.mu]
+    qq = fv.qq.tolist()
+    w = fv.w.tolist()
+    raw_origin = n + 1
+    lam = [float(v) for v in data.lambdas]
+    ref = [float(v) for v in data.refactors]
+    det = _det_at(data, H)
+    Psi = compute_psi_weights(M, p, q, phi, theta, H)
+    Sig = [[res.sigma2 * qq[i][j] for j in range(M)] for i in range(M)]
+    _Yb, lev = forecast_core(M, r, p, q, phi, theta, mu, w, fv.a, fv.rd.y2, fv.B2, n, H)
+    z = z_of(conf)
+    Var = [[0.0] * M for _ in range(M)]
+    Csum = [[0.0] * M for _ in range(M)]
+    SE = [[0.0] * M for _ in range(H)]
+    for h in range(1, H + 1):
+        m = h - 1
+        for i in range(M):
+            for j in range(M):
+                Csum[i][j] += Psi[m][i][j]
+        G = level_error_map(Csum, Psi[m], fv.B2, M, r)
+        for i in range(M):
+            for j in range(M):
+                acc = 0.0
+                for k in range(M):
+                    for l in range(M):
+                        acc += G[i][k] * Sig[k][l] * G[j][l]
+                Var[i][j] += acc
+        for i in range(M):
+            SE[h - 1][i] = math.sqrt(Var[i][i]) if Var[i][i] > 0.0 else 0.0
+    out = {"dates": [], "level": [], "low": [], "high": [], "se": [],
+           "model_level": [list(row) for row in lev[:H]], "model_se": SE, "z": z,
+           "conf": conf}
+    for h in range(1, H + 1):
+        out["dates"].append(tuple(_date(data.start, data.freq, raw_origin + h)))
+        rl, rlo, rhi, rse = [], [], [], []
+        for i in range(M):
+            L = lev[h - 1][i]
+            e = SE[h - 1][i]
+            dt = det(i, raw_origin + h)
+            rl.append(bt_level(lam[i], ref[i], L, dt))
+            rlo.append(bt_level(lam[i], ref[i], L - z * e, dt))
+            rhi.append(bt_level(lam[i], ref[i], L + z * e, dt))
+            rse.append(bt_jac(lam[i], ref[i], L, dt) * e)
+        out["level"].append(rl)
+        out["low"].append(rlo)
+        out["high"].append(rhi)
+        out["se"].append(rse)
+    return out
+
+
 def forecast_vec(res, fv, H, base, conf=0.95):
-    """-> (the .out's Forecast section, <base>.forecast's text)."""
-    from .report import banner, compute_psi_weights, level_error_map
+    """-> (the .out's Forecast section, <base>.forecast's text), printed from
+    forecast_arrays' numbers."""
+    from .report import banner
     from . import __version__
     spec, data = res.spec, res.data
     M, r, p, q = spec.M, spec.r, spec.p, spec.q
@@ -105,17 +177,11 @@ def forecast_vec(res, fv, H, base, conf=0.95):
     phi = [fv.phi[k].tolist() for k in range(p)]
     theta = [fv.theta[k].tolist() for k in range(q)]
     mu = [float(v) for v in fv.mu]
-    qq = fv.qq.tolist()
     w = fv.w.tolist()
     a = fv.a
-    raw_origin = n + 1
-    lam = [float(v) for v in data.lambdas]
-    ref = [float(v) for v in data.refactors]
     names = data.names
-    det = _det_at(data, H)
-    Psi = compute_psi_weights(M, p, q, phi, theta, H)
-    Sig = [[res.sigma2 * qq[i][j] for j in range(M)] for i in range(M)]
-    Yb, lev = forecast_core(M, r, p, q, phi, theta, mu, w, a, fv.rd.y2, fv.B2, n, H)
+    fc = forecast_arrays(res, fv, H, conf)
+    z = fc["z"]
 
     o = banner("Forecast")
     worst = 0.0
@@ -137,7 +203,6 @@ def forecast_vec(res, fv, H, base, conf=0.95):
     o += ("\n  one-step self-check: max |Ybar_t - a_t - pred(t|t-1)| = %.3e over %d obs\n"
           "  (the residue is the xi truncation, of order xitol = %.0e)\n"
           % (worst, n - t0 + 1, 1.0e-3))
-    z = 2.575829 if conf >= 0.99 else 1.959964 if conf >= 0.95 else 1.644854
     o += ("\n%d step%s ahead, in levels.  Columns are the .inp's: Y2 block (1..%d), then Y1.\n"
           "s.e. are THEORETICAL; a %.0f%% band is +/- %.4f s.e.\n"
           % (H, "" if H == 1 else "s", s, 100.0 * conf, z))
@@ -145,29 +210,10 @@ def forecast_vec(res, fv, H, base, conf=0.95):
           "back, refactor divided out, Box-Cox inverted (the median under\n"
           "a log); s.e. by the delta method (BUG-36).\n")
     o += "\n   h" + "".join("  %14s %10s" % (nm, "s.e.") for nm in names) + "\n"
-    Var = [[0.0] * M for _ in range(M)]
-    Csum = [[0.0] * M for _ in range(M)]
-    SE = [[0.0] * M for _ in range(H)]
     for h in range(1, H + 1):
-        m = h - 1
-        for i in range(M):
-            for j in range(M):
-                Csum[i][j] += Psi[m][i][j]
-        G = level_error_map(Csum, Psi[m], fv.B2, M, r)
-        for i in range(M):
-            for j in range(M):
-                acc = 0.0
-                for k in range(M):
-                    for l in range(M):
-                        acc += G[i][k] * Sig[k][l] * G[j][l]
-                Var[i][j] += acc
         o += "%4d" % h
         for i in range(M):
-            SE[h - 1][i] = math.sqrt(Var[i][i]) if Var[i][i] > 0.0 else 0.0
-            dt = det(i, raw_origin + h)
-            o += "  %14.6f %10.6f" % (bt_level(lam[i], ref[i], lev[h - 1][i], dt),
-                                      bt_jac(lam[i], ref[i], lev[h - 1][i], dt)
-                                      * SE[h - 1][i])
+            o += "  %14.6f %10.6f" % (fc["level"][h - 1][i], fc["se"][h - 1][i])
         o += "\n"
     o += ("\n  ! the Y1 s.e. inherits the CUMULATED error of the nabla Y2 block,\n"
           "    because the two are tied by the cointegrating relation\n")
@@ -185,15 +231,11 @@ def forecast_vec(res, fv, H, base, conf=0.95):
         f.append("Series %d (%s):" % (i + 1, names[i]))
         f.append("  %-9s %14s %14s %14s %12s" % ("date", "Level", "Low", "High", "s.e."))
         for h in range(1, H + 1):
-            per, sub = _date(data.start, data.freq, raw_origin + h)
+            per, sub = fc["dates"][h - 1]
             d = ("  %3d/%-5d" % (sub, per)) if data.freq > 1 else ("  %-9d" % per)
-            L = lev[h - 1][i]
-            e = SE[h - 1][i]
-            dt = det(i, raw_origin + h)
             f.append(d + " %14.6f %14.6f %14.6f %12.6f" % (
-                bt_level(lam[i], ref[i], L, dt), bt_level(lam[i], ref[i], L - z * e, dt),
-                bt_level(lam[i], ref[i], L + z * e, dt),
-                bt_jac(lam[i], ref[i], L, dt) * e))
+                fc["level"][h - 1][i], fc["low"][h - 1][i], fc["high"][h - 1][i],
+                fc["se"][h - 1][i]))
         f.append("")
     return o, "\n".join(f) + "\n"
 
@@ -270,66 +312,3 @@ def rolling_eval(res, E, H):
     out += ("\n  These are the numbers that decide whether the model earns its\n"
             "  parameters.  A likelihood, an AIC and a theoretical band do not.\n")
     return out, "\n".join(csv) + "\n"
-
-
-def forecast_arrays(res, fv, H, conf=0.95):
-    """The numbers of <base>.forecast as arrays (FitResult.forecasts): the
-    same arithmetic as forecast_vec, step for step, without the text.
-    -> dict with dates [(period, sub)] (H), and (H, M) lists in each series'
-    own units: level, low, high, se (the delta-method s.e. the file prints),
-    plus model_level and model_se (the level and its theoretical s.e. in the
-    model's units, before the deterministic path and the back-transform), z."""
-    from .report import compute_psi_weights, level_error_map
-    spec, data = res.spec, res.data
-    M, r, p, q = spec.M, spec.r, spec.p, spec.q
-    n = fv.rd.n
-    phi = [fv.phi[k].tolist() for k in range(p)]
-    theta = [fv.theta[k].tolist() for k in range(q)]
-    mu = [float(v) for v in fv.mu]
-    qq = fv.qq.tolist()
-    w = fv.w.tolist()
-    raw_origin = n + 1
-    lam = [float(v) for v in data.lambdas]
-    ref = [float(v) for v in data.refactors]
-    det = _det_at(data, H)
-    Psi = compute_psi_weights(M, p, q, phi, theta, H)
-    Sig = [[res.sigma2 * qq[i][j] for j in range(M)] for i in range(M)]
-    _Yb, lev = forecast_core(M, r, p, q, phi, theta, mu, w, fv.a, fv.rd.y2, fv.B2, n, H)
-    z = 2.575829 if conf >= 0.99 else 1.959964 if conf >= 0.95 else 1.644854
-    Var = [[0.0] * M for _ in range(M)]
-    Csum = [[0.0] * M for _ in range(M)]
-    SE = [[0.0] * M for _ in range(H)]
-    for h in range(1, H + 1):
-        m = h - 1
-        for i in range(M):
-            for j in range(M):
-                Csum[i][j] += Psi[m][i][j]
-        G = level_error_map(Csum, Psi[m], fv.B2, M, r)
-        for i in range(M):
-            for j in range(M):
-                acc = 0.0
-                for k in range(M):
-                    for l in range(M):
-                        acc += G[i][k] * Sig[k][l] * G[j][l]
-                Var[i][j] += acc
-        for i in range(M):
-            SE[h - 1][i] = math.sqrt(Var[i][i]) if Var[i][i] > 0.0 else 0.0
-    out = {"dates": [], "level": [], "low": [], "high": [], "se": [],
-           "model_level": [list(row) for row in lev[:H]], "model_se": SE, "z": z,
-           "conf": conf}
-    for h in range(1, H + 1):
-        out["dates"].append(tuple(_date(data.start, data.freq, raw_origin + h)))
-        rl, rlo, rhi, rse = [], [], [], []
-        for i in range(M):
-            L = lev[h - 1][i]
-            e = SE[h - 1][i]
-            dt = det(i, raw_origin + h)
-            rl.append(bt_level(lam[i], ref[i], L, dt))
-            rlo.append(bt_level(lam[i], ref[i], L - z * e, dt))
-            rhi.append(bt_level(lam[i], ref[i], L + z * e, dt))
-            rse.append(bt_jac(lam[i], ref[i], L, dt) * e)
-        out["level"].append(rl)
-        out["low"].append(rlo)
-        out["high"].append(rhi)
-        out["se"].append(rse)
-    return out

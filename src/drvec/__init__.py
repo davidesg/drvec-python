@@ -19,3 +19,4 @@ from .c_engine import CEngineError, CEngineUnavailable   # noqa: E402,F401
 from .rank import RankTest                                 # noqa: E402,F401
 from .results import (Diagnostics, Forecasts, IrfBands, LongRun,   # noqa: E402,F401
                       Provenance, RestrictionLR, Stationary)
+from .levels import LevelsVarma, to_levels_varma           # noqa: E402,F401

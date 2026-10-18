@@ -285,8 +285,7 @@ class FitResult:
         if not self.forecast_h:
             return None
         from .forecast import forecast_vec
-        from .report import _Fit
-        return forecast_vec(self, _Fit(self), self.forecast_h, base)[1]
+        return forecast_vec(self, self._final(), self.forecast_h, base)[1]
 
     def recursive_text(self):
         """<base>.recursive, the per-origin errors of -estwin (None without it,
