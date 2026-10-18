@@ -23,7 +23,14 @@ name: Publish to PyPI
 #                             (tools/build_gsl.sh: the GSL the oracle runs on)
 #   macOS arm64               the same GSL 2.7.1 from source, for macOS 14
 #   Windows AMD64             MinGW-w64 gcc and GSL from MSYS2 (UCRT64), the
-#                             toolchain ATSW builds drvec with, linked -static
+#                             toolchain ATSW builds drvec with, linked -static.
+#                             BUILT BUT NOT PUBLISHED: drvec C 0.13's bootstrap
+#                             never ends on Windows (its generator needs a
+#                             64-bit unsigned long: bugs/drvec-c-rng-long32),
+#                             so Windows gets the pure wheel and c_engine
+#                             refuses 0.13 there. The job stays, so that the
+#                             toolchain is proven for the fixed C; its
+#                             artifact is not named wheels-*.
 # DRVEC_REQUIRE_C=1 makes a failed C build fail the wheel, never a binary
 # wheel without its binary. The pure wheel (DRVEC_NO_C=1, py3-none-any) is the
 # fallback for every other platform, as in drvarma; the sdist builds the C
@@ -125,7 +132,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          # windows: not published (bugs/drvec-c-rng-long32)
+          name: ${{ matrix.os == 'windows-latest' && 'unpublished-wheel-windows' || format('wheels-{0}', matrix.os) }}
           path: ./wheelhouse/*.whl
 
   # ── Pure-Python wheel and sdist ───────────────────────────────────────────
@@ -191,7 +199,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-14, windows-latest]
+        # not windows-latest: its wheel is not published (above)
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-14]
         python: ["3.10", "3.13"]
     env:
       FUE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.fue_ref || '' }}

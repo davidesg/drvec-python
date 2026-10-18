@@ -27,10 +27,11 @@ drvec's code is Python. What must be fast comes with binary wheels:
 exact VARMA likelihood (AS 311), its optimiser and GSL's eigensolvers,
 [fue](https://pypi.org/project/fue/) (>= 0.1.18) the reader and cast of the
 `.pre` files, and drvec's own wheels carry **drvec C 0.13**, the program the
-port mirrors, for the long bootstraps (below): Linux x86_64 and aarch64,
-macOS arm64 and Windows AMD64, with GSL linked in. Nothing to compile, and
-no system GSL needed. Python 3.10 or later. Elsewhere pip takes the
-pure-Python wheel, and the bootstraps run in Python.
+port mirrors, for the long bootstraps (below): Linux x86_64 and aarch64 and
+macOS arm64, with GSL linked in. Nothing to compile, and no system GSL
+needed. Python 3.10 or later. Elsewhere, Windows included, pip takes the
+pure-Python wheel and the bootstraps run in Python (on Windows drvec C 0.13's
+bootstrap does not end: a C defect, bugs/drvec-c-rng-long32).
 
 Check that the compiled engine is in use:
 

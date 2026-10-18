@@ -300,11 +300,16 @@ PLAN-vec (sima-python, branch estudio-vec) phases A1-A5 and B.
       ae95446, 20 files, sha256 in csrc/VENDORED.json, tests/test_vendored.py;
       tools/vendor_drvec_c.py refreshes), setup.py builds drvec/_bin/drvec
       with GSL static (csrc/build_drvec.py), py3-none-<platform> wheels by
-      cibuildwheel on 4 platforms + the pure wheel + the sdist (publish.yml),
+      cibuildwheel on 4 platforms (Windows built, not published: below) +
+      the pure wheel + the sdist (publish.yml),
       DRVEC_REQUIRE_C. The manylinux x86_64 wheel's binary writes the oracle's
       files byte for byte on 19 commands (tests/test_bundled.py); tests.yml
       builds the vendored C instead of atsw-gui's checkout.
-- [ ] B5 follow-ups: the GSL the oracle RUNS on is Ubuntu 24.04's 2.7.1
+- [ ] B5 follow-ups: the Windows platform wheel waits for the fix of
+      bugs/drvec-c-rng-long32 in atsw-gui (then re-vendor with
+      tools/vendor_drvec_c.py, rename its artifact to wheels-windows-latest in
+      publish.yml, put windows-latest back in smoke_wheels, and lift the
+      win32 refusal in c_engine.find). Also: the GSL the oracle RUNS on is Ubuntu 24.04's 2.7.1
       (libgsl.so.27), although tests/data/oracle/SOURCE says "the system GSL
       2.8" (2.8's headers are in /usr/local, its pkg-config, but no 2.8
       library is loaded): the wheels build 2.7.1, and the SOURCE line wants
@@ -399,9 +404,16 @@ What this says:
   any file with two or more variables, or a rational one, moves w by ulps
   (and by BUG-40's tail past lag 40), and 16 of the 22 cases of
   tests/test_m5.py::test_products fail (measured).
-- C defect candidate, not filed: the bootstrap generator's `unsigned long`
-  (drvec.c:2203) is 32-bit on Windows, so the C's bootstrap stream (and its
-  `.boot` goldens) are platform-dependent. The port computes the 64-bit stream.
+- [ ] **C defect, filed 2026-10-18 (`bugs/drvec-c-rng-long32`, `repro.py`
+  exits 1 while open):** the bootstrap generator's `unsigned long`
+  (drvec.c:2203) is 32 bits on Windows, and `boot_rng >> 33` is then a shift
+  past the type's width: gcc folds it to 0, u1 = 0 on every draw, and
+  boot_normal's rejection loop never ends. drvec C 0.13 built for Windows
+  (MinGW-w64; MSVC would be the same) hangs on its first bootstrap
+  replication (found by the Windows wheel's smoke test, B5). The fix belongs
+  in atsw-gui (uint64_t for both LCGs; on LP64 nothing moves). Until then the
+  Windows wheel is built but not published, and c_engine refuses 0.13 on
+  Windows. The port computes the 64-bit stream on every platform.
 - Milestone 3's tiers are reasoned, not measured off-platform: -fdhess s.e. on
   TOL_FDSE_REL = 2e-2 (4x the measured ulp-level floor), forecasts and rolling
   errors to 1e-3 relative, and line counts for the .out. ms201's winner

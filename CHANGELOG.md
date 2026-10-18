@@ -17,10 +17,14 @@
   the Makefile's units and flags, GSL static) into the package as
   `drvec/_bin/drvec` (`drvec.exe`), which `c_engine` finds after
   `DRVEC_BIN`. The wheels: `py3-none-<platform>` for Linux x86_64 and
-  aarch64 (manylinux, GSL 2.7.1 from source), macOS arm64 (the same) and
-  Windows AMD64 (MinGW-w64 and MSYS2's GSL, `-static`), plus the pure
+  aarch64 (manylinux, GSL 2.7.1 from source) and macOS arm64 (the same),
+  plus the pure
   `py3-none-any` wheel (`DRVEC_NO_C=1`) as the fallback and the sdist, which
-  builds the C when it finds a compiler and GSL. `DRVEC_REQUIRE_C=1` turns
+  builds the C when it finds a compiler and GSL. Windows AMD64 (MinGW-w64
+  and MSYS2's GSL, `-static`) is built in CI but not published: drvec C
+  0.13's bootstrap never ends on Windows, its generator assuming a 64-bit
+  `unsigned long` (C defect, `bugs/drvec-c-rng-long32`); `c_engine` refuses
+  0.13 there, and Windows takes the pure wheel. `DRVEC_REQUIRE_C=1` turns
   a failed C build into an error (the wheels and the CI set it). On Linux
   x86_64 the wheel's binary writes the oracle's files byte for byte
   (`tests/test_bundled.py`, nineteen oracle commands); every wheel's smoke
