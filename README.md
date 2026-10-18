@@ -74,6 +74,48 @@ drvec-py -h
 It is `drvec-py` and not `drvec` because `drvec` is the C program's name on a
 system with the ATSW suite.
 
+## The results as numbers
+
+Everything the `.out` prints is also there as arrays, computed by the same
+routine that prints it (the suite checks that each equals the printed number):
+
+```python
+r.alpha, r.beta, r.Pi, r.gamma, r.theta, r.Sigma   # in the files' order
+r.residuals, r.stationary                          # Ybar's innovations and VARMA
+r.level_irf(), r.fevd(), r.long_run()              # the responses in levels
+r.diagnostics().hosking_p, r.diagnostics().jb_p    # the residual tests
+r.forecasts(8).level                               # (H, M), in each series' units
+r.restriction_lr                                   # an LR with its df, when restricted
+```
+
+The list, with the conventions, is in
+[docs/API.md](https://github.com/davidesg/drvec-python/blob/main/docs/API.md).
+
+## Long bootstraps: workers, and drvec C as the engine
+
+A rank test with B = 999 on three series is hours of Python on one core.
+Two things make it affordable, and neither changes a number:
+
+- **`workers=`**: the replications are drawn in sequence, in the C's order,
+  and refitted in a process pool. The default is `DRVEC_WORKERS`, else the
+  cores less one; `workers=1` runs in-process. The output is byte-identical
+  whatever the number.
+- **`engine=`**: `"auto"` (the default) runs the bootstrap on **drvec C 0.13**
+  when it finds the binary -- `DRVEC_BIN`, then a binary bundled in the
+  wheel, then `drvec` on the `PATH`, then the ATSW install directory -- and
+  on the parallel Python otherwise. The C's replications are read back into
+  the same result objects; on Linux x86_64 the files are the same bytes.
+  `"python"` and `"c"` force one or the other.
+
+```python
+rt = drvec.rank_test(pre, p=2, q=0, case=2, bootstrap=999, boot_path="mm.boot",
+                     progress=lambda b, rep: print(rep.h0, b, rep.status))
+print(rt.provenance.engine, rt.provenance.version)   # c 0.13, or python 0.1.0
+```
+
+`seed=` gives another stream for a Monte Carlo check (always in Python: the
+C's generator is fixed at its seed); the default is the C's.
+
 ## The C oracle and the platform convention
 
 The port is homologated, case by case, against its oracle: the C program
@@ -110,6 +152,7 @@ yet (docs/PORT.md §10).
 ## Documentation and changes
 
 - [CHANGELOG.md](https://github.com/davidesg/drvec-python/blob/main/CHANGELOG.md)
+- [docs/API.md](https://github.com/davidesg/drvec-python/blob/main/docs/API.md): the API, the accessors, the engines
 - [docs/PORT.md](https://github.com/davidesg/drvec-python/blob/main/docs/PORT.md): how the C was ported
 - [TODO.md](https://github.com/davidesg/drvec-python/blob/main/TODO.md): the milestones and the open risks
 - [bugs/](https://github.com/davidesg/drvec-python/tree/main/bugs): the C defects found by the port, each with its repro

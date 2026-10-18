@@ -148,7 +148,7 @@ Deterministic cases (Mauricio 2006, Remark 6):
   -nodrift i : hold E[nabla Y2_i] = 0 inside case 3 (repeatable)
   -trend  : case 4, a linear trend in W (restricted to beta)
 
-Restrictions, each with its LR against the free model:
+Restrictions (each but -fixb2 with its LR against the free model):
   -fixb2 [v]     hold B2 fixed: at v (an a-priori value, a valid LR) or,
                  without a value, at its static-OLS estimate
   -fixb2row i v  hold ROW i of B2 at v in every relation (repeatable)

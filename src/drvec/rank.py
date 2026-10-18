@@ -154,15 +154,17 @@ def _refit_pair(spec_r, data, sim):
     return r0.ifault, r0.ll, r1.ifault, r1.ll
 
 
-def bootstrap_rank(spec_r, data, x, N, lr_obs, rng, progress=None, workers=1):
+def bootstrap_rank(spec_r, data, x, N, lr_obs, rng, progress=None, workers=1, pairs=None):
     """bootstrap_rank (2356). spec_r is the H0 rank's spec, x its fitted vector.
     progress(b, replication) after each replication, a failed one included.
     workers > 1: the N samples drawn first, in the generator's order, and
-    refitted in a process pool -- the same numbers (drvec.parallel)."""
+    refitted in a process pool -- the same numbers (drvec.parallel). pairs:
+    the refits already under way (an iterator of _refit_pair's results, in
+    order), when the caller drew the samples itself."""
     rr = spec_r.r
     reps = []
-    pairs = None
-    if workers > 1:
+    own = pairs is None and workers > 1
+    if own:
         from .parallel import map_refits
         sims = [simulate_h0(spec_r, data, x, rng) for _b in range(N)]
         pairs = map_refits(_refit_pair, data,
@@ -182,7 +184,7 @@ def bootstrap_rank(spec_r, data, x, N, lr_obs, rng, progress=None, workers=1):
             reps.append(Replication(rr, b, "fitfail"))
         if progress:
             progress(b, reps[-1])
-    if pairs is not None:
+    if own:
         pairs.close()
     return summarise(rr, lr_obs, reps)
 
@@ -309,12 +311,27 @@ def rank_test(data, spec, bootstrap=0, boot_path=None, progress=None, njitter=1,
         out.bootstraps = boot_hook(out, ds)
     elif bootstrap > 0:
         rng = Rng() if seed is None else Rng(seed)
-        for rr in range(M - 1):
-            if fits[rr].ifault or fits[rr + 1].ifault:
-                continue
+        todo = [rr for rr in range(M - 1) if not (fits[rr].ifault or fits[rr + 1].ifault)]
+        pairs = None
+        if workers > 1:
+            # every comparison's samples drawn first, in the generator's order
+            # (comparison by comparison, as the sequential path draws them: they
+            # come from the OBSERVED fits), then one pool for all the refits, so
+            # that no comparison waits for the previous one's slowest refit
+            from .parallel import map_refits
+            tasks = []
+            for rr in todo:
+                sr = spec.but(r=rr)
+                for _b in range(bootstrap):
+                    sim = simulate_h0(sr, ds, fits[rr].x, rng)
+                    tasks.append(None if sim is None else (sr, sim))
+            pairs = map_refits(_refit_pair, ds, tasks, workers)
+        for rr in todo:
             out.bootstraps.append(bootstrap_rank(spec.but(r=rr), ds, fits[rr].x,
                                                  bootstrap, out.lr(rr), rng, progress,
-                                                 workers=workers))
+                                                 workers=workers, pairs=pairs))
+        if pairs is not None:
+            pairs.close()
         if boot_path:
             with open(boot_path, "w") as f:
                 f.write(out.boot_text())

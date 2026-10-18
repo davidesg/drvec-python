@@ -77,3 +77,38 @@
   (`DRVEC_TEST_INSTALLED=1`; the CI does), and `tests.yml` has a manual run
   that builds fue and drvarma from git refs, to measure off the oracle's
   platform before they are released.
+- **What sima 0.2.0 needs from the engine** (PLAN-vec A1-A3, B; none of it
+  changes a number: the suite is byte-identical to the oracle as before).
+  - The accessors (A1): `FitResult.alpha`, `beta2`, `beta`, `Pi`, `gamma`,
+    `theta`, `Q`, `Sigma`, `means`, `delta`, `residuals` (with
+    `residual_names`), `stationary` (the VARMA on Ybar); `level_irf(K)`,
+    `fevd(K)`, `long_run()` (gain, mean lag); `irf_bands()`;
+    `diagnostics()` (Hosking's Q and the multivariate JB with their df and
+    p-values); `forecasts(H)` (point, bands, s.e. and dates); and
+    `restriction_lr` (the LR with its df and p-value). Each comes from the
+    routine that prints it (`report.level_irf_numbers`,
+    `multivariate_numbers`, `restriction_lr`; `forecast.forecast_arrays`
+    repeats `forecast_vec`'s arithmetic), and `tests/test_accessors.py`
+    checks every one against the printed number on every golden fit.
+  - The parallel bootstrap (A2): `rank_test(..., workers=)` and
+    `fit(..., irfboot=N, workers=)`. The samples are drawn in sequence, in the
+    C's order, and refitted in a process pool (`drvec.parallel`); a refit
+    draws no random numbers (checked: the only consumer of the generator is
+    `simulate_h0`), so `workers=1` and `workers=4` give the same `.out`,
+    `.boot` and `.irfboot` byte for byte (`tests/test_parallel.py`). Default
+    `DRVEC_WORKERS`, else the cores less one. The `-irfboot` bootstrap gains
+    `progress(b, ok)`; the rank test's `progress` is now also called for a
+    replication whose sample could not be drawn (simfail).
+  - `seed=` on both bootstraps (A3), the C's 987654321 by default.
+  - drvec C as the bootstrap engine (B): `drvec.c_engine` finds the binary
+    (`DRVEC_BIN`, a binary bundled at `drvec/_bin/drvec`, `drvec` on the PATH,
+    the ATSW install directory), refuses any version but 0.13, translates the
+    call into the C's argv (the inverse of the CLI's parser), runs it in a
+    folder and reads its `.boot` and `.irfboot` back into the same
+    `RankTest`/`FitResult`. `engine="auto" | "python" | "c"` on both
+    bootstraps (`DRVEC_ENGINE`; "auto" takes the C when it matches). Every
+    result carries `provenance` (engine, version, path, backend, platform
+    tier, workers, seed). On Linux x86_64 the two engines give the same bytes
+    (`tests/test_c_engine.py`; CI builds the C from atsw-gui ae95446 on
+    ubuntu-latest), except the C's BUG-60 replication of cprboot.
+  - `docs/API.md`; `tools/time_bootstrap.py --engines` measures the engines.

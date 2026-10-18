@@ -12,6 +12,7 @@ include README.md
 include CHANGELOG.md
 include COPYING
 include docs/PORT.md
+include docs/API.md
 recursive-include tests *.py
 recursive-include tests/data *
 prune tests/__pycache__

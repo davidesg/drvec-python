@@ -261,6 +261,58 @@ article's inputs (private: nothing of them in this repo).
       GSL backend and, where the tolerance tier allowed scipy's seed before,
       whether anything tightens: to be measured on the first off-platform run.
 
+## What sima 0.2.0 needs: accessors, parallel bootstrap, the C engine (2026-10-18)
+
+PLAN-vec (sima-python, branch estudio-vec) phases A1, A2, A3, A5 and B; A4
+(the VEC in levels for drvarma's forecaster) is a separate branch.
+
+- [x] A1, the accessors (STUDY-vec §4.2 items 1-6): docs/API.md. Every one
+      equals the number the .out prints on every golden fit
+      (tests/test_accessors.py: 44 fits, 9 forecast files, the .irfboot).
+- [x] A2, the parallel bootstrap: `workers=` on rank_test and
+      fit(irfboot=). Verified before relying on it: the only consumer of the
+      bootstrap generator is rank.simulate_h0 (grep: no Rng, no random in the
+      fit path; -multistart's generator is local to fit_search and a
+      replication is fitted with one start), and each replication is fitted
+      on a fresh Data. workers=1 and workers=4 give the same .out, .boot and
+      .irfboot on rankboot, cprboot, dboot, e1boot (slow) and irfboot
+      (tests/test_parallel.py); the oracle tests run on the default workers.
+      Default: DRVEC_WORKERS, else cores - 1.
+- [x] A3, `seed=`: the C's 987654321 by default; another seed always runs in
+      Python (the C's generator is fixed).
+- [x] B, drvec.c_engine: the finder (DRVEC_BIN, drvec/_bin bundled for B5,
+      PATH, ATSW), the 0.13 banner check, the argv (the CLI parser's inverse),
+      the run in a folder, the .boot/.irfboot read back into RankTest and
+      FitResult; engine="auto"|"python"|"c" (DRVEC_ENGINE); provenance on
+      every result. C path == Python path byte for byte on rankboot, dboot,
+      e1boot and irfboot; cprboot differs in replication 16 only, the C's
+      BUG-60 (the C path gives the oracle's .boot). CI builds the C from
+      atsw-gui ae95446 on ubuntu-latest (run 39118715613: the C tests ran,
+      all 8 jobs green).
+- **The speed-ups** (`tools/time_bootstrap.py B --case mm|e1 --engines`, on
+  this machine: an i5-6300U, 2 cores / 4 threads, with another job's tests
+  running at the same time, load 2-5; every .boot identical to workers=1's):
+
+  | run | workers=1 | 2 | 3 | 4 | drvec C |
+  |---|---|---|---|---|---|
+  | mm, `2 0 -case 2 -lrtest -bootstrap 99` | 28.9 s | 15.5 s (1.86x) | 14.3 s (2.02x) | 14.0 s (2.07x) | 2.4 s (12.1x) |
+  | E1, `2 0 -case 2 -lrtest -bootstrap 20` | 121-138 s | 106 s (1.14x) | 83-119 s (1.16-1.46x) | 69-86 s (1.60-1.75x) | 13.3-16.9 s (8.2-9.1x) |
+
+  The pool scales with the PHYSICAL cores: two here, so about 2x on mm. E1
+  with B = 20 has only 40 refits of very unequal cost (some starts run long
+  on its ridge), so the tail dominates; with B = 499 the pool's balance
+  improves. STUDY-vec's "3-4x on this machine's 4 cores" assumed 4 real
+  cores. The C stays 8-12x faster than one Python core, so `engine="auto"`
+  takes it when present (PLAN-vec decision E2).
+- [ ] The C engine reports progress as the C's stdio buffer flushes the .boot
+      (about every 4 KB, ~130 replications); -irfboot through the C reports
+      only at the end. A `setvbuf` line-buffered .boot in the C would give
+      per-replication progress: a C change, for atsw-gui.
+- [x] `-fixb2 v` prints no LR in the C's .out (nor does the port), but
+      `drvec-py -h` said the restrictions came "each with its LR against the
+      free model" (the port's own help; the C's usage does not say it).
+      Fixed in the help text; `restriction_lr` is None there, as the .out.
+
 ## Option (b): the measurement (milestone 2, 2026-10-15)
 
 `python tools/time_bootstrap.py 20 --case e1` (and `--case mm`), on Lutkepohl's E1
