@@ -27,11 +27,10 @@ drvec's code is Python. What must be fast comes with binary wheels:
 exact VARMA likelihood (AS 311), its optimiser and GSL's eigensolvers,
 [fue](https://pypi.org/project/fue/) (>= 0.1.18) the reader and cast of the
 `.pre` files, and drvec's own wheels carry **drvec C 0.13**, the program the
-port mirrors, for the long bootstraps (below): Linux x86_64 and aarch64 and
-macOS arm64, with GSL linked in. Nothing to compile, and no system GSL
-needed. Python 3.10 or later. Elsewhere, Windows included, pip takes the
-pure-Python wheel and the bootstraps run in Python (on Windows drvec C 0.13's
-bootstrap does not end: a C defect, bugs/drvec-c-rng-long32).
+port mirrors, for the long bootstraps (below): Linux x86_64 and aarch64,
+macOS arm64 and Windows AMD64, with GSL linked in. Nothing to compile, and
+no system GSL needed. Python 3.10 or later. Elsewhere pip takes the
+pure-Python wheel, and the bootstraps run in Python.
 
 Check that the compiled engine is in use:
 
@@ -126,7 +125,8 @@ C's generator is fixed at its seed); the default is the C's.
 
 The port is homologated, case by case, against its oracle: the C program
 **drvec 0.13** ([atsw-gui](https://github.com/davidesg/atsw-gui) commit
-`ae95446`; its tag `drvec-v0.13` comes with the suite's release). On these
+`ae95446`, and `7ec4bf7` with BUG-61 fixed, which writes the same bytes; its
+tag `drvec-v0.13` comes with the suite's release). On these
 cases it is not "within tolerance" of the C: it is the same computation.
 
 - **Exact on Linux x86_64**, the oracle's platform: every number and every

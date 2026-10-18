@@ -10,26 +10,34 @@
   `.out` section and the `.forecast` from its numbers.
 - **drvec C inside the wheels** (PLAN-vec B5). The C sources of drvec 0.13
   and the `lib/` pieces it links (optim, diagmv, fuedet) are vendored in
-  `csrc/`, byte for byte from atsw-gui ae95446: `csrc/VENDORED.json` records
+  `csrc/`, byte for byte from atsw-gui 7ec4bf7 (0.13 with BUG-61 fixed;
+  ae95446 until 2026-10-18): `csrc/VENDORED.json` records
   the commit and each file's sha256, `tests/test_vendored.py` checks them,
   and `tools/vendor_drvec_c.py --repo --commit` refreshes the copy and the
   manifest together. `setup.py` builds the executable (`csrc/build_drvec.py`:
   the Makefile's units and flags, GSL static) into the package as
   `drvec/_bin/drvec` (`drvec.exe`), which `c_engine` finds after
   `DRVEC_BIN`. The wheels: `py3-none-<platform>` for Linux x86_64 and
-  aarch64 (manylinux, GSL 2.7.1 from source) and macOS arm64 (the same),
-  plus the pure
+  aarch64 (manylinux, GSL 2.7.1 from source), macOS arm64 (the same) and
+  Windows AMD64 (MinGW-w64 and MSYS2's GSL, `-static`), plus the pure
   `py3-none-any` wheel (`DRVEC_NO_C=1`) as the fallback and the sdist, which
-  builds the C when it finds a compiler and GSL. Windows AMD64 (MinGW-w64
-  and MSYS2's GSL, `-static`) is built in CI but not published: drvec C
-  0.13's bootstrap never ends on Windows, its generator assuming a 64-bit
-  `unsigned long` (C defect, `bugs/drvec-c-rng-long32`); `c_engine` refuses
-  0.13 there, and Windows takes the pure wheel. `DRVEC_REQUIRE_C=1` turns
+  builds the C when it finds a compiler and GSL. `DRVEC_REQUIRE_C=1` turns
   a failed C build into an error (the wheels and the CI set it). On Linux
   x86_64 the wheel's binary writes the oracle's files byte for byte
   (`tests/test_bundled.py`, nineteen oracle commands); every wheel's smoke
   test runs a bootstrap through it and the C-path tests. The CI no longer
-  builds the C from atsw-gui: it builds the vendored copy.
+  builds the C from atsw-gui: it builds the vendored copy, on Windows too.
+- **drvec C on Windows** (2026-10-18). drvec C 0.13 as vendored from ae95446
+  never finished a bootstrap on Windows: its two generators held their
+  64-bit state in an `unsigned long`, 32 bits there (`bugs/drvec-c-rng-long32`,
+  found by the Windows wheel's smoke test). Fixed in the C as atsw-gui
+  BUG-61 (7ec4bf7, `uint64_t`), before drvec-v0.13's tag, and re-vendored. On
+  Linux x86_64 the fixed oracle writes ae95446's 83 files byte for byte
+  (`tests/data/oracle/SOURCE`). The Windows wheel is published again with its
+  smoke job, `c_engine.find()` no longer refuses drvec C on Windows (the
+  banner cannot tell the fixed build from the old one, so a hand-built
+  `DRVEC_BIN` from before the fix would still hang there), and tests.yml
+  builds the C on Windows (MinGW-w64, MSYS2's GSL).
 - The package: Python on drvarma's exact likelihood and fue's reader.
   Its oracle is drvec C 0.13 (atsw-gui ae95446; milestones 1-4 were
   homologated against drvec-v0.12, which 0.13 reproduces on them).

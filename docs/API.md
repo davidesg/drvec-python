@@ -173,11 +173,12 @@ back into the same `RankTest` and `FitResult` the Python engine returns.
 ### The bundled binary
 
 The platform wheels carry drvec C 0.13 as package data, `drvec/_bin/drvec`
-Linux x86_64 and aarch64 (manylinux_2_28) and macOS arm64 (14.0). Not
-Windows yet: drvec C 0.13's bootstrap never ends there (its generator needs
-a 64-bit `unsigned long`, `bugs/drvec-c-rng-long32`), so `c_engine.find()`
-refuses 0.13 on Windows, whatever its source, and Windows takes the pure
-wheel. It is built from `csrc/`, atsw-gui ae95446's
+(`drvec.exe` on Windows): Linux x86_64 and aarch64 (manylinux_2_28), macOS
+arm64 (14.0) and Windows AMD64. On Windows that needs atsw-gui's BUG-61 fix
+(`bugs/drvec-c-rng-long32`): built from ae95446, the bootstrap never ends
+there. The banner says 0.13 either way, so `c_engine.find()` cannot refuse
+the old build; the bundled one is the fixed one. It is built from `csrc/`,
+atsw-gui 7ec4bf7's
 sources byte for byte (`csrc/VENDORED.json`, `tests/test_vendored.py`), by
 `csrc/build_drvec.py`: engines/drvec/Makefile's eleven units with `-O2
 -Wall`, GSL linked statically, so it needs only the C library. The wheel is

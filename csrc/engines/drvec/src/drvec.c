@@ -102,6 +102,7 @@
 #include <gsl/gsl_errno.h>     /* P12: errors returned, not abort()ed        */
 #include <stdarg.h>           /* bad_cli: the usage message takes a format      */
 #include <errno.h>            /* strtol/strtod: ERANGE                         */
+#include <stdint.h>           /* uint64_t: the generators' state (BUG-61)      */
 #ifdef _WIN32                 /* P12: the search silences the optimiser's      */
 #include <io.h>               /* per-iteration console trace while it tries    */
 #define dup  _dup             /* its candidate starts                          */
@@ -2200,7 +2201,12 @@ static void operator_roots(struct Tvarma *v)
  *  The generator is deterministic with a fixed seed: a critical value that
  *  cannot be reproduced is no use for deciding anything.                     */
 
-static unsigned long boot_rng = 987654321UL;
+/*  uint64_t, not unsigned long: the generator is 64-bit by construction, and
+ *  `unsigned long` is 32 bits on Windows (LLP64).  There the state was
+ *  truncated, `>> 33` was wider than the type, and boot_normal's rejection
+ *  loop never ended (BUG-61).  On LP64 the two spellings are the same type, so
+ *  the sequence is the one every .boot and .irfboot was measured with.      */
+static uint64_t boot_rng = 987654321ULL;
 
 static real boot_normal(void)
 {
@@ -2210,10 +2216,10 @@ static real boot_normal(void)
     real u1, u2, r, th;
     if (have) { have = 0; return spare; }
     do {
-        boot_rng = boot_rng * 6364136223846793005UL + 1442695040888963407UL;
+        boot_rng = boot_rng * 6364136223846793005ULL + 1442695040888963407ULL;
         u1 = ((real)((boot_rng >> 33) & 0x7FFFFFFF)) / 2147483648.0;
     } while (u1 <= 1.0e-12);
-    boot_rng = boot_rng * 6364136223846793005UL + 1442695040888963407UL;
+    boot_rng = boot_rng * 6364136223846793005ULL + 1442695040888963407ULL;
     u2 = ((real)((boot_rng >> 33) & 0x7FFFFFFF)) / 2147483648.0;
     r  = sqrt(-2.0 * log(u1));
     th = 2.0 * M_PI * u2;
@@ -5201,13 +5207,13 @@ static int fit_search(real *x, int npar, real *dev, real **cov,
 
     /*  5. -multistart: jitter around the caller's seed, as run_multistart did (P8) */
     if (njitter > 1) {
-        unsigned long rng = 20260818UL;
+        uint64_t rng = 20260818ULL;          /* 64-bit on every ABI (BUG-61) */
         real *xt = vector(1, npar);
         for (k = 1; k < njitter; k++) {
             real amp = 0.05 * (real) (1 + (k - 1) % 20);
             for (i = 1; i <= npar; i++) {
                 real u;
-                rng = rng * 6364136223846793005UL + 1442695040888963407UL;
+                rng = rng * 6364136223846793005ULL + 1442695040888963407ULL;
                 u = ((real) ((rng >> 33) & 0x7FFFFFFF)) / 2147483647.0;
                 u = 2.0 * u - 1.0;
                 xt[i] = seed[i] + amp * u * (fabs(seed[i]) > 1.0e-8 ? fabs(seed[i]) : 0.1);

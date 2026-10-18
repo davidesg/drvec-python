@@ -78,8 +78,7 @@ markers = [
 # One build per platform: the executable has no CPython ABI, and setup.py tags
 # the wheel py3-none-<platform>. GSL is linked statically: on Linux and macOS
 # built from source (tools/build_gsl.sh, GSL 2.7.1); on Windows MSYS2's, with
-# its MinGW-w64 gcc (publish.yml sets DRVEC_CC and DRVEC_GSL_PREFIX; built
-# but not published: bugs/drvec-c-rng-long32).
+# its MinGW-w64 gcc (publish.yml sets DRVEC_CC and DRVEC_GSL_PREFIX).
 # DRVEC_REQUIRE_C: a wheel without its binary fails the build. The smoke tests
 # run in publish.yml's own jobs, which install fue and drvarma first.
 [tool.cibuildwheel]

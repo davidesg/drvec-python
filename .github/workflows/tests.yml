@@ -1,6 +1,7 @@
 name: Tests
 
-# The port against its oracle (drvec C 0.13, atsw-gui ae95446), on the released
+# The port against its oracle (drvec C 0.13, atsw-gui ae95446; csrc/ is 7ec4bf7,
+# the same bytes on Linux with BUG-61 fixed), on the released
 # fue (>= 0.1.18) and drvarma (>= 0.3.0), which come with the suite's release:
 # the compiled likelihood and GSL's eigensolvers arrive with drvarma's binary
 # wheels. The suite runs against the INSTALLED package (DRVEC_TEST_INSTALLED),
@@ -55,27 +56,48 @@ jobs:
           drvarma_ref: ${{ env.DRVARMA_REF }}
 
       # drvec C, the oracle, built from the vendored sources (csrc/, checked
-      # by tests/test_vendored.py against atsw-gui ae95446) into the package,
-      # drvec/_bin, as the wheels carry it (PLAN-vec B5). REQUIRED on Linux
-      # and macOS, with the system's GSL (static when its archives are
-      # there); tests/test_c_engine.py and tests/test_bundled.py then run on
-      # it -- on ubuntu-latest, the oracle's platform, the C path equals the
-      # Python path and the oracle's files byte for byte. Not on Windows,
-      # whose binary needs MinGW-w64 and MSYS2's GSL: the Windows wheel's
-      # smoke test in publish.yml runs the same tests on it.
+      # by tests/test_vendored.py against atsw-gui 7ec4bf7) into the package,
+      # drvec/_bin, as the wheels carry it (PLAN-vec B5). REQUIRED on every
+      # platform: on Linux and macOS with the system's GSL (static when its
+      # archives are there), on Windows with MinGW-w64 gcc and MSYS2's GSL,
+      # linked -static, as the Windows wheel (publish.yml). tests/
+      # test_c_engine.py and tests/test_bundled.py then run on it -- on
+      # ubuntu-latest, the oracle's platform, the C path equals the Python
+      # path and the oracle's files byte for byte. Windows builds it again
+      # since atsw-gui BUG-61 (bugs/drvec-c-rng-long32): before it, its
+      # bootstrap never ended.
       - name: GSL for drvec C
+        if: runner.os != 'Windows'
         run: |
           case "${{ runner.os }}" in
             Linux) sudo apt-get update -q && sudo apt-get install -y -q libgsl-dev ;;
             macOS) brew list gsl >/dev/null 2>&1 || brew install gsl ;;
           esac
+      - name: MinGW-w64 gcc and GSL (Windows)
+        if: runner.os == 'Windows'
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: false
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-gsl
+      - name: Point the build at them (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          U=$(cygpath -m "${{ steps.msys2.outputs.msys2-location }}/ucrt64")
+          echo "DRVEC_CC=$U/bin/gcc.exe" >> "$GITHUB_ENV"
+          echo "DRVEC_GSL_PREFIX=$U" >> "$GITHUB_ENV"
+          echo "DRVEC_GSL_STATIC=1" >> "$GITHUB_ENV"
+          "$U/bin/gcc.exe" --version | head -1
+          ls "$U/lib/libgsl.a" "$U/lib/libgslcblas.a"
       - name: Install, with drvec C
         run: |
-          if [ "${{ runner.os }}" = Windows ]; then export DRVEC_NO_C=1; else export DRVEC_REQUIRE_C=1; fi
+          export DRVEC_REQUIRE_C=1
           python -m pip install -v ".[test]" > "$RUNNER_TEMP/pip.log" 2>&1 || { tail -100 "$RUNNER_TEMP/pip.log"; exit 1; }
           grep -E "build_drvec|drvec C|DRVEC_NO_C" "$RUNNER_TEMP/pip.log" || true
       - name: The bundled binary
-        if: runner.os != 'Windows'
         working-directory: ${{ runner.temp }}
         run: |
           B=$(python -c "from drvec import c_engine; print(c_engine._bundled())")
@@ -93,6 +115,7 @@ jobs:
       - name: Johansen's seed is GSL's
         run: python -c "from drvec._gsl import backend; b = backend(); print('drvec eigensolver:', b); assert b == 'gsl'"
       - name: Tests, against the installed package
+        timeout-minutes: 60
         env:
           DRVEC_TEST_INSTALLED: "1"
         run: python -m pytest -q

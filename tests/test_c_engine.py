@@ -277,14 +277,3 @@ def test_the_refusals_are_the_same(the_c):
         drvec.rank_test(MU, 2, 0, case="pre", bootstrap=10, trend=True, engine="c")
     with pytest.raises(ValueError, match="-irfboot bootstraps"):
         drvec.fit(MU, 2, 0, 1, case="pre", trend=True, irfboot=10, engine="c")
-
-
-@posix
-def test_windows_refuses_drvec_c_013(clean, monkeypatch):
-    """bugs/drvec-c-rng-long32: drvec C 0.13's bootstrap never ends on Windows
-    (a 32-bit unsigned long); the finder refuses it there, so "auto" goes to
-    Python instead of hanging."""
-    monkeypatch.setenv("DRVEC_BIN", _fake(clean / "drvec", "0.13"))
-    monkeypatch.setattr(c_engine, "_WINDOWS", True)
-    with pytest.raises(c_engine.CEngineUnavailable, match="rng-long32"):
-        c_engine.find()

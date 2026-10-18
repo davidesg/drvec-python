@@ -32,10 +32,6 @@ The first candidate that exists is the one used, and its banner (`drvec
 --version`, first line `drvec X.Y`) must name the version the port mirrors,
 C_VERSION; otherwise it is refused with the reason.
 
-On Windows drvec C 0.13 is refused whatever its source: its bootstrap
-generator assumes a 64-bit unsigned long and never ends there (a C defect,
-bugs/drvec-c-rng-long32).
-
 The C's bootstrap generator is fixed at the port's default seed: a call with
 another seed cannot go to the C.
 """
@@ -50,9 +46,8 @@ import tempfile
 import time
 from dataclasses import dataclass
 
-C_VERSION = "0.13"          # the oracle the port mirrors (atsw-gui ae95446)
-_WINDOWS = sys.platform == "win32"
-_EXE = "drvec.exe" if _WINDOWS else "drvec"
+C_VERSION = "0.13"          # the oracle the port mirrors (atsw-gui ae95446; csrc/ is 7ec4bf7, + BUG-61)
+_EXE = "drvec.exe" if sys.platform == "win32" else "drvec"
 
 
 class CEngineUnavailable(RuntimeError):
@@ -163,11 +158,6 @@ def find():
     if not os.path.isfile(path):
         raise CEngineUnavailable(f"{source} = {path}: no such file")
     v = banner_version(path)
-    if v == "0.13" and _WINDOWS:
-        raise CEngineUnavailable(
-            f"{path} ({source}) is drvec C 0.13, whose bootstrap never ends on Windows: "
-            "its generator needs a 64-bit unsigned long (bugs/drvec-c-rng-long32 in "
-            "drvec-python); the bootstraps run in Python")
     if v != C_VERSION:
         raise CEngineUnavailable(
             f"{path} ({source}) is drvec C {v}; drvec-python mirrors {C_VERSION}, and "

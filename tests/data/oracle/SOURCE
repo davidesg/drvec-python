@@ -1,12 +1,30 @@
 Oracle: drvec C 0.13, atsw-gui commit ae95446 (main, PR #48; the tag
 drvec-v0.13 comes with the suite's release), engines/drvec with lib/optim,
-lib/diagmv and lib/fuedet, built with gcc 13.3 and the system GSL 2.8 on
-Linux x86_64 from `git archive ae95446 engines/drvec lib`; bin/drvec sha256
+lib/diagmv and lib/fuedet, built with gcc 13.3 on Linux x86_64 from
+`git archive ae95446 engines/drvec lib`, against Ubuntu 24.04's GSL 2.7.1:
+it loads /lib/x86_64-linux-gnu/libgsl.so.27 (ldd). (This line said "the
+system GSL 2.8" until 2026-10-18: 2.8's headers and pkg-config are in
+/usr/local, but no 2.8 library is loaded. The wheels build 2.7.1 from source,
+tools/build_gsl.sh.) bin/drvec sha256
 747fb37ee1f2c888add87b39428cd535dc812801ce53b228669c4c569e4453b7
 (~/.local/share/atsw/drvec-ref-0.13/bin/drvec). 0.13 is the tag drvec-v0.12
 with one change: a .pre's deterministic component follows fue's rule (nu(B)
 truncated at 40 lags, the variables summed, one subtraction; BUG-40 closed
 by agreeing with fue).
+
+The same oracle with BUG-61 fixed (2026-10-18): atsw-gui commit 7ec4bf7
+(branch drvec-bug61-rng32, PR #60, stacked on PR #52; still 0.13, fixed
+before its tag), the commit csrc/ is vendored from. Both random generators
+(the bootstrap's and -multistart's) hold a uint64_t instead of an
+unsigned long, which is 32 bits on Windows and made every bootstrap hang
+there (bugs/drvec-c-rng-long32). Built the same way (gcc 13.3, `git archive
+7ec4bf7 engines/drvec lib`, Ubuntu's GSL 2.7.1, libgsl.so.27) into
+~/.local/share/atsw/drvec-ref-0.13-bug61/bin/drvec, sha256
+08aa1f278352874c8f8ff96cc2812a57d16ec12fbbfc3da6ecb20b1ca508458d
+(it differs from ae95446's in the debug information only: the .text,
+.rodata and .data sections are byte-identical). Run on every command below,
+in the same way, its 83 files are byte-identical to ae95446's (cmp, no
+filter). Nothing below was regenerated.
 
 Milestones 1 to 4 were cut with drvec-v0.12 (4a89c00), bin/drvec sha256
 9cf9d8ea01c3fd373cf781429dea7894465d7fbecd178980f421b2689aea5d76

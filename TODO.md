@@ -300,20 +300,20 @@ PLAN-vec (sima-python, branch estudio-vec) phases A1-A5 and B.
       ae95446, 20 files, sha256 in csrc/VENDORED.json, tests/test_vendored.py;
       tools/vendor_drvec_c.py refreshes), setup.py builds drvec/_bin/drvec
       with GSL static (csrc/build_drvec.py), py3-none-<platform> wheels by
-      cibuildwheel on 4 platforms (Windows built, not published: below) +
-      the pure wheel + the sdist (publish.yml),
+      cibuildwheel on 4 platforms (Windows since BUG-61: below) + the pure
+      wheel + the sdist (publish.yml),
       DRVEC_REQUIRE_C. The manylinux x86_64 wheel's binary writes the oracle's
       files byte for byte on 19 commands (tests/test_bundled.py); tests.yml
       builds the vendored C instead of atsw-gui's checkout.
-- [ ] B5 follow-ups: the Windows platform wheel waits for the fix of
-      bugs/drvec-c-rng-long32 in atsw-gui (then re-vendor with
-      tools/vendor_drvec_c.py, rename its artifact to wheels-windows-latest in
-      publish.yml, put windows-latest back in smoke_wheels, and lift the
-      win32 refusal in c_engine.find). Also: the GSL the oracle RUNS on is Ubuntu 24.04's 2.7.1
-      (libgsl.so.27), although tests/data/oracle/SOURCE says "the system GSL
-      2.8" (2.8's headers are in /usr/local, its pkg-config, but no 2.8
-      library is loaded): the wheels build 2.7.1, and the SOURCE line wants
-      correcting. Intel macOS has no binary wheel (the pure one; as drvarma).
+- [x] B5 follow-ups (2026-10-18): the Windows platform wheel is published
+      again. bugs/drvec-c-rng-long32 is fixed in atsw-gui as BUG-61
+      (7ec4bf7, PR #60, not merged yet); csrc/ re-vendored from it; the
+      artifact is wheels-windows-latest, windows-latest is back in
+      smoke_wheels, c_engine.find no longer refuses drvec C on Windows, and
+      tests.yml builds the C on Windows too. tests/data/oracle/SOURCE now says
+      the GSL the oracle RUNS on: Ubuntu 24.04's 2.7.1 (libgsl.so.27), not
+      "the system GSL 2.8", and records the BUG-61 oracle build.
+- [ ] Intel macOS has no binary wheel (the pure one; as drvarma).
 - **The speed-ups** (`tools/time_bootstrap.py B --case mm|e1 --engines`, on
   this machine: an i5-6300U, 2 cores / 4 threads, with another job's tests
   running at the same time, load 2-5; every .boot identical to workers=1's):
@@ -404,21 +404,23 @@ What this says:
   any file with two or more variables, or a rational one, moves w by ulps
   (and by BUG-40's tail past lag 40), and 16 of the 22 cases of
   tests/test_m5.py::test_products fail (measured).
-- [ ] **C defect, filed 2026-10-18 (`bugs/drvec-c-rng-long32`, `repro.py`
-  exits 1 while open):** the bootstrap generator's `unsigned long`
+- [x] **C defect, filed 2026-10-18 and FIXED the same day as atsw-gui BUG-61
+  (7ec4bf7; `bugs/drvec-c-rng-long32`, `repro.py` exits 0 since):** the
+  bootstrap generator's `unsigned long`
   (drvec.c:2203) is 32 bits on Windows, and `boot_rng >> 33` is then a shift
   past the type's width: gcc folds it to 0, u1 = 0 on every draw, and
   boot_normal's rejection loop never ends. drvec C 0.13 built for Windows
   (MinGW-w64; MSVC would be the same) hangs on its first bootstrap
   replication (found by the Windows wheel's smoke test, B5). The fix belongs
-  in atsw-gui (uint64_t for both LCGs; on LP64 nothing moves). Until then the
-  Windows wheel is built but not published, and c_engine refuses 0.13 on
-  Windows. The port computes the 64-bit stream on every platform.
+  in atsw-gui (uint64_t for both LCGs; on LP64 nothing moves). It was fixed
+  there and re-vendored; the Windows wheel is published again. The port
+  computes the 64-bit stream on every platform, and now so does the C.
 - Milestone 3's tiers are reasoned, not measured off-platform: -fdhess s.e. on
   TOL_FDSE_REL = 2e-2 (4x the measured ulp-level floor), forecasts and rolling
   errors to 1e-3 relative, and line counts for the .out. ms201's winner
   (`jitter 1`) is a 1e-10 near-tie, asserted on the oracle's platform only.
-- -multistart's jitters use the 64-bit LCG; on Windows the C's are 32-bit (D4).
+- -multistart's jitters use the 64-bit LCG; on Windows the C's were 32-bit
+  (D4) until BUG-61, and are the same 64-bit stream since.
 - The suite was run (2026-10-17) against drvarma 0.2.0 installed as an
   EDITABLE dev tree and fue 0.1.18 built from its branch fue-det-unico (not
   yet released): re-run against the released wheels.
