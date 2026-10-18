@@ -47,27 +47,56 @@ class IrfBoot:
     irf: list          # per good replication: R[k][i][j]
     fev: list          # per good replication: fevd[k][i][j] in %
     nfail: int
+    # the C engine (drvec.c_engine): the replications are not in its files, so
+    # the bands come read back from <base>.irfboot, and the .out's band section
+    # and the file are the C's own text
+    c_nok: int = None
+    c_bands: object = None      # results.IrfBands, or None (fewer than 20)
+    c_out: str = None
+    c_file: str = None
 
     @property
     def nok(self):
-        return len(self.irf)
+        return self.c_nok if self.c_nok is not None else len(self.irf)
 
 
-def irf_bootstrap(spec, data, x, N, K, rng=None):
+def _refit_irf(spec, data, sim, K):
+    """One replication's refit and its responses (None when it fails). It
+    consumes no random numbers: the sample is drawn before."""
+    db = data.with_raw(sim)
+    res, _ = fit_rank(spec, db)
+    if res.ifault == 0:
+        return _irf_at(spec, db, res.x, K)
+    return None
+
+
+def irf_bootstrap(spec, data, x, N, K, rng=None, progress=None, workers=1):
+    """irf_bootstrap. progress(b, ok) is called after replication b (1-based)
+    with ok False when it failed. workers > 1 draws the N samples first, in the
+    generator's order, and refits them in a process pool: the same numbers."""
     rng = rng or Rng()
     R0 = _irf_at(spec, data, x, K)
     if R0 is None:
         raise RuntimeError("-irfboot: the fitted model cannot be simulated")
     M = spec.M
     irf, fev, nfail = [], [], 0
+    if workers > 1:
+        from .parallel import map_refits
+        sims = [simulate_h0(spec, data, x, rng) for _b in range(N)]
+        goods = map_refits(_refit_irf, data, [(spec, sim, K) if sim is not None else None
+                                              for sim in sims], workers)
+    else:
+        goods = None
     for _b in range(N):
-        good = None
-        sim = simulate_h0(spec, data, x, rng)
-        if sim is not None:
-            db = data.with_raw(sim)
-            res, _ = fit_rank(spec, db)
-            if res.ifault == 0:
-                good = _irf_at(spec, db, res.x, K)
+        if goods is not None:
+            good = next(goods)
+        else:
+            good = None
+            sim = simulate_h0(spec, data, x, rng)
+            if sim is not None:
+                good = _refit_irf(spec, data, sim, K)
+        if progress:
+            progress(_b + 1, good is not None)
         if good is None:
             nfail += 1
             continue
@@ -83,6 +112,8 @@ def irf_bootstrap(spec, data, x, N, K, rng=None):
                     F[k][i][j] = 100.0 * acc[j] / tot if tot > 0.0 else 0.0
         irf.append(good)
         fev.append(F)
+    if goods is not None:
+        goods.close()
     return IrfBoot(N, K, R0, irf, fev, nfail)
 
 
@@ -103,8 +134,42 @@ def _point_fev(R0, k, i, j, M):
     return 100.0 * a / tot if tot > 0.0 else 0.0
 
 
+def band_arrays(bt, M):
+    """-> results.IrfBands, the numbers of <base>.irfboot (None when nok < 20,
+    where the C writes no bands)."""
+    import numpy as np
+    from .results import IrfBands
+    if bt.c_nok is not None:
+        return bt.c_bands
+    K, nok = bt.K, bt.nok
+    if nok < 20:
+        return None
+    R0 = bt.R0
+    irf = np.array(R0, float)
+    fv = np.array([[[_point_fev(R0, k, i, j, M) for j in range(M)] for i in range(M)]
+                   for k in range(K + 1)], float)
+    ip = {pp * 100.0: np.zeros((K + 1, M, M)) for pp in QP}
+    fp = {pp * 100.0: np.zeros((K + 1, M, M)) for pp in QP}
+    for j in range(M):
+        for i in range(M):
+            for k in range(K + 1):
+                for w, dst in ((0, ip), (1, fp)):
+                    src = bt.fev if w else bt.irf
+                    col = sorted(src[t][k][i][j] for t in range(nok))
+                    for pp in QP:
+                        dst[pp * 100.0][k, i, j] = _pct(col, pp)
+    return IrfBands(K, nok, bt.nfail, irf, ip, fv, fp)
+
+
 def bands_text(bt, spec, names, base):
     """The .out's band section and the <base>.irfboot file -> (out, file or None)."""
+    if bt.c_out is not None:
+        # the C's own text; the one name in it is the file's, <base>.irfboot
+        cb = getattr(bt, "c_base", None)
+        o = bt.c_out
+        if cb and cb != base:
+            o = o.replace("  k, is in %s.irfboot.\n" % cb, "  k, is in %s.irfboot.\n" % base, 1)
+        return o, bt.c_file
     M, K, nok = spec.M, bt.K, bt.nok
     o = banner("Bands for the Level Responses, Parametric Bootstrap")
     o += ("\n  %d replications simulated from the fitted model and REFITTED as the\n"

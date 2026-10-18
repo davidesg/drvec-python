@@ -32,6 +32,10 @@ import sys
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# The suite tests the PORT: the bootstraps run in Python whatever drvec C is
+# installed (engine="auto" would take it). The C engine's own tests ask for
+# it by name (tests/test_c_engine.py).
+os.environ.setdefault("DRVEC_ENGINE", "python")
 INSTALLED = os.environ.get("DRVEC_TEST_INSTALLED") == "1"
 if not INSTALLED:
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "src"))

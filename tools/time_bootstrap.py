@@ -3,6 +3,7 @@
 in C.
 
     python tools/time_bootstrap.py [B] [--case mm|e1] [--oracle PATH-TO-drvec]
+    python tools/time_bootstrap.py [B] [--case mm|e1] --engines [--workers 1,2,4]
 
 Cases: `mm`, muskrat and mink (M = 2, n = 61), and `e1`, Lutkepohl's E1
 (M = 3, n = 91; tests/data/fixtures/e1-inp/SOURCE). The run is `2 0 1 -case 2
@@ -15,6 +16,12 @@ compiled likelihood with its wrapper, and the rest (drvarma's optimiser, which
 is pure Python, the starts, the simulation); the C's wall time for the same run
 when the oracle binary is found (default ~/.local/share/atsw/drvec-ref-0.13/bin/drvec),
 and the extrapolation to the article's bootstraps.
+
+--engines measures the engines instead (PLAN-vec A2 and B): the whole
+`rank_test(..., bootstrap=B)` call on the Python engine with each number of
+workers (default 1, 2, 3, 4; the numbers are the same, so the .boot is checked
+against workers=1's), and on drvec C through drvec.c_engine (the oracle given,
+or DRVEC_BIN), with the speed-up of each against workers=1.
 """
 import os
 import subprocess
@@ -123,6 +130,11 @@ def main():
     if "--oracle" in args:
         oracle = args[args.index("--oracle") + 1]
     files = CASES[case]
+    if "--engines" in args:
+        ws = [1, 2, 3, 4]
+        if "--workers" in args:
+            ws = [int(v) for v in args[args.index("--workers") + 1].split(",")]
+        return engines(files, B, ws, oracle)
     data = drvec.read_pre(files)
     M = data.M
     from drvarma._engine import _load_c, elf_c
@@ -149,13 +161,42 @@ def main():
         measured("  plain fit 2 1 1 -mean -case 2", lambda: drvec.fit(files, 2, 1, 1, case=2),
                  oracle, files, ["2", "1", "1", "-mean", "-case", "2"])
     wall, c_wall = measured(
-        f"  rank test, B = {B}", lambda: drvec.rank_test(files, 2, 0, case=2, bootstrap=B),
+        f"  rank test, B = {B}", lambda: drvec.rank_test(files, 2, 0, case=2, bootstrap=B,
+                                                         engine="python", workers=1),
         oracle, files, ["2", "0", "1", "-case", "2", "-lrtest", "-bootstrap", str(B)])
     if c_wall:
         ratio = wall / c_wall
         ext = ", ".join(f"{k}: {v:.0f} min -> ~{v * ratio / 60:.1f} h"
                         for k, v in ARTICLE_C_MIN.items())
         print(f"  extrapolated at this ratio: {ext}")
+
+
+def engines(files, B, ws, oracle):
+    print(f"rank_test(2, 0, case=2, bootstrap={B}) on {len(files)} series, "
+          f"{os.cpu_count()} cores")
+    base = None
+    ref = None
+    for w in ws:
+        t = time.perf_counter()
+        rt = drvec.rank_test(files, 2, 0, case=2, bootstrap=B, engine="python", workers=w)
+        wall = time.perf_counter() - t
+        boot = rt.boot_text()
+        if ref is None:
+            ref, base = boot, wall
+        print(f"  python, workers={w}: {wall:8.2f} s   speed-up {base / wall:5.2f}x"
+              f"   .boot {'identical' if boot == ref else 'DIFFERENT'}")
+    if os.path.exists(oracle) and not os.environ.get("DRVEC_BIN"):
+        os.environ["DRVEC_BIN"] = oracle
+    try:
+        t = time.perf_counter()
+        rt = drvec.rank_test(files, 2, 0, case=2, bootstrap=B, engine="c")
+        wall = time.perf_counter() - t
+        boot = rt.boot_text()
+        print(f"  C ({rt.provenance.path}): {wall:8.2f} s   speed-up {base / wall:5.2f}x"
+              f"   .boot {'identical' if boot == ref else 'DIFFERENT'}"
+              f"   (the C alone {rt.provenance.extra['elapsed']:.2f} s)")
+    except drvec.CEngineUnavailable as e:
+        print(f"  C: not run ({e})")
 
 
 if __name__ == "__main__":

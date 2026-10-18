@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
+
+import numpy as np
 
 from .data import Data, read_pre
 from .params import Spec, slot_labels
@@ -48,6 +51,234 @@ class FitResult:
     forecast_h: int = 0     # -f H
     estwin: int = 0         # -estwin E
     gate: object = None     # r = 0, all diagonal: fit.Gate with the certificate
+    provenance: object = None   # results.Provenance: who computed the bootstrap
+    _fv: object = field(default=None, repr=False, compare=False)
+
+    # ------------------------------------------------------------------ #
+    #  The accessors (STUDY-vec §4.2): the numbers the .out prints, as     #
+    #  arrays, from the routines that print them. See drvec.results.       #
+    # ------------------------------------------------------------------ #
+
+    def _final(self):
+        if self._fv is None:
+            from .report import _Fit
+            self._fv = _Fit(self)
+        return self._fv
+
+    def _ro(self):
+        from .params import RowOrder
+        return RowOrder(self.spec.M, self.spec.r)
+
+    @property
+    def alpha(self):
+        """alpha (M x r), the adjustment, in Johansen's sign (negative is
+        error-correcting), rows in the .inp's order."""
+        fv, i2l = self._final(), self._ro().inp2lam
+        M, r = self.spec.M, self.spec.r
+        return np.array([[-fv.Lam[i2l(a)][b] for b in range(r)] for a in range(M)],
+                        float).reshape(M, r)
+
+    @property
+    def beta2(self):
+        """B2 (s x r): beta = [B2 ; I_r], normalised on the Y1 block (held rows
+        and -fixb2's values included)."""
+        fv = self._final()
+        s, r = self.spec.s, self.spec.r
+        return np.array([[fv.B2[a][b] for b in range(r)] for a in range(s)],
+                        float).reshape(s, r)
+
+    @property
+    def beta(self):
+        """beta (M x r), rows in the .inp's order: B2 on the Y2 block, I_r on Y1."""
+        fv = self._final()
+        M, s, r = self.spec.M, self.spec.s, self.spec.r
+        return np.array([[fv.B2[row][c] if row < s else (1.0 if row - s == c else 0.0)
+                          for c in range(r)] for row in range(M)], float).reshape(M, r)
+
+    @property
+    def Pi(self):
+        """Pi = alpha beta' (M x M), the long run, as the .out computes it."""
+        fv, i2l = self._final(), self._ro().inp2lam
+        M, s, r = self.spec.M, self.spec.s, self.spec.r
+        Pi = np.zeros((M, M))
+        B2 = fv.B2
+        for a in range(M):
+            for b in range(M):
+                acc = 0.0
+                for j in range(r):
+                    Bbj = B2[b][j] if b < s else (1.0 if b - s == j else 0.0)
+                    acc -= fv.Lam[i2l(a)][j] * Bbj
+                Pi[a, b] = acc
+        return Pi
+
+    @property
+    def gamma(self):
+        """Gamma(1..p-1) (p - 1, M, M), on nabla Y_{t-k}, in the .inp's order."""
+        fv, i2l = self._final(), self._ro().inp2lam
+        M = self.spec.M
+        return np.array([[[fv.F[k][i2l(a)][i2l(b)] for b in range(M)] for a in range(M)]
+                         for k in range(self.spec.nf)], float).reshape(self.spec.nf, M, M)
+
+    @property
+    def theta(self):
+        """Theta(1..q) (q, M, M), the MA on the innovations, in the .inp's order
+        (Theta(L) = I - Theta_1 L - ...)."""
+        fv, i2l = self._final(), self._ro().inp2lam
+        M, q = self.spec.M, self.spec.q
+        return np.array([[[fv.Th[k][i2l(a)][i2l(b)] for b in range(M)] for a in range(M)]
+                         for k in range(q)], float).reshape(q, M, M)
+
+    def _qin(self, a, b):
+        Q = self._final().Q
+        return Q[a][b] if a >= b else Q[b][a]
+
+    @property
+    def Q(self):
+        """Q (M x M, symmetric), the innovation covariance up to scale
+        (Sigma = sigma2 Q), in the .inp's order."""
+        i2l = self._ro().inp2lam
+        M = self.spec.M
+        return np.array([[self._qin(i2l(a), i2l(b)) for b in range(M)] for a in range(M)],
+                        float)
+
+    @property
+    def Sigma(self):
+        """Sigma = sigma2 Q (M x M), the innovation covariance, in the .inp's order."""
+        i2l = self._ro().inp2lam
+        M = self.spec.M
+        return np.array([[self.sigma2 * self._qin(i2l(a), i2l(b)) for b in range(M)]
+                         for a in range(M)], float)
+
+    @property
+    def means(self):
+        """The .out's mean vector: E[W] (case 2), or E[nabla Y2] then E[W]
+        (case 3; a held drift is 0); empty in case 1."""
+        return np.array(self._final().mu_m, float)
+
+    @property
+    def delta(self):
+        """delta = E[nabla Y] (M), case 3 only (None otherwise), as printed."""
+        spec, fv = self.spec, self._final()
+        M, s = spec.M, spec.s
+        mu_m = fv.mu_m
+        if not (spec.case == 3 and len(mu_m) >= s):
+            return None
+        out = []
+        for a in range(M):
+            if a < s:
+                d = mu_m[a]
+            else:
+                d = 0.0
+                for i3 in range(s):
+                    d -= fv.B2[i3][a - s] * mu_m[i3]
+                if spec.trend:
+                    d += fv.dtr[a - s]
+            out.append(d)
+        return np.array(out, float)
+
+    @property
+    def residual_names(self):
+        """The names of the residual columns: Ybar's, the Y2 names then ec1..ecr."""
+        s = self.spec.s
+        return list(self.names[:s]) + ["ec%d" % (j + 1) for j in range(self.spec.r)]
+
+    @property
+    def residuals(self):
+        """The innovations A_t of the stationary VARMA (n x M), Ybar's columns
+        (residual_names): what the .out's residual diagnostics read."""
+        return np.array(self._final().a, float)
+
+    @property
+    def stationary(self):
+        """The stationary representation on Ybar (drvec.results.Stationary)."""
+        from .results import Stationary
+        fv = self._final()
+        return Stationary(self.residual_names, np.array(fv.mu, float),
+                          np.array(fv.phi, float), np.array(fv.theta, float),
+                          np.array(fv.qq, float), float(self.sigma2), np.array(fv.w, float))
+
+    def _irf_horizon(self, K):
+        return (10 if self._final().rd.n < 40 else 20) if K is None else int(K)
+
+    def _level_numbers(self, K=None):
+        from .report import level_irf_numbers
+        nb = level_irf_numbers(self, self._final(), self._irf_horizon(K))
+        if nb is not None and "error" in nb:
+            raise ValueError("the level responses are not defined: " + nb["error"])
+        return nb
+
+    def level_irf(self, K=None):
+        """The level responses (K + 1, M, M): [k, i, j] = the response of series i
+        at lag k to a one-s.d. orthogonalised shock to series j (Sigma = P D P'
+        in the .inp's order). K defaults to the .out's (10 when n < 40, else
+        20). None when s = 0."""
+        nb = self._level_numbers(K)
+        return None if nb is None else np.array(nb["R"], float)
+
+    def fevd(self, K=None):
+        """The level FEVD in %% (K + 1, M, M): [k, i, j] = share of shock j in the
+        (k + 1)-step forecast error variance of series i. None when s = 0."""
+        nb = self._level_numbers(K)
+        return None if nb is None else np.array(nb["fevd"], float)
+
+    def long_run(self):
+        """The long-run gain and mean lag in levels (drvec.results.LongRun)."""
+        from .results import LongRun
+        nb = self._level_numbers(None)
+        if nb is None:
+            return None
+        ml = np.array([[np.nan if v is None else v for v in row] for row in nb["mean_lag"]],
+                      float)
+        return LongRun(np.array(nb["gain"], float), ml, np.array(nb["shock_sd"], float),
+                       nb["converged"], nb["k_stop"], nb["tail"], nb["beta_gain"])
+
+    def irf_bands(self):
+        """The -irfboot bands as arrays (drvec.results.IrfBands), or None without
+        -irfboot or with fewer than 20 good replications (the .out prints no
+        bands then)."""
+        if self.irfboot is None:
+            return None
+        from .irfboot import band_arrays
+        return band_arrays(self.irfboot, self.spec.M)
+
+    def diagnostics(self):
+        """Hosking's portmanteau and the multivariate Jarque-Bera of the
+        residuals, as the .out prints them (drvec.results.Diagnostics); None when
+        n < 20 (the .out has no such section)."""
+        from .report import diag_k, multivariate_numbers
+        from .results import Diagnostics
+        fv = self._final()
+        n, M = fv.rd.n, self.spec.M
+        if n < 20 or M < 1 or min(n // 4, 12) < 1:
+            return None
+        d = multivariate_numbers(fv.a, n, M, self.data.freq, diag_k(self.spec))
+        return Diagnostics(d["lags"], d["Q"], d["df"], d["pQ"], d["JB"], d["JB_df"],
+                           d["pJB"], d["skewness"], d["kurtosis"], d["part_df"])
+
+    def forecasts(self, H=None, conf=0.95):
+        """The forecasts in levels as arrays (drvec.results.Forecasts): the
+        numbers of <base>.forecast. H defaults to fit(forecast=H)'s; a fit with
+        -estwin forecasts from the end of its window, as the C does."""
+        from .forecast import forecast_arrays
+        from .results import Forecasts
+        H = self.forecast_h if H is None else int(H)
+        if H < 1:
+            raise ValueError("forecasts need a horizon: H >= 1 (or fit(forecast=H))")
+        d = forecast_arrays(self, self._final(), H, conf)
+        return Forecasts(d["dates"], list(self.names), np.array(d["level"], float),
+                         np.array(d["low"], float), np.array(d["high"], float),
+                         np.array(d["se"], float), d["conf"], d["z"],
+                         np.array(d["model_level"], float), np.array(d["model_se"], float))
+
+    @property
+    def restriction_lr(self):
+        """The restriction's LR test as the .out prints it
+        (drvec.results.RestrictionLR), or None when the fit carries none (a
+        free fit, and -fixb2 alone, for which the C prints no LR)."""
+        from .report import restriction_lr
+        from .results import RestrictionLR
+        d = restriction_lr(self)
+        return None if d is None else RestrictionLR(**d)
 
     def forecast_text(self, base):
         """<base>.forecast, as the C writes it (None without -f)."""
@@ -117,6 +348,45 @@ class FitResult:
 
 def _data(pre_files):
     return pre_files if isinstance(pre_files, Data) else read_pre(pre_files)
+
+
+ENGINES = ("auto", "python", "c")
+
+
+def _choose_engine(engine, seed, files, what):
+    """-> (CBinary or None, note). engine None reads DRVEC_ENGINE (default
+    "auto"). "auto": the C when a matching binary is found and the call can
+    go to it, else Python, with the reason in the note. "c": the C or an error."""
+    from . import c_engine
+    from .rng import SEED
+    if engine is None:
+        engine = os.environ.get("DRVEC_ENGINE", "").strip() or "auto"
+    if engine not in ENGINES:
+        raise ValueError(f"engine must be one of {', '.join(ENGINES)}, got {engine!r}")
+    if engine == "python":
+        return None, "engine='python'"
+    why = None
+    if seed is not None and int(seed) != SEED:
+        why = (f"the C's bootstrap generator is fixed at its seed {SEED}; seed={seed} "
+               "runs in Python")
+    elif not files:
+        why = "the data were given as a Data object, not as .pre files the C can read"
+    if why is None:
+        try:
+            return c_engine.find(), f"engine={engine!r}"
+        except c_engine.CEngineUnavailable as e:
+            why = str(e)
+    if engine == "c":
+        raise c_engine.CEngineUnavailable(f"{what} cannot run on drvec C: {why}")
+    return None, "engine='auto', Python: " + why
+
+
+def _files_of(pre_files):
+    if isinstance(pre_files, Data):
+        return None
+    if isinstance(pre_files, (str, bytes)) or hasattr(pre_files, "__fspath__"):
+        return None
+    return [os.fsdecode(f) for f in pre_files]
 
 
 def load_alpha_A(path, M):
@@ -221,7 +491,8 @@ def _drift_mask(data, case, nodrift):
 def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         fixb2row=None, nodrift=None, trend=False, irfboot=0, xsys=None,
         xpre=None, xlink=None, forecast=0, fdhess=False, alpha=None, weakex=None,
-        fixb2=None, estwin=0, multistart=0, log=None):
+        fixb2=None, estwin=0, multistart=0, log=None, seed=None, workers=None,
+        engine=None, folder=None, progress=None):
     """Estimate the VARMA-VEC of rank r on the `.pre` files (the C's
     `drvec f1.pre ... p q r -case <case>`), with the C's ladder and search.
 
@@ -238,7 +509,16 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     forecast: -f H, H steps in levels with their theoretical bands (the .out's
     section and FitResult.forecast_text). estwin: -estwin E, the fit on rows
     1..E and, with -f H, the rolling-origin evaluation (recursive_text).
-    multistart: -multistart n, n - 1 jittered starts added to the search."""
+    multistart: -multistart n, n - 1 jittered starts added to the search.
+
+    The -irfboot bootstrap: seed (None: the C's 987654321), workers (the
+    process pool for the refits; None: DRVEC_WORKERS or the cores less one;
+    1: in this process; the numbers do not depend on it), engine ("auto",
+    "python" or "c"; None reads DRVEC_ENGINE, default "auto": drvec C when a
+    matching binary is found, see drvec.c_engine), folder (where the C runs and
+    leaves its files; None: a temporary folder), progress(b, ok) after each
+    replication (Python engine; the C reports at the end). The engine used is
+    in FitResult.provenance."""
     if (xpre or xlink) and not (xpre and xlink):
         raise ValueError("-xpre and -xlink go together: the inputs and the\n"
                          "       network of links that says where they enter.")
@@ -292,6 +572,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
             "       layout: it cannot be combined with -differenced, -xlink, -trend,\n"
             "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
             "       -specs, -rungs, -matest, -artest and -eval (not yet).")
+    case0 = case
     data = _data(pre_files)
     if estwin:
         # P5.2: the fit on rows 1..E of nabla Y, the rest kept for the
@@ -451,14 +732,64 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
             out.se = list(out.fdhess.dev)
             out.cov = out.fdhess.cov
     if irfboot > 0:
-        from .irfboot import irf_bootstrap
-        out.irfboot = irf_bootstrap(spec, data, out.x, irfboot, 10 if rd.n < 40 else 20)
+        K = 10 if rd.n < 40 else 20
+        files = _files_of(pre_files)
+        binary, note = _choose_engine(engine, seed, files, "-irfboot")
+        if binary is not None:
+            out.irfboot, out.provenance = _irfboot_c(
+                binary, note, files, spec, data, out.x, irfboot, K, folder, progress,
+                dict(p=p, q=q, r=r, case=case0, ma=ma, diag_ar=diag_ar, diag_cov=diag_cov, fixb2row=fixb2row,
+                     nodrift=nodrift, xsys=xsys, alpha=alpha, weakex=weakex, fixb2=fixb2,
+                     multistart=multistart))
+        else:
+            from .irfboot import irf_bootstrap
+            from .parallel import resolve_workers
+            from .results import python_provenance
+            from .rng import Rng
+            nw = resolve_workers(workers, irfboot)
+            out.irfboot = irf_bootstrap(spec, data, out.x, irfboot, K,
+                                        rng=Rng() if seed is None else Rng(seed),
+                                        progress=progress, workers=nw)
+            out.provenance = python_provenance(nw, seed, note)
+    if out.provenance is None:
+        from .results import python_provenance
+        out.provenance = python_provenance(1, None, "no bootstrap")
     return out
+
+
+def _irfboot_c(binary, note, files, spec, data, x, N, K, folder, progress, kw):
+    """fit(irfboot=N) on drvec C: the bands from its files (drvec.c_engine)."""
+    from . import c_engine
+    from .irfboot import IrfBoot, _irf_at
+    base = "drvecjob"
+    with c_engine.Folder(folder) as d:
+        argv = c_engine.fit_argv(files, kw.pop("p"), kw.pop("q"), kw.pop("r"), d,
+                                 irfboot=N, base=base, **kw)
+        job = c_engine.Job(binary, argv, d, base)
+        try:
+            job.wait()
+        finally:
+            if job.proc.poll() is None:
+                job.proc.kill()
+        with open(job.path(".out")) as f:
+            otext = f.read()
+        ftext = None
+        if os.path.exists(job.path(".irfboot")):
+            with open(job.path(".irfboot")) as f:
+                ftext = f.read()
+        nok, nfail, sect, bands = c_engine.read_irfboot(otext, ftext, data.names, K, base)
+        prov = c_engine.provenance(binary, d if folder else None, argv, job.elapsed, note)
+    if progress:
+        progress(N, True)
+    bt = IrfBoot(N, K, _irf_at(spec, data, x, K), [], [], nfail, c_nok=nok, c_bands=bands,
+                 c_out=sect, c_file=ftext)
+    bt.c_base = base
+    return bt, prov
 
 
 def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
               progress=None, trend=False, xsys=None, xpre=None, xlink=None, multistart=0,
-              nodrift=None):
+              nodrift=None, seed=None, workers=None, engine=None, folder=None):
     """The sequential LR test for the rank (`-lrtest [-bootstrap N]`).
 
     case="pre" and nodrift= are the mask on case 3's drifts, as in fit(): every
@@ -466,7 +797,15 @@ def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
     asymptotic tables are case 3's and do not apply to the mixed case.
 
     The C declares the rank test with exogenous inputs (-xsys, -xlink) and with
-    -trend as not done yet; so does the port, with its messages."""
+    -trend as not done yet; so does the port, with its messages.
+
+    The bootstrap: progress(b, replication) after each replication (its .h0 is
+    the comparison); seed (None: the C's 987654321); workers (the process pool
+    for the refits; None: DRVEC_WORKERS or the cores less one; 1: in this
+    process; the numbers do not depend on it); engine ("auto", "python" or "c";
+    None reads DRVEC_ENGINE, default "auto": drvec C when a matching binary is
+    found, see drvec.c_engine); folder (where the C runs and leaves its files;
+    None: a temporary folder). The engine used is in RankTest.provenance."""
     if xlink or xpre:
         raise ValueError(
             "-xlink needs the .pre route in the levels layout, and a\n"
@@ -487,10 +826,69 @@ def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
             "       -estwin, -writeinp, -writeres or the modes -lrtest, -specs,\n"
             "       -rungs, -matest, -artest and -eval (not yet).")
     data = _data(pre_files)
+    case0 = case
     case, drift, how = _drift_mask(data, case, nodrift)
     spec = Spec(data.M, p, q, 0, case, ma, drift=drift)
-    out = _rank_test(data, spec, bootstrap, boot_path, progress,
-                     njitter=multistart if multistart > 1 else 1)
+    nj = multistart if multistart > 1 else 1
+    from .results import python_provenance
+    if bootstrap <= 0:
+        out = _rank_test(data, spec, 0, boot_path, progress, njitter=nj)
+        out.drift_how = how
+        out.provenance = python_provenance(1, None, "no bootstrap")
+        return out
+    files = _files_of(pre_files)
+    binary, note = _choose_engine(engine, seed, files, "the rank test's bootstrap")
+    if binary is None:
+        from .parallel import resolve_workers
+        nw = resolve_workers(workers, bootstrap)
+        out = _rank_test(data, spec, bootstrap, boot_path, progress, njitter=nj,
+                         seed=seed, workers=nw)
+        out.drift_how = how
+        out.provenance = python_provenance(nw, seed, note)
+        return out
+    from . import c_engine
+    from .rank import summarise
+    base = "drvecjob"
+    with c_engine.Folder(folder) as d:
+        argv = c_engine.rank_argv(files, p, q, case=case0, ma=ma, bootstrap=bootstrap,
+                                  nodrift=nodrift, multistart=multistart, base=base)
+        job = c_engine.Job(binary, argv, d, base)
+
+        def hook(t, ds):
+            # the port's observed fits are done (they ran while the C did)
+            def line(s):
+                r = c_engine.parse_boot_line(s)
+                if r is not None and progress:
+                    progress(r.rep, r)
+            try:
+                job.wait(on_boot_line=line)
+            finally:
+                if job.proc.poll() is None:
+                    job.proc.kill()
+            reps = c_engine.read_boot(job.path(".boot"))
+            want = [rr for rr in range(t.spec.M - 1)
+                    if not (t.fits[rr].ifault or t.fits[rr + 1].ifault)]
+            if sorted(reps) != want:
+                raise c_engine.CEngineError(
+                    "drvec C bootstrapped the comparisons %s and the port's fits allow %s: "
+                    "the two fits disagree (%s)" % (sorted(reps), want, d))
+            bs = []
+            for rr in want:
+                if len(reps[rr]) != bootstrap:
+                    raise c_engine.CEngineError(
+                        f"drvec C wrote {len(reps[rr])} replications for H0: r = {rr}, "
+                        f"not {bootstrap} ({d})")
+                bs.append(summarise(rr, t.lr(rr), reps[rr]))
+            return bs
+        try:
+            out = _rank_test(data, spec, bootstrap, boot_path, None, njitter=nj,
+                             boot_hook=hook)
+        finally:
+            if job.proc.poll() is None:
+                job.proc.kill()
+                job.proc.wait()
+        out.provenance = c_engine.provenance(binary, d if folder else None, argv,
+                                             getattr(job, "elapsed", None), note)
     out.drift_how = how
     return out
 

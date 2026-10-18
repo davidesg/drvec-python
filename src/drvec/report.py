@@ -485,6 +485,41 @@ def fit_out(res, base):
     return out
 
 
+def restriction_lr(res):
+    """The LR the .out prints for a restricted fit, as numbers: None when the
+    fit carries none. Otherwise a dict: kind ("xlink", "fixb2row", "xsys" or
+    "alpha"), ll_free (the unrestricted logL; for -xlink the VEC WITHOUT the
+    inputs, i.e. the restricted one), ll_restricted, lr, df and pvalue (chi2,
+    1.0 when lr <= 0 or df = 0, as the C prints it). The branches and their
+    order are _report_fit's."""
+    spec = res.spec
+    M, r = spec.M, spec.r
+    if spec.xlink and res.xl_base_ll is not None:
+        from .xlink import npar as xl_npar
+        df = xl_npar(spec.xlink)
+        lr = 2.0 * (res.loglik - res.xl_base_ll)
+        pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
+        return {"kind": "xlink", "ll_free": res.loglik, "ll_restricted": res.xl_base_ll,
+                "lr": lr, "df": df, "pvalue": pv, "ll_bridge": res.xl_bridge_ll}
+    if spec.b2_hold and getattr(res, "lr_free", None) is not None:
+        nh = spec.b2_nheld()
+        dfa = (M - spec.alpha_sa) * r if spec.alpha else 0
+        df = nh * r + dfa
+        kind = "fixb2row+alpha" if spec.alpha else "fixb2row"
+    elif spec.xsys and getattr(res, "lr_free", None) is not None:
+        df = res.xs_df
+        kind = "xsys"
+    elif spec.alpha and getattr(res, "lr_free", None) is not None:
+        df = (M - spec.alpha_sa) * r
+        kind = "alpha"
+    else:
+        return None
+    lr = 2.0 * (res.lr_free - res.loglik)
+    pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
+    return {"kind": kind, "ll_free": res.lr_free, "ll_restricted": res.loglik,
+            "lr": lr, "df": df, "pvalue": pv}
+
+
 def _report_fit(res, sofar):
     spec, data = res.spec, res.data
     M, r, s, q = spec.M, spec.r, spec.s, spec.q
@@ -515,11 +550,9 @@ def _report_fit(res, sofar):
     o += "AIC              : %15.10f   (-2logL + 2k, /n)\n" % ((-2.0 * res.loglik + 2.0 * npar) / n)
     o += "BIC              : %15.10f   (-2logL + k log n, /n)\n" % (
         (-2.0 * res.loglik + npar * math.log(n)) / n)
+    rlr = restriction_lr(res)
     if spec.xlink and res.xl_base_ll is not None:
-        from .xlink import npar as xl_npar
-        df = xl_npar(spec.xlink)
-        lr = 2.0 * (res.loglik - res.xl_base_ll)
-        pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
+        df, lr, pv = rlr["df"], rlr["lr"], rlr["pvalue"]
         o += "\n--- the transfer inputs (-xlink), against the VEC without them ---\n"
         o += "logL VEC without inputs      : %15.10f\n" % res.xl_base_ll
         if res.xl_bridge_ll is not None:
@@ -534,11 +567,7 @@ def _report_fit(res, sofar):
               "  the rank test itself is NOT recalibrated for exogenous inputs (TODO.md "
               "MEJORA-2).\n")
     if spec.b2_hold and getattr(res, "lr_free", None) is not None:
-        nh = spec.b2_nheld()
-        dfa = (M - spec.alpha_sa) * r if spec.alpha else 0
-        df = nh * r + dfa
-        lr = 2.0 * (res.lr_free - res.loglik)
-        pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
+        df, lr, pv = rlr["df"], rlr["lr"], rlr["pvalue"]
         o += "\n--- beta restricted by -fixb2row%s, against H(r) ---\n" % (
             " and alpha = A*psi" if spec.alpha else "")
         for i in range(s):
@@ -552,9 +581,7 @@ def _report_fit(res, sofar):
             df, " + (M - sa)*r" if spec.alpha else "")
         o += "p-value (chi2)         : %15.10f\n" % pv
     elif spec.xsys and getattr(res, "lr_free", None) is not None:
-        df = res.xs_df
-        lr = 2.0 * (res.lr_free - res.loglik)
-        pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
+        df, lr, pv = rlr["df"], rlr["lr"], rlr["pvalue"]
         o += ("\n--- the inputs embedded by -xsys: strong exogeneity, against the free "
               "VEC ---\n")
         for i in spec.xsys:
@@ -570,9 +597,7 @@ def _report_fit(res, sofar):
               "  transfer from the inputs: their entry in beta (the gain), their lags\n"
               "  in Gamma and the covariance Q (omega_0, the SVAR identity).\n")
     elif spec.alpha and getattr(res, "lr_free", None) is not None:
-        df = (M - spec.alpha_sa) * r
-        lr = 2.0 * (res.lr_free - res.loglik)
-        pv = _chisq_q(lr, df) if (df > 0 and lr > 0.0) else 1.0
+        df, lr, pv = rlr["df"], rlr["lr"], rlr["pvalue"]
         o += "\n--- H1(r): alpha = A*psi, against H(r) ---\n"
         o += "logL H(r)  free        : %15.10f\n" % res.lr_free
         o += "logL H1(r) restricted  : %15.10f\n" % res.loglik
@@ -1219,28 +1244,24 @@ def level_irf_R(M, r, p, q, phi, theta, B2, K, P, D):
     return R
 
 
-def level_irf_fevd(res, fv, K):
-    spec, names = res.spec, res.data.names
+def level_irf_numbers(res, fv, K):
+    """The numbers of the .out's level sections (level_irf_fevd), as arrays of
+    lists: None when there is no section (K < 1 or s < 1), or a dict with
+    "error" when Sigma is not positive definite. Otherwise: R[k][i][j] (the
+    response of series i to a one-s.d. shock to j at lag k), fevd[k][i][j] in
+    %% (horizon k + 1), gain[i][j] and mean_lag[i][j] (None where the gain is
+    zero), shock_sd[j], converged, k_stop, tail, beta_gain (max |beta' gain|)."""
+    spec = res.spec
     M, r, s, p, q = spec.M, spec.r, spec.s, spec.p, spec.q
     if K < 1 or s < 1:
-        return ""
+        return None
     qq = fv.qq.tolist()
     ld = ldl_sigma(res.sigma2, qq, M)
     if ld is None:
-        return "\n(impulse responses not computed: Sigma is not positive definite)\n"
+        return {"error": "Sigma is not positive definite"}
     P, D = ld
     phi, theta, B2 = fv.phi.tolist(), fv.theta.tolist(), fv.B2
     R = level_irf_R(M, r, p, q, phi, theta, B2, K, P, D)
-    o = banner("Impulse Response of the Levels")
-    o += ("\n  Response of Y_{t+k} to a one-s.d. orthogonalized shock at t.\n"
-          "  Shocks are orthogonalized by Sigma = P D P', so the ORDERING is the\n"
-          "  .inp's column order: a different order gives different shocks.\n"
-          "  ! in a cointegrated system the response does not die out: what it\n"
-          "    converges to is the permanent effect, of rank M - r = %d.\n" % s)
-    for j in range(M):
-        o += "\nShock to %s:\n    k" % names[j] + "".join(" %14s" % nm for nm in names) + "\n"
-        for k in range(K + 1):
-            o += "%5d" % k + "".join(" %14.6f" % R[k][i][j] for i in range(M)) + "\n"
     KL = 400
     psiL = compute_psi_weights(M, p, q, phi, theta, KL)
     CsL = [[0.0] * M for _ in range(M)]
@@ -1273,25 +1294,8 @@ def level_irf_fevd(res, fv, K):
             break
         tail = mx
         k += 1
-    o += banner("Long-Run Gain and Mean Lag, in Levels")
-    o += ("\n  gain     = lim_k G_k, the PERMANENT effect of a one-s.d. shock\n"
-          "  mean lag = sum k delta_k / sum delta_k, with delta_k the increment of\n"
-          "             the response: how long the level takes to get there\n")
-    o += "  %s at k = %d (largest increment %.2e)\n" % (
-        "converged" if conv else "NOT converged", k, tail)
-    o += "\nStructural shock standard deviations (one-s.d. shock size):\n"
-    for j in range(M):
-        o += "  %-12s : %.6f\n" % (names[j], math.sqrt(D[j]))
-    for j in range(M):
-        o += "\nShock to %s:\n" % names[j]
-        for i in range(M):
-            g = gain[i][j]
-            if abs(g) > 1.0e-12 and abs(g) > 1.0e-8:
-                o += "  %-12s : gain = %10.6f   mean lag = %7.2f periods\n" % (
-                    names[i], g, wsum[i][j] / g)
-            else:
-                o += ("  %-12s : gain = %10.6f   mean lag = undefined (the permanent "
-                      "effect is zero)\n" % (names[i], g))
+    mlag = [[(wsum[i][j] / gain[i][j]) if (abs(gain[i][j]) > 1.0e-12 and abs(gain[i][j]) > 1.0e-8)
+             else None for j in range(M)] for i in range(M)]
     for j in range(M):
         for kk in range(r):
             acc = 0.0
@@ -1300,24 +1304,75 @@ def level_irf_fevd(res, fv, K):
                 acc += bik * gain[i][j]
             if abs(acc) > worst:
                 worst = abs(acc)
+    fevd = []
+    acc = [[0.0] * M for _ in range(M)]
+    for kk in range(K + 1):
+        Fk = []
+        for i in range(M):
+            tot = 0.0
+            for j in range(M):
+                acc[i][j] += R[kk][i][j] * R[kk][i][j]
+                tot += acc[i][j]
+            Fk.append([100.0 * acc[i][j] / tot if tot > 0.0 else 0.0 for j in range(M)])
+        fevd.append(Fk)
+    return {"R": R, "fevd": fevd, "gain": gain, "mean_lag": mlag,
+            "shock_sd": [math.sqrt(d) for d in D], "converged": conv, "k_stop": k,
+            "tail": tail, "beta_gain": worst, "P": P, "D": D}
+
+
+def level_irf_fevd(res, fv, K):
+    spec, names = res.spec, res.data.names
+    M, s = spec.M, spec.s
+    nb = level_irf_numbers(res, fv, K)
+    if nb is None:
+        return ""
+    if "error" in nb:
+        return "\n(impulse responses not computed: Sigma is not positive definite)\n"
+    R = nb["R"]
+    o = banner("Impulse Response of the Levels")
+    o += ("\n  Response of Y_{t+k} to a one-s.d. orthogonalized shock at t.\n"
+          "  Shocks are orthogonalized by Sigma = P D P', so the ORDERING is the\n"
+          "  .inp's column order: a different order gives different shocks.\n"
+          "  ! in a cointegrated system the response does not die out: what it\n"
+          "    converges to is the permanent effect, of rank M - r = %d.\n" % s)
+    for j in range(M):
+        o += "\nShock to %s:\n    k" % names[j] + "".join(" %14s" % nm for nm in names) + "\n"
+        for k in range(K + 1):
+            o += "%5d" % k + "".join(" %14.6f" % R[k][i][j] for i in range(M)) + "\n"
+    gain = nb["gain"]
+    o += banner("Long-Run Gain and Mean Lag, in Levels")
+    o += ("\n  gain     = lim_k G_k, the PERMANENT effect of a one-s.d. shock\n"
+          "  mean lag = sum k delta_k / sum delta_k, with delta_k the increment of\n"
+          "             the response: how long the level takes to get there\n")
+    o += "  %s at k = %d (largest increment %.2e)\n" % (
+        "converged" if nb["converged"] else "NOT converged", nb["k_stop"], nb["tail"])
+    o += "\nStructural shock standard deviations (one-s.d. shock size):\n"
+    for j in range(M):
+        o += "  %-12s : %.6f\n" % (names[j], nb["shock_sd"][j])
+    for j in range(M):
+        o += "\nShock to %s:\n" % names[j]
+        for i in range(M):
+            g = gain[i][j]
+            ml = nb["mean_lag"][i][j]
+            if ml is not None:
+                o += "  %-12s : gain = %10.6f   mean lag = %7.2f periods\n" % (
+                    names[i], g, ml)
+            else:
+                o += ("  %-12s : gain = %10.6f   mean lag = undefined (the permanent "
+                      "effect is zero)\n" % (names[i], g))
     o += ("\n  self-check  max |beta' gain| = %.3e\n"
           "  beta'Y_t is stationary, so no shock can move it permanently: this is\n"
           "  zero by construction, and it exercises the weights, the level map and\n"
           "  the orthogonalisation at once.  The gain matrix has rank M - r = %d.\n"
-          % (worst, s))
+          % (nb["beta_gain"], s))
     o += banner("Forecast Error Variance Decomposition, in Levels")
     o += ("\n  Percentage of the h-step level forecast error variance due to each shock.\n"
           "  Same orthogonalization, so the same caveat on the ordering.\n")
     for i in range(M):
-        acc = [0.0] * M
         o += "\n%s:\n    h" % names[i] + "".join(" %11s" % nm for nm in names) + "\n"
         for k in range(K + 1):
-            tot = 0.0
-            for j in range(M):
-                acc[j] += R[k][i][j] * R[k][i][j]
-                tot += acc[j]
             o += "%5d" % (k + 1) + "".join(
-                " %10.1f%%" % (100.0 * acc[j] / tot if tot > 0.0 else 0.0) for j in range(M)) + "\n"
+                " %10.1f%%" % nb["fevd"][k][i][j] for j in range(M)) + "\n"
     return o
 
 
@@ -1401,7 +1456,11 @@ def _centred(a, n, m):
     return x
 
 
-def multivariate_diagnostics(a, n, m, freq, k):
+def multivariate_numbers(a, n, m, freq, k):
+    """Hosking's portmanteau and the multivariate Jarque-Bera of the residuals
+    a (n x m), k dynamic coefficients: the numbers multivariate_diagnostics
+    prints. JB, its parts and its p-value are nan when C0 is singular; pQ is nan
+    when df < 1."""
     import numpy as np
     from .nla import chisq
     s = (freq + 2) if freq > 1 else 10
@@ -1431,6 +1490,14 @@ def multivariate_diagnostics(a, n, m, freq, k):
         ku = float((b2 ** 2).sum() * (n / 24.0))
         JB = sk + ku
         pJB = 1.0 - chisq(JB, 2 * m)
+    return {"lags": s, "Q": Q, "df": df, "pQ": pQ, "JB": JB, "JB_df": 2 * m,
+            "pJB": pJB, "skewness": sk, "kurtosis": ku, "part_df": m}
+
+
+def multivariate_diagnostics(a, n, m, freq, k):
+    d = multivariate_numbers(a, n, m, freq, k)
+    s, Q, df, pQ = d["lags"], d["Q"], d["df"], d["pQ"]
+    JB, pJB, sk, ku = d["JB"], d["pJB"], d["skewness"], d["kurtosis"]
     o = "\n\n" + BAR + "\n           MULTIVARIATE RESIDUAL DIAGNOSTICS                \n" + BAR + "\n"
     o += "\nHosking's Multivariate Portmanteau Test (lag %d):\n" % s
     if df >= 1:

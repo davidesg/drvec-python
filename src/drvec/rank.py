@@ -144,27 +144,55 @@ class Bootstrap:
         return sum(r.status == "ok" for r in self.reps)
 
 
-def bootstrap_rank(spec_r, data, x, N, lr_obs, rng, progress=None):
-    """bootstrap_rank (2356). spec_r is the H0 rank's spec, x its fitted vector."""
+def _refit_pair(spec_r, data, sim):
+    """One replication: the sample refitted at ranks r and r + 1 (the C's two
+    fit_ll calls). -> (ifault_r, ll_r, ifault_r1, ll_r1). It consumes no
+    random numbers: the sample is drawn before (drvec.parallel)."""
+    db = data.with_raw(sim)
+    r0, _ = fit_rank(spec_r, db)
+    r1, _ = fit_rank(spec_r.but(r=spec_r.r + 1), db)
+    return r0.ifault, r0.ll, r1.ifault, r1.ll
+
+
+def bootstrap_rank(spec_r, data, x, N, lr_obs, rng, progress=None, workers=1):
+    """bootstrap_rank (2356). spec_r is the H0 rank's spec, x its fitted vector.
+    progress(b, replication) after each replication, a failed one included.
+    workers > 1: the N samples drawn first, in the generator's order, and
+    refitted in a process pool -- the same numbers (drvec.parallel)."""
     rr = spec_r.r
-    reps, stat = [], []
+    reps = []
+    pairs = None
+    if workers > 1:
+        from .parallel import map_refits
+        sims = [simulate_h0(spec_r, data, x, rng) for _b in range(N)]
+        pairs = map_refits(_refit_pair, data,
+                           [(spec_r, sim) if sim is not None else None for sim in sims],
+                           workers)
     for b in range(1, N + 1):
-        sim = simulate_h0(spec_r, data, x, rng)
-        if sim is None:
+        if pairs is not None:
+            pr = next(pairs)
+        else:
+            sim = simulate_h0(spec_r, data, x, rng)
+            pr = None if sim is None else _refit_pair(spec_r, data, sim)
+        if pr is None:
             reps.append(Replication(rr, b, "simfail"))
-            continue
-        db = data.with_raw(sim)
-        r0, _ = fit_rank(spec_r, db)
-        r1, _ = fit_rank(spec_r.but(r=rr + 1), db)
-        if r0.ifault == 0 and r1.ifault == 0:
-            lr = 2.0 * (r1.ll - r0.ll)
-            reps.append(Replication(rr, b, "ok", lr))
-            stat.append(lr)
+        elif pr[0] == 0 and pr[2] == 0:
+            reps.append(Replication(rr, b, "ok", 2.0 * (pr[3] - pr[1])))
         else:
             reps.append(Replication(rr, b, "fitfail"))
         if progress:
             progress(b, reps[-1])
+    if pairs is not None:
+        pairs.close()
+    return summarise(rr, lr_obs, reps)
+
+
+def summarise(rr, lr_obs, reps):
+    """The bootstrap's critical values and p-value from its replications
+    (bootstrap_rank's tail): every ok replication counts, negative LR*
+    included (BUG-26)."""
     out = Bootstrap(rr, lr_obs, reps)
+    stat = [r.lr for r in reps if r.status == "ok"]
     nok = len(stat)
     if nok >= 10:
         st = sorted(stat)
@@ -190,6 +218,7 @@ class RankTest:
     boot_n: int = 0                 # -bootstrap N (0: none)
     data: object = None             # the data as read (for the .out's header)
     drift_how: str = None           # "pre" / "nodrift" when case 3's drifts are masked
+    provenance: object = None       # results.Provenance: who ran the bootstrap
 
     def lr(self, r):
         return 2.0 * (self.ll[r + 1] - self.ll[r])
@@ -235,9 +264,13 @@ class RankTest:
         return "\n".join(lines) + "\n"
 
 
-def rank_test(data, spec, bootstrap=0, boot_path=None, progress=None, njitter=1):
+def rank_test(data, spec, bootstrap=0, boot_path=None, progress=None, njitter=1,
+              seed=None, workers=1, boot_hook=None):
     """run_lrtest. `spec` gives p, q, case and the class; its r is ignored (the
-    test walks r = 0..M-1)."""
+    test walks r = 0..M-1). seed: the bootstrap generator's (None: the C's).
+    workers: the pool's size for the refits (1: in this process).
+    boot_hook(out, ds): when given, it supplies the bootstraps instead of the
+    generator (the C engine, drvec.c_engine) and returns their list."""
     M = spec.M
     raw = data.raw
     # BUG-43: a gross mis-scaling (two orders) is undone internally; the LR does
@@ -272,13 +305,16 @@ def rank_test(data, spec, bootstrap=0, boot_path=None, progress=None, njitter=1)
         ll = [v + jac for v in ll]
     out = RankTest(spec, data.names, nobs, fits, infos, npar, ll, dsc, bnd,
                    boot_n=bootstrap, data=data)
-    if bootstrap > 0:
-        rng = Rng()
+    if bootstrap > 0 and boot_hook is not None:
+        out.bootstraps = boot_hook(out, ds)
+    elif bootstrap > 0:
+        rng = Rng() if seed is None else Rng(seed)
         for rr in range(M - 1):
             if fits[rr].ifault or fits[rr + 1].ifault:
                 continue
             out.bootstraps.append(bootstrap_rank(spec.but(r=rr), ds, fits[rr].x,
-                                                 bootstrap, out.lr(rr), rng, progress))
+                                                 bootstrap, out.lr(rr), rng, progress,
+                                                 workers=workers))
         if boot_path:
             with open(boot_path, "w") as f:
                 f.write(out.boot_text())

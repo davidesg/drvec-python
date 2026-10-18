@@ -270,3 +270,66 @@ def rolling_eval(res, E, H):
     out += ("\n  These are the numbers that decide whether the model earns its\n"
             "  parameters.  A likelihood, an AIC and a theoretical band do not.\n")
     return out, "\n".join(csv) + "\n"
+
+
+def forecast_arrays(res, fv, H, conf=0.95):
+    """The numbers of <base>.forecast as arrays (FitResult.forecasts): the
+    same arithmetic as forecast_vec, step for step, without the text.
+    -> dict with dates [(period, sub)] (H), and (H, M) lists in each series'
+    own units: level, low, high, se (the delta-method s.e. the file prints),
+    plus model_level and model_se (the level and its theoretical s.e. in the
+    model's units, before the deterministic path and the back-transform), z."""
+    from .report import compute_psi_weights, level_error_map
+    spec, data = res.spec, res.data
+    M, r, p, q = spec.M, spec.r, spec.p, spec.q
+    n = fv.rd.n
+    phi = [fv.phi[k].tolist() for k in range(p)]
+    theta = [fv.theta[k].tolist() for k in range(q)]
+    mu = [float(v) for v in fv.mu]
+    qq = fv.qq.tolist()
+    w = fv.w.tolist()
+    raw_origin = n + 1
+    lam = [float(v) for v in data.lambdas]
+    ref = [float(v) for v in data.refactors]
+    det = _det_at(data, H)
+    Psi = compute_psi_weights(M, p, q, phi, theta, H)
+    Sig = [[res.sigma2 * qq[i][j] for j in range(M)] for i in range(M)]
+    _Yb, lev = forecast_core(M, r, p, q, phi, theta, mu, w, fv.a, fv.rd.y2, fv.B2, n, H)
+    z = 2.575829 if conf >= 0.99 else 1.959964 if conf >= 0.95 else 1.644854
+    Var = [[0.0] * M for _ in range(M)]
+    Csum = [[0.0] * M for _ in range(M)]
+    SE = [[0.0] * M for _ in range(H)]
+    for h in range(1, H + 1):
+        m = h - 1
+        for i in range(M):
+            for j in range(M):
+                Csum[i][j] += Psi[m][i][j]
+        G = level_error_map(Csum, Psi[m], fv.B2, M, r)
+        for i in range(M):
+            for j in range(M):
+                acc = 0.0
+                for k in range(M):
+                    for l in range(M):
+                        acc += G[i][k] * Sig[k][l] * G[j][l]
+                Var[i][j] += acc
+        for i in range(M):
+            SE[h - 1][i] = math.sqrt(Var[i][i]) if Var[i][i] > 0.0 else 0.0
+    out = {"dates": [], "level": [], "low": [], "high": [], "se": [],
+           "model_level": [list(row) for row in lev[:H]], "model_se": SE, "z": z,
+           "conf": conf}
+    for h in range(1, H + 1):
+        out["dates"].append(tuple(_date(data.start, data.freq, raw_origin + h)))
+        rl, rlo, rhi, rse = [], [], [], []
+        for i in range(M):
+            L = lev[h - 1][i]
+            e = SE[h - 1][i]
+            dt = det(i, raw_origin + h)
+            rl.append(bt_level(lam[i], ref[i], L, dt))
+            rlo.append(bt_level(lam[i], ref[i], L - z * e, dt))
+            rhi.append(bt_level(lam[i], ref[i], L + z * e, dt))
+            rse.append(bt_jac(lam[i], ref[i], L, dt) * e)
+        out["level"].append(rl)
+        out["low"].append(rlo)
+        out["high"].append(rhi)
+        out["se"].append(rse)
+    return out
