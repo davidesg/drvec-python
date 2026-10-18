@@ -38,6 +38,13 @@
   banner cannot tell the fixed build from the old one, so a hand-built
   `DRVEC_BIN` from before the fix would still hang there), and tests.yml
   builds the C on Windows (MinGW-w64, MSYS2's GSL).
+- `c_engine.Job.wait` reads the growing `.boot` in binary, with its offset
+  in bytes (`bugs/py-boot-tail-crlf`). On Windows the C writes CRLF, text
+  mode delivered one character less per line than the bytes read, and the
+  next read began inside lines already delivered: `rank_test(engine="auto")`
+  failed on a fragment such as `8938564272` (tests.yml on windows-latest,
+  Python 3.10, the first run with the C there). Intermittent: it needs the C
+  to write between two polls.
 - The package: Python on drvarma's exact likelihood and fue's reader.
   Its oracle is drvec C 0.13 (atsw-gui ae95446; milestones 1-4 were
   homologated against drvec-v0.12, which 0.13 reproduces on them).

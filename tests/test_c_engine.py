@@ -277,3 +277,34 @@ def test_the_refusals_are_the_same(the_c):
         drvec.rank_test(MU, 2, 0, case="pre", bootstrap=10, trend=True, engine="c")
     with pytest.raises(ValueError, match="-irfboot bootstraps"):
         drvec.fit(MU, 2, 0, 1, case="pre", trend=True, irfboot=10, engine="c")
+
+
+def test_the_boot_tail_reads_crlf(tmp_path):
+    """bugs/py-boot-tail-crlf: on Windows the C writes its .boot with CRLF, and
+    Job.wait, which follows it while it grows, must deliver exactly the lines
+    written, however the writes fall between two polls."""
+    import io
+    lines = ["# drvec 0.13 -bootstrap 3: the rank test, one line per replication",
+             "h0,rep,status,lr", "0,1,ok,15.744416530514741",
+             "0,2,ok,13.915693523537129", "0,3,ok,15.71179217705037"]
+    data = "".join(s + "\r\n" for s in lines).encode()
+    cuts = [70, 120, 150, len(data)]
+
+    class Proc:
+        k = done = 0
+
+        def poll(self):
+            if self.k < len(cuts):
+                with open(job.path(".boot"), "ab") as f:
+                    f.write(data[self.done:cuts[self.k]])
+                self.done, self.k = cuts[self.k], self.k + 1
+                return None
+            return 0
+
+    job = object.__new__(c_engine.Job)
+    job.folder, job.base, job.t0 = str(tmp_path), "drvecjob", 0.0
+    job._out, job._err = io.StringIO(), io.StringIO()
+    job.proc = Proc()
+    got = []
+    job.wait(on_boot_line=got.append, poll=0)
+    assert got == lines

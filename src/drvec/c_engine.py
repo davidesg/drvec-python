@@ -274,14 +274,17 @@ class Job:
         while True:
             rc = self.proc.poll()
             if on_boot_line is not None and os.path.exists(self.path(".boot")):
-                with open(self.path(".boot")) as f:
+                # binary, and the offset in bytes: on Windows the C writes
+                # CRLF, and text mode's "\n" for "\r\n" put `seen` behind the
+                # file (bugs/py-boot-tail-crlf)
+                with open(self.path(".boot"), "rb") as f:
                     f.seek(seen)
                     chunk = f.read()
-                seen += len(chunk.encode())
-                buf += chunk
+                seen += len(chunk)
+                buf += chunk.decode("ascii", "replace")
                 *lines, buf = buf.split("\n")
                 for line in lines:
-                    on_boot_line(line)
+                    on_boot_line(line.rstrip("\r"))
             if rc is not None:
                 break
             time.sleep(poll)
