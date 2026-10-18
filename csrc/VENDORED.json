@@ -1,0 +1,27 @@
+{
+  "what": "drvec C, the oracle of this port, and the lib/ pieces it links, copied byte for byte from atsw-gui by tools/vendor_drvec_c.py",
+  "repository": "https://github.com/davidesg/atsw-gui",
+  "commit": "ae95446e7378f3f4b40d58b0c56b58f015f25e3d",
+  "files": {
+    "engines/drvec/LICENSE": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+    "engines/drvec/Makefile": "5797f82d2e6a872500b2fef8e4570c64318f9e5869bfabcd1a897a9539de0fff",
+    "engines/drvec/include/diagmvhost.h": "b2b617b1185b96742381bc8d559e55ae4446a503f50c219d331ee5a9094cb9d7",
+    "engines/drvec/include/fue_bridge.h": "0b88f6353c493d72cc31c073d25fd1684cb6f8720f6ac9cc8637fdf8dcce1982",
+    "engines/drvec/include/fue_pre_reader.h": "387c02e487a57853b65fa778c15a6328cd66e5e536906294891408feda2bb664",
+    "engines/drvec/include/main.h": "36c6329fe85f1cb323c0fe0a2a26250410d18b0681ab30466f9427f35b0c59da",
+    "engines/drvec/include/optimhost.h": "80842bb44674f1806aecd020369312a966841b84f8d4ab969b2bd35e0c675bb4",
+    "engines/drvec/src/diagnose.c": "113bc9f4efd4aa716731da96679b6ed40acbb8375ddee7790e1537858e428494",
+    "engines/drvec/src/drvec.c": "d0bcf3fd15e1083e40c96219a12c6eea412ed9357d575e70c3ab15588a10ebfc",
+    "engines/drvec/src/drvmlest.c": "231206f0d6c452a84a8b9f152f107b897a562a093b110ba629547465869d6e1b",
+    "engines/drvec/src/elfvarma.c": "bce5e718b0ad87eca01a519b43c190c24f59df0b4de81bcdb13049353d1523a7",
+    "engines/drvec/src/fue_bridge.c": "3d9ce58825174c6b69aeeeea1228f20a625882749870d43affca8a4fd75db073",
+    "engines/drvec/src/fue_pre_reader.c": "4aaf3948695de86caf1fbcf64ec1ab7401ad135fdf0f7642f5daad5e20cd9d20",
+    "engines/drvec/src/nlatools.c": "146137e7d8e5f7709eeeb80f3b2b13873f8fa0f7bd45c7ebe2d9afb742c4b6a9",
+    "engines/drvec/src/qnewtopt.c": "6ed47455ccd4c8eb35d350d64f6a70574e64ba4220f2b46b0b0ce1fc1b63e297",
+    "lib/diagmv/diagmv.c": "b71d243f5cbb0ca41414fd7d26ec36b15bc8b99ada2b6f1ef2abfbff50b1c729",
+    "lib/diagmv/diagmv.h": "4bbceebe0767cc8b4258f62dd894893ae9018b495087fb77fce1fafb4d824279",
+    "lib/fuedet/fuedet.c": "6f5acf3313538ea4b836b5a74cf1a1c8c4c92ae3193805071757ad9a89904223",
+    "lib/fuedet/fuedet.h": "880d044ac466115c4073c1c9028989b2c3b5da5a5ce4a80bc8285be8801320a6",
+    "lib/optim/lnsrch.c": "4c7bcb7a398b820c0e61071fc54b2d971d0d466090c9595183e9172004dffabc"
+  }
+}

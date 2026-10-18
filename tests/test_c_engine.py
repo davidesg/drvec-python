@@ -4,9 +4,10 @@
 * The parity: on Linux x86_64 the C path and the Python path give the same
   .out and .boot bytes on the suite's rank bootstraps and the same .out and
   .irfboot on the -irfboot case. These skip, with the reason, when no drvec C
-  0.13 is found: DRVEC_TEST_BIN, else DRVEC_BIN, else the local oracle build
+  0.13 is found: DRVEC_TEST_BIN, else DRVEC_BIN, else the package's bundled
+  binary (drvec/_bin, built from csrc/), else the local oracle build
   ~/.local/share/atsw/drvec-ref-0.13/bin/drvec (atsw-gui ae95446; tests/data/
-  oracle/SOURCE). CI builds it from atsw-gui at that commit (tests.yml).
+  oracle/SOURCE). The CI builds the bundled one (tests.yml, publish.yml).
 
 The one known difference is the C's, BUG-60 (TODO.md): with a drift held, the
 C keys its ladder cache so that replication 16 of cprboot starts from
@@ -35,7 +36,7 @@ LOCAL_ORACLE = os.path.expanduser("~/.local/share/atsw/drvec-ref-0.13/bin/drvec"
 def _the_c():
     if os.environ.get("DRVEC_TEST_BIN"):
         return os.environ["DRVEC_TEST_BIN"]      # CI built it: never a silent skip
-    for p in (os.environ.get("DRVEC_TEST_BIN"), os.environ.get("DRVEC_BIN"), LOCAL_ORACLE):
+    for p in (os.environ.get("DRVEC_BIN"), _REAL_BUNDLED(), LOCAL_ORACLE):
         if p and os.path.isfile(p):
             return p
     return None

@@ -4,6 +4,10 @@
 # Listed one by one, and what does not ship is excluded explicitly: `include`
 # only adds, and an old egg-info's SOURCES.txt drags in whatever was once in.
 #
+# csrc/ ships: the vendored C sources the sdist builds drvec/_bin/drvec from
+# (setup.py, csrc/build_drvec.py), with their manifest; a locally built
+# binary in src/drvec/_bin does not.
+#
 # Not shipped: TODO.md (a working record: milestones, measurements, the runs on
 # a private article's inputs, of which nothing is in the repository either),
 # tools/ (the bootstrap timing, against those runs' C times), bugs/ (the repros
@@ -13,6 +17,8 @@ include CHANGELOG.md
 include COPYING
 include docs/PORT.md
 include docs/API.md
+include setup.py
+recursive-include csrc *
 recursive-include tests *.py
 recursive-include tests/data *
 prune tests/__pycache__
@@ -23,4 +29,6 @@ prune tools
 prune bugs
 prune build
 prune dist
+prune src/drvec/_bin
+global-exclude *.o
 exclude docs/PROCESOS-drvec.md

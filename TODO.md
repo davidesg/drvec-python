@@ -296,6 +296,19 @@ PLAN-vec (sima-python, branch estudio-vec) phases A1-A5 and B.
       BUG-60 (the C path gives the oracle's .boot). CI builds the C from
       atsw-gui ae95446 on ubuntu-latest (run 39118715613: the C tests ran,
       all 8 jobs green).
+- [x] B5, drvec C inside the wheels (decided 2026-10-18): csrc/ (atsw-gui
+      ae95446, 20 files, sha256 in csrc/VENDORED.json, tests/test_vendored.py;
+      tools/vendor_drvec_c.py refreshes), setup.py builds drvec/_bin/drvec
+      with GSL static (csrc/build_drvec.py), py3-none-<platform> wheels by
+      cibuildwheel on 4 platforms + the pure wheel + the sdist (publish.yml),
+      DRVEC_REQUIRE_C. The manylinux x86_64 wheel's binary writes the oracle's
+      files byte for byte on 19 commands (tests/test_bundled.py); tests.yml
+      builds the vendored C instead of atsw-gui's checkout.
+- [ ] B5 follow-ups: the GSL the oracle RUNS on is Ubuntu 24.04's 2.7.1
+      (libgsl.so.27), although tests/data/oracle/SOURCE says "the system GSL
+      2.8" (2.8's headers are in /usr/local, its pkg-config, but no 2.8
+      library is loaded): the wheels build 2.7.1, and the SOURCE line wants
+      correcting. Intel macOS has no binary wheel (the pure one; as drvarma).
 - **The speed-ups** (`tools/time_bootstrap.py B --case mm|e1 --engines`, on
   this machine: an i5-6300U, 2 cores / 4 threads, with another job's tests
   running at the same time, load 2-5; every .boot identical to workers=1's):

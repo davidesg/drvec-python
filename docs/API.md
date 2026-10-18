@@ -146,7 +146,7 @@ Both bootstraps -- the rank test's and `fit(irfboot=N)`'s -- take:
 back into the same `RankTest` and `FitResult` the Python engine returns.
 
 - **The binary**, found in this order: `DRVEC_BIN`; the binary bundled in the
-  wheel at `drvec/_bin/drvec` (`drvec.exe`; when present); `drvec` on the
+  wheel at `drvec/_bin/drvec` (`drvec.exe`; see below); `drvec` on the
   `PATH`; the ATSW install directory (Linux `/usr/lib/atsw/bin`,
   `/usr/local/lib/atsw/bin`; macOS `ATSW.app/Contents/Resources/bin` in
   `/Applications` or `~/Applications`; Windows
@@ -169,6 +169,32 @@ back into the same `RankTest` and `FitResult` the Python engine returns.
   defect BUG-60: with a drift held, one replication of `cprboot` differs (the
   C engine gives the oracle's `.boot`, the port its own); the `.out` is the
   same.
+
+### The bundled binary
+
+The platform wheels carry drvec C 0.13 as package data, `drvec/_bin/drvec`
+(`drvec.exe` on Windows): Linux x86_64 and aarch64 (manylinux_2_28), macOS
+arm64 (14.0) and Windows AMD64. It is built from `csrc/`, atsw-gui ae95446's
+sources byte for byte (`csrc/VENDORED.json`, `tests/test_vendored.py`), by
+`csrc/build_drvec.py`: engines/drvec/Makefile's eleven units with `-O2
+-Wall`, GSL linked statically, so it needs only the C library. The wheel is
+tagged `py3-none-<platform>`: an executable has no CPython ABI. `provenance`
+says `extra["source"] == "bundled"` when it ran.
+
+- The pure wheel (`py3-none-any`) has none: the C is then found only through
+  `DRVEC_BIN`, the PATH or ATSW, else the bootstraps run in Python.
+- An sdist install builds it when a C compiler and GSL are found, and warns
+  and goes without it otherwise. Variables: `DRVEC_NO_C=1` (do not build),
+  `DRVEC_REQUIRE_C=1` (a failed build is an error), `DRVEC_CC`,
+  `DRVEC_GSL_PREFIX` (else `GSL_ROOT`, pkg-config, gsl-config),
+  `DRVEC_GSL_STATIC` (`1` requires the static archives, `0` links the shared
+  library). On Windows the compiler must be a MinGW-w64 gcc.
+- From a checkout, `python csrc/build_drvec.py` puts it at
+  `src/drvec/_bin/drvec`, where the source tree finds it.
+- On Linux x86_64 it writes the oracle's `.out`, `.boot`, `.forecast`,
+  `.recursive` and `.irfboot` byte for byte on nineteen of the oracle's
+  commands (`tests/test_bundled.py`); off it, it is that platform's C, with
+  the tolerance tier.
 
 ## Provenance
 

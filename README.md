@@ -22,18 +22,23 @@ and drvec the cointegrated system. The assistant that drives it is **sima**
 pip install drvec
 ```
 
-drvec is pure Python. What must be fast comes with its dependencies'
-binary wheels: [drvarma](https://pypi.org/project/drvarma/) (>= 0.3.0) brings
-the compiled exact VARMA likelihood (AS 311), its optimiser and GSL's
-eigensolvers, and [fue](https://pypi.org/project/fue/) (>= 0.1.18) the reader
-and cast of the `.pre` files. Nothing to compile, and no system GSL needed.
-Python 3.10 or later.
+drvec's code is Python. What must be fast comes with binary wheels:
+[drvarma](https://pypi.org/project/drvarma/) (>= 0.3.0) brings the compiled
+exact VARMA likelihood (AS 311), its optimiser and GSL's eigensolvers,
+[fue](https://pypi.org/project/fue/) (>= 0.1.18) the reader and cast of the
+`.pre` files, and drvec's own wheels carry **drvec C 0.13**, the program the
+port mirrors, for the long bootstraps (below): Linux x86_64 and aarch64,
+macOS arm64 and Windows AMD64, with GSL linked in. Nothing to compile, and
+no system GSL needed. Python 3.10 or later. Elsewhere pip takes the
+pure-Python wheel, and the bootstraps run in Python.
 
 Check that the compiled engine is in use:
 
 ```sh
 python -c "import drvarma._engine as E, drvec._gsl as G; print(E.engine_backend(), G.backend())"
 # c gsl
+python -c "from drvec import c_engine; print(c_engine.find())"
+# CBinary(path='.../site-packages/drvec/_bin/drvec', version='0.13', source='bundled')
 ```
 
 ## A minimal example
@@ -101,9 +106,9 @@ Two things make it affordable, and neither changes a number:
   cores less one; `workers=1` runs in-process. The output is byte-identical
   whatever the number.
 - **`engine=`**: `"auto"` (the default) runs the bootstrap on **drvec C 0.13**
-  when it finds the binary -- `DRVEC_BIN`, then a binary bundled in the
-  wheel, then `drvec` on the `PATH`, then the ATSW install directory -- and
-  on the parallel Python otherwise. The C's replications are read back into
+  when it finds the binary -- `DRVEC_BIN`, then the one bundled in the
+  wheel (`drvec/_bin/drvec`), then `drvec` on the `PATH`, then the ATSW
+  install directory -- and on the parallel Python otherwise. The C's replications are read back into
   the same result objects; on Linux x86_64 the files are the same bytes.
   `"python"` and `"c"` force one or the other.
 

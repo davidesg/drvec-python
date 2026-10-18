@@ -8,7 +8,25 @@
   (docs/API.md). drvec's forecaster stays, under byte identity, and is now
   one computation: `forecast_arrays` computes, `forecast_vec` prints the
   `.out` section and the `.forecast` from its numbers.
-- The package: pure Python on drvarma's exact likelihood and fue's reader.
+- **drvec C inside the wheels** (PLAN-vec B5). The C sources of drvec 0.13
+  and the `lib/` pieces it links (optim, diagmv, fuedet) are vendored in
+  `csrc/`, byte for byte from atsw-gui ae95446: `csrc/VENDORED.json` records
+  the commit and each file's sha256, `tests/test_vendored.py` checks them,
+  and `tools/vendor_drvec_c.py --repo --commit` refreshes the copy and the
+  manifest together. `setup.py` builds the executable (`csrc/build_drvec.py`:
+  the Makefile's units and flags, GSL static) into the package as
+  `drvec/_bin/drvec` (`drvec.exe`), which `c_engine` finds after
+  `DRVEC_BIN`. The wheels: `py3-none-<platform>` for Linux x86_64 and
+  aarch64 (manylinux, GSL 2.7.1 from source), macOS arm64 (the same) and
+  Windows AMD64 (MinGW-w64 and MSYS2's GSL, `-static`), plus the pure
+  `py3-none-any` wheel (`DRVEC_NO_C=1`) as the fallback and the sdist, which
+  builds the C when it finds a compiler and GSL. `DRVEC_REQUIRE_C=1` turns
+  a failed C build into an error (the wheels and the CI set it). On Linux
+  x86_64 the wheel's binary writes the oracle's files byte for byte
+  (`tests/test_bundled.py`, nineteen oracle commands); every wheel's smoke
+  test runs a bootstrap through it and the C-path tests. The CI no longer
+  builds the C from atsw-gui: it builds the vendored copy.
+- The package: Python on drvarma's exact likelihood and fue's reader.
   Its oracle is drvec C 0.13 (atsw-gui ae95446; milestones 1-4 were
   homologated against drvec-v0.12, which 0.13 reproduces on them).
 - Milestone 1: the VEC cast (`vec_shootx`), the cold and Johansen starts, `est`
@@ -77,9 +95,9 @@
   3.10-3.13, URLs, `license-files`), `MANIFEST.in` (the sdist carries the
   docs and the test suite with its public data; not TODO.md, tools/, bugs/),
   a README for the PyPI page with absolute links, and `publish.yml`: on a
-  `v*` tag, sdist + pure wheel, `twine check`, a check that nothing private
-  ships, both smoke-tested on Python 3.10-3.13 from PyPI's dependencies, then
-  trusted publishing. The tests can run against the installed package
+  `v*` tag, the platform wheels (above), the pure wheel and the sdist,
+  `twine check`, a check that nothing private ships, every one
+  smoke-tested on Python 3.10 and 3.13, then trusted publishing. The tests can run against the installed package
   (`DRVEC_TEST_INSTALLED=1`; the CI does), and `tests.yml` has a manual run
   that builds fue and drvarma from git refs, to measure off the oracle's
   platform before they are released.
@@ -93,8 +111,8 @@
     p-values); `forecasts(H)` (point, bands, s.e. and dates); and
     `restriction_lr` (the LR with its df and p-value). Each comes from the
     routine that prints it (`report.level_irf_numbers`,
-    `multivariate_numbers`, `restriction_lr`; `forecast.forecast_arrays`
-    repeats `forecast_vec`'s arithmetic), and `tests/test_accessors.py`
+    `multivariate_numbers`, `restriction_lr`; `forecast.forecast_arrays`,
+    from which `forecast_vec` prints the files), and `tests/test_accessors.py`
     checks every one against the printed number on every golden fit.
   - The parallel bootstrap (A2): `rank_test(..., workers=)` and
     `fit(..., irfboot=N, workers=)`. The samples are drawn in sequence, in the
@@ -115,6 +133,5 @@
     bootstraps (`DRVEC_ENGINE`; "auto" takes the C when it matches). Every
     result carries `provenance` (engine, version, path, backend, platform
     tier, workers, seed). On Linux x86_64 the two engines give the same bytes
-    (`tests/test_c_engine.py`; CI builds the C from atsw-gui ae95446 on
-    ubuntu-latest), except the C's BUG-60 replication of cprboot.
+    (`tests/test_c_engine.py`), except the C's BUG-60 replication of cprboot.
   - `docs/API.md`; `tools/time_bootstrap.py --engines` measures the engines.

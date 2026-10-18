@@ -31,7 +31,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
-# Pure Python. The numerics that need to be fast live in the dependencies:
+# Python; the platform wheels also carry drvec C as package data (setup.py,
+# csrc/, [tool.cibuildwheel] below), for the bootstraps only. The numerics of
+# the port that need to be fast live in the dependencies:
 # drvarma's compiled exact likelihood (AS 311) and its optimiser, and fue's
 # reader and univariate cast of the .pre files (fue.load, fue.cast_us: the
 # series in levels with its deterministic component subtracted, as in
@@ -71,3 +73,29 @@ testpaths = ["tests"]
 markers = [
   "slow: a parametric bootstrap or a long search",
 ]
+
+# ── The platform wheels: drvec C inside (PLAN-vec B5; publish.yml) ─────────
+# One build per platform: the executable has no CPython ABI, and setup.py tags
+# the wheel py3-none-<platform>. GSL is linked statically: on Linux and macOS
+# built from source (tools/build_gsl.sh, GSL 2.7.1); on Windows MSYS2's, with
+# its MinGW-w64 gcc (publish.yml sets DRVEC_CC and DRVEC_GSL_PREFIX).
+# DRVEC_REQUIRE_C: a wheel without its binary fails the build. The smoke tests
+# run in publish.yml's own jobs, which install fue and drvarma first.
+[tool.cibuildwheel]
+build = "cp312-*"
+skip = "*-musllinux_* *-win32 *-manylinux_i686 pp*"
+test-skip = "*"
+
+[tool.cibuildwheel.linux]
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+before-all = "bash {project}/tools/build_gsl.sh /tmp/gsl"
+environment = { DRVEC_REQUIRE_C = "1", DRVEC_GSL_STATIC = "1", DRVEC_GSL_PREFIX = "/tmp/gsl" }
+
+[tool.cibuildwheel.macos]
+before-all = "bash {project}/tools/build_gsl.sh /tmp/gsl"
+environment = { DRVEC_REQUIRE_C = "1", DRVEC_GSL_STATIC = "1", DRVEC_GSL_PREFIX = "/tmp/gsl" }
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+environment = { DRVEC_REQUIRE_C = "1", DRVEC_GSL_STATIC = "1" }

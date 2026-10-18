@@ -21,7 +21,8 @@ from the port's own objects; the C's replications are read back into them:
 Finding the binary, in this order:
   1. DRVEC_BIN (a path);
   2. the binary bundled in the wheel, drvec/_bin/drvec (drvec.exe on Windows),
-     when present;
+     built from the vendored sources (csrc/) by setup.py, when present (the
+     platform wheels; not the pure wheel);
   3. `drvec` on the PATH;
   4. the ATSW install directory (Linux: /usr/lib/atsw/bin, /usr/local/lib/atsw/bin;
      macOS: /Applications/ATSW.app/Contents/Resources/bin and the same under
@@ -68,7 +69,16 @@ def _bundled():
     try:
         from importlib.resources import files
         p = files("drvec").joinpath("_bin").joinpath(_EXE)
-        return str(p) if p.is_file() else None
+        if not p.is_file():
+            return None
+        p = str(p)
+        if sys.platform != "win32" and not os.access(p, os.X_OK):
+            # an installer that dropped the wheel's executable bit
+            try:
+                os.chmod(p, os.stat(p).st_mode | 0o111)
+            except OSError:
+                pass
+        return p
     except Exception:                                   # noqa: BLE001
         return None
 

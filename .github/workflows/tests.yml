@@ -49,65 +49,47 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "${{ matrix.python }}"}
 
-      # Only to BUILD fue and drvarma from git; the released wheels bundle GSL.
-      - name: GSL headers, to build from git
-        if: env.FUE_REF != '' || env.DRVARMA_REF != ''
+      - uses: ./.github/actions/deps-from-git
+        with:
+          fue_ref: ${{ env.FUE_REF }}
+          drvarma_ref: ${{ env.DRVARMA_REF }}
+
+      # drvec C, the oracle, built from the vendored sources (csrc/, checked
+      # by tests/test_vendored.py against atsw-gui ae95446) into the package,
+      # drvec/_bin, as the wheels carry it (PLAN-vec B5). REQUIRED on Linux
+      # and macOS, with the system's GSL (static when its archives are
+      # there); tests/test_c_engine.py and tests/test_bundled.py then run on
+      # it -- on ubuntu-latest, the oracle's platform, the C path equals the
+      # Python path and the oracle's files byte for byte. Not on Windows,
+      # whose binary needs MinGW-w64 and MSYS2's GSL: the Windows wheel's
+      # smoke test in publish.yml runs the same tests on it.
+      - name: GSL for drvec C
         run: |
           case "${{ runner.os }}" in
-            Linux)   sudo apt-get update -q && sudo apt-get install -y -q libgsl-dev ;;
-            macOS)   brew install gsl ;;
-            Windows) vcpkg install gsl:x64-windows-static-md ;;
+            Linux) sudo apt-get update -q && sudo apt-get install -y -q libgsl-dev ;;
+            macOS) brew list gsl >/dev/null 2>&1 || brew install gsl ;;
           esac
-      - name: fue and drvarma from git
-        if: env.FUE_REF != '' || env.DRVARMA_REF != ''
+      - name: Install, with drvec C
         run: |
-          python -m pip install --upgrade pip
-          if [ "${{ runner.os }}" = Windows ]; then
-            # where both build scripts look first (their cibuildwheel tables set it)
-            export GSL_ROOT="$VCPKG_INSTALLATION_ROOT/installed/x64-windows-static-md"
-          fi
-          # -v: both engines are OPTIONAL extensions, and without it pip hides
-          # why one did not compile.
-          if [ -n "$FUE_REF" ]; then
-            python -m pip install -v "fue @ git+https://github.com/davidesg/fue-python@${FUE_REF}"
-          fi
-          # DRVARMA_REQUIRE_ENGINE: the engine is not optional for this build,
-          # so a failure to compile it stops here instead of a warning
-          # (drvarma BUG-0024, a Windows path over 260 characters under pip's
-          # temp clone, was such a silence; fixed on gsl-gensymmv).
-          if [ -n "$DRVARMA_REF" ]; then
-            DRVARMA_REQUIRE_ENGINE=1 python -m pip install -v "drvarma @ git+https://github.com/davidesg/drvarma-python@${DRVARMA_REF}"
-          fi
-          python -c "import fue, drvarma; print('fue', fue.__version__, '| drvarma', drvarma.__version__)"
-
-      - name: Install
-        run: python -m pip install ".[test]"
-
-      # The C engine (drvec.c_engine): drvec C 0.13 built from atsw-gui at the
-      # oracle's commit, as tests/data/oracle/SOURCE builds it (engines/drvec
-      # with lib/optim, lib/diagmv and lib/fuedet, against the system GSL), on
-      # the oracle's platform only. tests/test_c_engine.py then checks the C
-      # path against the Python path byte for byte; elsewhere it skips.
-      - name: drvec C 0.13, from atsw-gui ae95446
-        if: matrix.os == 'ubuntu-latest'
+          if [ "${{ runner.os }}" = Windows ]; then export DRVEC_NO_C=1; else export DRVEC_REQUIRE_C=1; fi
+          python -m pip install -v ".[test]" > "$RUNNER_TEMP/pip.log" 2>&1 || { tail -100 "$RUNNER_TEMP/pip.log"; exit 1; }
+          grep -E "build_drvec|drvec C|DRVEC_NO_C" "$RUNNER_TEMP/pip.log" || true
+      - name: The bundled binary
+        if: runner.os != 'Windows'
+        working-directory: ${{ runner.temp }}
         run: |
-          sudo apt-get update -q && sudo apt-get install -y -q libgsl-dev
-          A="$RUNNER_TEMP/atsw-gui"
-          git init -q "$A"
-          cd "$A"
-          git remote add origin https://github.com/davidesg/atsw-gui
-          git sparse-checkout set --no-cone engines/drvec lib
-          git fetch -q --depth 1 --filter=blob:none origin ae95446e7378f3f4b40d58b0c56b58f015f25e3d
-          git checkout -q FETCH_HEAD
-          make -C engines/drvec
-          "$A/engines/drvec/bin/drvec" --version
-          echo "DRVEC_TEST_BIN=$A/engines/drvec/bin/drvec" >> "$GITHUB_ENV"
+          B=$(python -c "from drvec import c_engine; print(c_engine._bundled())")
+          test -x "$B"
+          "$B" --version
+          echo "DRVEC_TEST_BIN=$B" >> "$GITHUB_ENV"
+          echo "DRVEC_REQUIRE_C=1" >> "$GITHUB_ENV"
       - name: The engines are the compiled ones
         run: |
           python -c "import fue._engine as E; b = E.engine_backend(); print('fue engine:', b, E.engine_load_error() or '')"
           python -c "import drvarma._engine as E; b = E.engine_backend(); print('drvarma engine:', b); assert b == 'c', E.engine_load_error()"
       # GSL's eigensolvers come from drvarma's engine (>= 0.3.0) on every
-      # platform: no system libgsl is installed for them, and none is looked for.
+      # platform: the port never looks for a system libgsl (the one installed
+      # above is drvec C's).
       - name: Johansen's seed is GSL's
         run: python -c "from drvec._gsl import backend; b = backend(); print('drvec eigensolver:', b); assert b == 'gsl'"
       - name: Tests, against the installed package
