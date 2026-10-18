@@ -1,0 +1,4 @@
+# The vendored C (csrc/) is atsw-gui's byte for byte, and tests/test_vendored.py
+# checks its sha256: no end-of-line conversion on any checkout (Windows'
+# core.autocrlf turned LF into CRLF and every hash failed).
+csrc/** -text
