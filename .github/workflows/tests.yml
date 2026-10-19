@@ -13,7 +13,7 @@ name: Tests
 # their repositories, with GSL from each platform's package manager (as their
 # own wheel builds get it: apt, Homebrew, vcpkg), instead of installing them
 # from PyPI. fue's ref must carry 0.1.18 (its master does); drvarma's must
-# carry 0.3.0 (the branch gsl-gensymmv, once pushed). drvec's own ref is the
+# carry 0.3.0 (its master does, since cea5548). drvec's own ref is the
 # one the run is launched on.
 on:
   push:
@@ -28,7 +28,7 @@ on:
       drvarma_ref:
         description: "drvarma from git (davidesg/drvarma-python) at this ref; empty = PyPI"
         required: false
-        default: "gsl-gensymmv"
+        default: "master"
 
 jobs:
   test:

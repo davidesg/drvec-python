@@ -64,7 +64,7 @@ on:
       drvarma_ref:
         description: "smoke tests: drvarma from git (davidesg/drvarma-python) at this ref; empty = PyPI"
         required: false
-        default: "gsl-gensymmv"
+        default: "master"
 
 jobs:
   # ── Platform wheels: drvec C inside ───────────────────────────────────────
