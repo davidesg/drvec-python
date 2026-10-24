@@ -189,6 +189,16 @@ article's inputs (private: nothing of them in this repo).
       out of the port's scope (the .pre route only).
 - [ ] Run the suite once off Linux x86_64 and measure the milestone-3 tiers
       (TOL_FDSE_REL above all, and the 1e-3 relative of the forecasts).
+- [x] **After the release: name the residual columns in the .out** (done 2026-10-24:
+      BUG-62, atsw-gui e9304c6 and branch bug62-residual-labels 95b6c6c; found in the
+      sima 0.2.0 shakedown, 2026-10-22, Martín Manjón and Treadway's (R0T, R0)).
+      The residual diagnostics read Ybar's innovations, [nabla Y2 ; W] = (R0T,
+      ec1), but "residual sd" and the "Residual cross-correlation matrices" print
+      no names, so they read as (nabla R0T, nabla R0): sd 8.82 and r(0) = 0.024
+      look inconsistent with Sigma's 0.88 correlation, and are right for (R0T,
+      ec1). Not a defect in the numbers. A presentation change in BOTH the C
+      (atsw-gui engines/drvec, residual diagnostics) and report.py's
+      `residual_diagnostics`, together, since the .out is byte-identical.
 
 ## C defects found in milestone 3 (not patched; for the lead)
 
