@@ -46,7 +46,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 
-C_VERSION = "0.13"          # the oracle the port mirrors (atsw-gui ae95446; csrc/ is 7ec4bf7, + BUG-61)
+C_VERSION = "0.13"          # the oracle the port mirrors (atsw-gui ae95446; csrc/ is abe6602: + BUG-61, 62, 63, + -gzero)
 _EXE = "drvec.exe" if sys.platform == "win32" else "drvec"
 
 
@@ -211,6 +211,7 @@ def rank_argv(files, p, q, case=2, ma="free", bootstrap=0, nodrift=None, multist
 
 def fit_argv(files, p, q, r, folder, case=2, ma="free", diag_ar=False, diag_cov=False,
              fixb2row=None, nodrift=None, xsys=None, alpha=None, weakex=None, fixb2=None,
+             gzero=None,
              multistart=0, irfboot=0, base="drvecjob"):
     """drvec.fit(...) for -irfboot -> the C's arguments. Only what moves the
     fitted model (and so the samples) is passed: -fdhess and -f do not, and
@@ -225,6 +226,8 @@ def fit_argv(files, p, q, r, folder, case=2, ma="free", diag_ar=False, diag_cov=
         argv += ["-fixb2row", str(int(i)), _num(v)]
     for i in (xsys or ()):
         argv += ["-xsys", str(int(i))]
+    for i, j in (gzero or ()):
+        argv += ["-gzero", str(int(i)), str(int(j))]
     if weakex:
         argv += ["-weakex", str(int(weakex))]
     elif alpha is not None:

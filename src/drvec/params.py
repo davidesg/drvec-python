@@ -46,6 +46,8 @@ class Spec:
     xlink: tuple = ()         # -xlink: xlink.Link's (the inputs live in Data.xl)
     xsys: tuple = ()          # -xsys: the input series (0-based, .inp order), embedded
                               # as strongly exogenous: alpha_X = 0, Gamma_k[X][j] = 0
+    gzero: tuple = ()         # -gzero: ((i, j), ...) 0-based, .inp order: Gamma_k[i][j] = 0
+                              # for every k (no feedback in the short run)
     alpha: tuple = ()         # -alpha FILE / -weakex i: A (M rows, .inp order, sa columns)
                               # of alpha = A psi; () = alpha free
     weakex: int = 0           # -weakex i (1-based): A is the identity without column i
@@ -109,11 +111,18 @@ class Spec:
         """xs_is_int (drvec.c:846): internal row a is an -xsys input."""
         return bool(self.xsys) and RowOrder(self.M, self.r).lam2inp(a) in self.xsys
 
+    def gz_held(self, a, b):
+        """gz_held_int (drvec.c): internal entry (a, b) is held by -gzero."""
+        if not self.gzero:
+            return False
+        ro = RowOrder(self.M, self.r)
+        return (ro.lam2inp(a), ro.lam2inp(b)) in self.gzero
+
     def f_free(self, i, j):
-        """Entry (i, j), internal order, of each F_k is a parameter (drvec.c:853)."""
+        """Entry (i, j), internal order, of each F_k is a parameter (drvec.c's f_free)."""
         if self.diag_ar:
             return i == j
-        return i == j or not self.is_input(i)
+        return i == j or (not self.is_input(i) and not self.gz_held(i, j))
 
     @property
     def alpha_sa(self):

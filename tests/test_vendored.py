@@ -36,9 +36,9 @@ MAN = json.load(open(MANIFEST))
 
 def test_the_manifest_records_the_oracle_commit():
     assert len(MAN["commit"]) == 40
-    # drvec C 0.13 with BUG-61 and BUG-62 fixed: atsw-gui e9304c6
-    # (tests/data/oracle/SOURCE); it writes 7ec4bf7's bytes plus BUG-62's line
-    assert MAN["commit"].startswith("e9304c6")
+    # drvec C 0.13 with BUG-61, BUG-62 and BUG-63 fixed and -gzero: atsw-gui
+    # abe6602 (main after PRs #84-#86; tests/data/oracle/SOURCE)
+    assert MAN["commit"].startswith("abe6602")
 
 
 @pytest.mark.parametrize("path", sorted(MAN["files"]))

@@ -337,7 +337,7 @@ PLAN-vec (sima-python, branch estudio-vec) phases A1-A5 and B.
   improves. STUDY-vec's "3-4x on this machine's 4 cores" assumed 4 real
   cores. The C stays 8-12x faster than one Python core, so `engine="auto"`
   takes it when present (PLAN-vec decision E2).
-- [ ] The C engine reports progress as the C's stdio buffer flushes the .boot
+- [x] (done 2026-10-24: atsw-gui BUG-63, PR #86; csrc/ from abe6602) The C engine reports progress as the C's stdio buffer flushes the .boot
       (about every 4 KB, ~130 replications); -irfboot through the C reports
       only at the end. A `setvbuf` line-buffered .boot in the C would give
       per-replication progress: a C change, for atsw-gui.

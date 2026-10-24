@@ -376,7 +376,7 @@ def fit_r0_ladder(spec, data, log=None):
     below. Cached per data set, as the C's lad_* cache (keyed on the data)."""
     key = (spec.p, spec.q, spec.case, spec.diag_ar, spec.ma, spec.diag_cov,
            tuple(spec.mu_free(i) for i in range(spec.M)) if spec.case == 3 else None,
-           spec.xsys)
+           spec.xsys, spec.gzero)
     if key in data.ladder_cache:
         c = data.ladder_cache[key]
         return Ladder(True, c.F, c.Th, c.S, c.ll, c.rungs, c.gate, cached=True)

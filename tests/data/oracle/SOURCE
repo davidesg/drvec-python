@@ -165,3 +165,24 @@ deterministic variables or a rational one. Unchanged: dstep (one step, no
 delta), xarma, xarma1, xar0 (no deterministic variable), and e1sfc.out and
 e1sfc.forecast (several variables, but the rounding does not reach what they
 print; its .recursive moved). Every one of the 83 files is now byte-identical to the port.
+
+-gzero (2026-10-24): drvec C 0.13 with the option -gzero i j (Gamma_k[i][j]
+held at 0 for every k), atsw-gui commit 8626a2d (branch drvec-gamma-zero, the
+commit csrc/ is vendored from since), built in place with
+its Makefile (gcc 13.3, Ubuntu's GSL 2.7.1, libgsl.so.27), bin/drvec sha256
+431a8fce5c75e4ca3e308c59c7200e45ad9110783c2b5dc521f18d9a90ef9e7a, run in a
+directory holding the two fixtures:
+  gzero    mmpre.muskrat.pre mmpre.mink.pre 3 0 1 -case 2 -gzero 2 1
+  gzeroa   mmpre.muskrat.pre mmpre.mink.pre 3 0 1 -case 2 -gzero 1 2 -weakex 1
+Golden hashes: gzero, gzeroa. No other file of this oracle was regenerated:
+the option touches no fit that does not ask for it (the 34 golden hashes
+before it do not move).
+
+main after PRs #84-#86 (2026-10-24): atsw-gui abe6602, drvec C 0.13 with
+BUG-61, BUG-62 and BUG-63 fixed and -gzero, the commit csrc/ is vendored from
+since. gzero.out and gzeroa.out regenerated with bin/drvec built in place from
+that tree (gcc 13.3, Ubuntu's GSL 2.7.1), sha256
+30f72355bdf7246dc4b580f1b0b91bf4358d17a1998d8fb25e0d3fa19d15f56c, the same
+command lines as above: each gains BUG-62's line ("the columns: D.muskrat
+ec1"), and nothing else moves. BUG-63 flushes the .boot as it is written and
+changes no byte of any file.

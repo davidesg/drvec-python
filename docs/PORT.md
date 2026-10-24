@@ -216,6 +216,10 @@ Milestone 3 adds the blocks of `-fdhess`, `-alpha`/`-weakex`, `-fixb2`, `-f`,
   columns) and the inputs' rows of Gamma held at zero through `Spec.f_free`; psi
   seeded by projecting the conditional regression; the free VEC fitted with its
   ladder for the LR. q > 0 refused, as the C does.
+* `-gzero i j` (`Spec.gzero`, pairs in the .inp's order, 0-based): Gamma_k[i][j]
+  held at zero for every k through the same `Spec.f_free`; the ladder is keyed on
+  the mask, as on -xsys's; with -alpha/-weakex the free VEC (no mask, alpha free)
+  is fitted with its ladder for the joint LR and the alpha-only est() is not run.
 * `-xpre/-xlink` (`xlink.py`): see its docstring. The VEC without the inputs is
   fitted first and its optimum with omega = 0 starts the search (the bridge).
 * `-irfboot N` (`irfboot.py`): the rank bootstrap's generator from its seed, each

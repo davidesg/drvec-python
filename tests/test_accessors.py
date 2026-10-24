@@ -54,7 +54,7 @@ FITS.update({
 FORECASTS = set(test_forecast.CASES) | {k for k, v in test_m5.FITS.items()
                                         if v[2].get("forecast")}
 RESTRICTED = {"fixb2row", "xsys", "weakex1", "weakex2", "e1alpha", "wxfix", "wxrow",
-              "dxsys", "xarma", "xarma1", "xar0", "xdet", "xmon", "xlink"}
+              "dxsys", "xarma", "xarma1", "xar0", "xdet", "xmon", "xlink", "gzero", "gzeroa"}
 
 
 @pytest.mark.parametrize("label", sorted(FITS))
