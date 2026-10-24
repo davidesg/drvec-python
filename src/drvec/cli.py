@@ -538,8 +538,11 @@ def _execute(o, out, err):
     _write(base + ".out", res.out_text(base))
     out.write("  logL = %.10f   npar = %d   %s\n" % (res.loglik, res.npar,
                                                      res.search.best.label))
-    if res.irfboot is not None:
-        _write(base + ".irfboot", res.irfboot_text(base))
+    ib = res.irfboot_text(base) if res.irfboot is not None else None
+    if ib is not None:
+        # too few replications for bands: the C writes no .irfboot, and its
+        # .out says so (bugs/py-cli-irfboot-few)
+        _write(base + ".irfboot", ib)
         out.write(f"Bands written to {base}.irfboot\n")
     if res.forecast_h:
         _write(base + ".forecast", res.forecast_text(base))

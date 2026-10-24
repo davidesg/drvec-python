@@ -113,3 +113,17 @@ def test_a_refused_combination_exits_2(scratch):
     assert rc == 2 and "combined with -fixb2" in err
     rc, _out, err = _err(MM + ["2", "0", "1", "-case", "2", "-weakex", "3"])
     assert rc == 2 and "-weakex 3 is outside 1..2" in err
+
+
+def test_too_few_irfboot_replications_end_as_the_c(scratch, monkeypatch):
+    """bugs/py-cli-irfboot-few: -irfboot 10 gives too few replications for
+    bands. The C says so in the .out, writes no .irfboot and ends with 0; the
+    CLI died writing None and skipped the .forecast after it."""
+    monkeypatch.setenv("DRVEC_ENGINE", "python")
+    p = _cli(MM + ["3", "0", "1", "-case", "2", "-irfboot", "10", "-f", "4", "-name", "few"],
+             scratch)
+    assert p.returncode == 0, p.stderr
+    assert "Too few replications for bands (10)." in (scratch / "few.out").read_text()
+    assert not (scratch / "few.irfboot").exists()
+    assert (scratch / "few.forecast").exists()
+    assert "Done." in p.stdout and "Bands written" not in p.stdout
