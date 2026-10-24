@@ -26,6 +26,19 @@ there (bugs/drvec-c-rng-long32). Built the same way (gcc 13.3, `git archive
 in the same way, its 83 files are byte-identical to ae95446's (cmp, no
 filter). Nothing below was regenerated.
 
+The same oracle with BUG-62 fixed (2026-10-24): atsw-gui commit e9304c6
+(branch drvec-bug62-residual-labels; still 0.13), the commit csrc/ is
+vendored from. With r >= 1 the residual block of a fit report gains one line
+before "residual sd", naming its columns (`the columns: D.<series> ... ec<j>`:
+the last r are the innovations of beta'Y, not of the Y1 series;
+bugs/drvec-c-residual-labels). Every command below was run again with that
+binary (engines/drvec/bin/drvec of the branch, gcc 13.3, GSL 2.7.1): 44 .out
+files gain that line and nothing else (each, without it, is byte-identical to
+the stored one after golden.sh's filter), the other 21 .out and every .boot,
+.forecast, .recursive and .irfboot are unchanged but for the banner of the
+files that still name DRVEC 0.12. The 44 were updated by inserting the line
+into the stored file, so their banners did not move.
+
 Milestones 1 to 4 were cut with drvec-v0.12 (4a89c00), bin/drvec sha256
 9cf9d8ea01c3fd373cf781429dea7894465d7fbecd178980f421b2689aea5d76
 (~/.local/share/atsw/drvec-ref/bin/drvec); rerun with 0.13 on 2026-10-17,

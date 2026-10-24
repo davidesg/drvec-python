@@ -411,6 +411,7 @@ Multivariate Jarque-Bera Test (normality; Lutkepohl, symmetric square root of Si
   Cannot reject H0: residuals appear normal.
 =============================================================
 
+  the columns: D.muskrat ec1  (ec = the innovation of beta'Y, not of the Y1 series)
   residual sd:   0.237031   0.304952
   band = 2/sqrt(n) = 0.2561;  * marks |r| > band
 

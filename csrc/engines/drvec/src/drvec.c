@@ -1768,6 +1768,21 @@ static void residual_diagnostics(struct Tvarma *v)
      *  the shared code, not by a second title of ours.                       */
     multivariate_diagnostics(v->a, n, M, data_freq, diag_k(), outputv);
     fprintf(outputv, "\n");
+    /*  BUG-62.  With r >= 1 the residuals are those of (nabla Y2, W): the
+     *  last r columns are the innovations of the equilibrium errors
+     *  W = Y1 + B2'Y2, not of the Y1 series.  The block printed them with no
+     *  names, and they were read as the Y1 series' (a residual sd of 4.4 on a
+     *  series whose innovation sd is 21.8).  The columns are named here, as
+     *  diagnose_ybar names them for the per-series diagnosis (BUG-19).        */
+    if (global_r > 0 && series_names && M == nser) {
+        int s = nser - global_r;
+        fprintf(outputv, "  the columns:");
+        for (i = 1; i <= M; i++) {
+            if (i <= s) fprintf(outputv, " D.%s", series_names[i]);
+            else        fprintf(outputv, " ec%d", i - s);
+        }
+        fprintf(outputv, "  (ec = the innovation of beta'Y, not of the Y1 series)\n");
+    }
     fprintf(outputv, "  residual sd:");
     for (i = 1; i <= M; i++) fprintf(outputv, " %10.6f", sqrt(C[0][i][i]));
     fprintf(outputv, "\n  band = 2/sqrt(n) = %.4f;  * marks |r| > band\n", band);

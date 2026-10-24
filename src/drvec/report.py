@@ -1547,7 +1547,16 @@ def residual_diagnostics(res, fv):
                 Ck[i][j] = sm / n
         C.append(Ck)
     o = multivariate_diagnostics(a, n, M, res.data.freq, diag_k(spec))
-    o += "\n  residual sd:" + "".join(" %10.6f" % math.sqrt(C[0][i][i]) for i in range(M))
+    o += "\n"
+    # BUG-62 (drvec.c residual_diagnostics): with r >= 1 the last r columns are
+    # the innovations of beta'Y, not of the Y1 series; the line names them.
+    names = res.data.names
+    if spec.r > 0 and len(names) == M:
+        s = M - spec.r
+        o += ("  the columns:" + "".join(" D.%s" % names[i] for i in range(s))
+              + "".join(" ec%d" % (j + 1) for j in range(spec.r))
+              + "  (ec = the innovation of beta'Y, not of the Y1 series)\n")
+    o += "  residual sd:" + "".join(" %10.6f" % math.sqrt(C[0][i][i]) for i in range(M))
     o += "\n  band = 2/sqrt(n) = %.4f;  * marks |r| > band\n" % band
     o += "\nResidual cross-correlation matrices, R(k)[i][j] = corr(a_i(t), a_j(t-k)):\n"
 

@@ -2,6 +2,13 @@
 
 ## 0.1.0 — unreleased
 
+- **The residual block names its columns** (atsw-gui BUG-62,
+  bugs/drvec-c-residual-labels). With r >= 1 the residuals drvec diagnoses
+  are those of (nabla Y2, W): the last r columns are the innovations of
+  beta'Y, not of the Y1 series, and the block printed them with no names. One
+  line before "residual sd" names them, in the port as in the C; `csrc/` is
+  vendored from atsw-gui e9304c6, and the 44 oracle `.out` files with r >= 1
+  carry the line (tests/data/oracle/SOURCE).
 - `drvec.to_levels_varma(fit)` (PLAN-vec A4): the fitted VEC as a VARMA in
   levels, forecast by drvarma's `forecast_given` (drvarma >= 0.3.0); it
   agrees with drvec's own `-f` to 1e-12 relative on every golden `.forecast`
