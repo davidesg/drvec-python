@@ -2,6 +2,12 @@
 
 ## 0.1.0 — unreleased
 
+- **The CLI with -irfboot and too few replications for bands** ends as the C
+  does (`bugs/py-cli-irfboot-few`): exit 0, no `.irfboot` (the `.out` says
+  "Too few replications for bands"), and the `.forecast`/`.recursive` after
+  it written. It died writing None, left an empty `.irfboot` and skipped
+  them. The library was not affected.
+
 - `drvec.to_levels_varma(fit)` (PLAN-vec A4): the fitted VEC as a VARMA in
   levels, forecast by drvarma's `forecast_given` (drvarma >= 0.3.0); it
   agrees with drvec's own `-f` to 1e-12 relative on every golden `.forecast`
