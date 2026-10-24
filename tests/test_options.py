@@ -20,6 +20,8 @@ CASES = {
     "casepre": (MU, (2, 0, 1), dict(case="pre")),
     "trend": (MU, (2, 0, 1), dict(case="pre", trend=True)),
     "xsys": (MM, (3, 0, 1), dict(case=2, xsys=[1])),
+    "gzero": (MM, (3, 0, 1), dict(case=2, gzero=[(2, 1)])),
+    "gzeroa": (MM, (3, 0, 1), dict(case=2, gzero=[(1, 2)], weakex=1)),
 }
 
 _FITS = {}
@@ -125,6 +127,44 @@ def test_xsys_refusals():
         drvec.fit(MM, 2, 0, 1, case=2, xsys=[2])
     with pytest.raises(ValueError, match="every series an input"):
         drvec.fit(MM, 2, 0, 0, case=2, xsys=[1, 2])
+
+
+def test_gzero():
+    """-gzero: the Y1 equation's entry held (mink <- muskrat, which -xsys cannot
+    name); the LR against the free VEC and its df, (p - 1) x 1 entry."""
+    res = _fit("gzero")
+    out = out_text("gzero.out")
+    assert abs(res.lr_free - number_after(out, "logL VEC free          :")) < 1e-6
+    assert res.gz_df == 2
+    from drvec.report import restriction_lr
+    lr = restriction_lr(res)
+    assert lr["kind"] == "gzero" and lr["df"] == 2
+    assert not any(p.label.startswith("D.mink <- D.muskrat") for p in res.params)
+
+
+def test_gzero_with_weakex_is_xsys():
+    """In two series -gzero 1 2 with -weakex 1 IS -xsys 1: alpha_1 = 0 and
+    Gamma_k[1][2] = 0, the same model, optimum, free model and df."""
+    a, b = _fit("gzeroa"), _fit("xsys")
+    assert abs(a.loglik - b.loglik) < 1e-6
+    assert abs(a.lr_free - b.lr_free) < 1e-6
+    assert a.gz_df == b.xs_df == 3
+    from drvec.report import restriction_lr
+    assert restriction_lr(a)["kind"] == "gzero+alpha"
+
+
+def test_gzero_refusals():
+    """The C's words: the diagonal, outside the system, p = 1, q > 0, -xsys."""
+    with pytest.raises(ValueError, match="the diagonal of Gamma"):
+        drvec.fit(MM, 3, 0, 1, case=2, gzero=[(1, 1)])
+    with pytest.raises(ValueError, match="the system has 2 series"):
+        drvec.fit(MM, 3, 0, 1, case=2, gzero=[(3, 1)])
+    for kw in (dict(p=1), dict(q=1), dict(xsys=[1])):
+        args = dict(p=3, q=0)
+        args.update(kw)
+        p, q = args.pop("p"), args.pop("q")
+        with pytest.raises(ValueError, match="-gzero holds entries of Gamma"):
+            drvec.fit(MM, p, q, 1, case=2, gzero=[(2, 1)], **args)
 
 
 def test_xlink():

@@ -102,7 +102,8 @@ class Forecasts:
 @dataclass
 class RestrictionLR:
     """The LR the .out prints for a restriction: kind is "alpha" (-alpha,
-    -weakex), "fixb2row", "fixb2row+alpha", "xsys" or "xlink". For -xlink the
+    -weakex), "fixb2row", "fixb2row+alpha", "xsys", "gzero", "gzero+alpha" or
+    "xlink". For -xlink the
     test is of the inputs, so ll_free is the fit WITH them and ll_restricted
     the VEC without them; ll_bridge is the logL at omega = 0."""
     kind: str

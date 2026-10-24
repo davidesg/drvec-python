@@ -22,7 +22,7 @@ drvec.fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
 
 One VARMA-VEC of rank `r`, with the C's ladder start and search. The options
 are the C's (`-case`, `-fixb2row i v`, `-nodrift i`, `-trend`, `-irfboot N`,
-`-xsys i`, `-xpre/-xlink`, `-f H`, `-fdhess`, `-alpha FILE`, `-weakex i`,
+`-xsys i`, `-gzero i j` (`gzero=[(i, j), ...]`), `-xpre/-xlink`, `-f H`, `-fdhess`, `-alpha FILE`, `-weakex i`,
 `-fixb2 [v]`, `-estwin E`, `-multistart n`); the combinations the C refuses
 are refused with its words. `seed`, `workers`, `engine`, `folder` and
 `progress` act on the `-irfboot` bootstrap only (below).

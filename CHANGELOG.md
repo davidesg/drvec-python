@@ -2,6 +2,18 @@
 
 ## 0.1.0 — unreleased
 
+- **`-gzero i j`, entries of Gamma(k) held at zero** (`drvec.fit(...,
+  gzero=[(i, j), ...])`, the CLI's `-gzero i j`): series j out of equation i's
+  short run, every lag; with `alpha`/`weakex` the conditional model's joint
+  restriction, its LR against the free VEC in the `.out` and in
+  `report.restriction_lr` (kind "gzero" or "gzero+alpha", `FitResult.gz_df`).
+  The port of drvec C's new option (atsw-gui 8626a2d, branch drvec-gamma-zero;
+  csrc/ re-vendored from it, only drvec.c moves); the
+  oracle's `gzero.out` and `gzeroa.out` are byte-identical, and in two series
+  `-gzero 1 2 -weakex 1` is `-xsys 1` (tests/test_options.py). For sima's
+  `test_restriction(gamma=...)`: the shakedown of sima 0.2.0, Martín Manjón
+  and Treadway (1997), the conditional model R0T | (R30, R3).
+
 - `drvec.to_levels_varma(fit)` (PLAN-vec A4): the fitted VEC as a VARMA in
   levels, forecast by drvarma's `forecast_given` (drvarma >= 0.3.0); it
   agrees with drvec's own `-f` to 1e-12 relative on every golden `.forecast`

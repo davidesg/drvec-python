@@ -851,11 +851,39 @@ static int xs_is_int(int a)               /* internal row a is an input     */
     return i >= 1 && i <= XS_MAX && xs_inp[i];
 }
 
+/*  -gzero i j -- NO FEEDBACK IN THE SHORT RUN, entry by entry.
+ *
+ *  Gamma_k[i][j] = 0 for every k = 1..p-1: series j (position in the input)
+ *  does not enter the short run of equation i.  Lambda and F are the VEC's
+ *  own parameters (vec_shootx builds Ybar's VARMA from them with Cbar and
+ *  Cinv), so a zero in F IS a zero in Gamma, whatever the r/s partition --
+ *  unlike -xsys, it may name a series of the Y1 block.  With -weakex/-alpha
+ *  on top it is the conditional model's restriction (Johansen 1992): the
+ *  inputs weakly exogenous AND not fed back by the outputs in the short run,
+ *  which is what licenses reading the system as a transfer network.  The
+ *  free VEC (no mask, no alpha = A psi) is fitted too and the LR reported,
+ *  with df = (M - sa) r + (p - 1) (entries held).  Same walk as -xsys's:
+ *  f_free() below, so no walk of x[] can disagree.  The diagonal is never
+ *  held (the ladder's rung is the univariate model).  q = 0, as -xsys.     */
+#define GZ_MAX 16
+static int gz_on = 0;
+static int gz[GZ_MAX + 1][GZ_MAX + 1];    /* 1 = Gamma_k[i][j] held at 0    */
+static int gz_n = 0;                      /* entries held, per lag          */
+static int gz_df = 0;                     /* parameters the restriction removes */
+
+static int gz_held_int(int a, int b)      /* internal (a, b) is held        */
+{
+    int i, j;
+    if (!gz_on) return 0;
+    i = lam2inp(a); j = lam2inp(b);
+    return i >= 1 && i <= GZ_MAX && j >= 1 && j <= GZ_MAX && gz[i][j];
+}
+
 /*  Entry (i, j) of each F_k (internal order) is a parameter.              */
 static int f_free(int i, int j)
 {
     if (global_diag_ar) return i == j;
-    return i == j || !xs_is_int(i);
+    return i == j || (!xs_is_int(i) && !gz_held_int(i, j));
 }
 
 static int f_nfree(void)
@@ -5323,6 +5351,12 @@ static double ladder_key(void)
         if (global_case == 3 && !y2mu_free(i)) k += 1e12 * (double) (1 << (i - 1));
     for (i = 1; i <= nser && i <= XS_MAX; i++)       /* the -xsys mask */
         if (xs_on && xs_inp[i]) k += 1e9 * (double) (1 << (i - 1));
+    if (gz_on) {                                     /* the -gzero mask */
+        int j;
+        for (i = 1; i <= nser && i <= GZ_MAX; i++)
+            for (j = 1; j <= nser && j <= GZ_MAX; j++)
+                if (gz[i][j]) k += 3.7e8 * (double) ((i - 1) * GZ_MAX + j);
+    }
     for (t = 1; t <= nobs_raw; t++)
         for (i = 1; i <= nser; i++) k += rawmat[t][i] * (1e-7 * (t % 97 + i));
     return k;
@@ -7929,6 +7963,32 @@ static void report_fit(real *x, real *dev, real **cov, int npar,
                    (lr < -1.0e-6) ? "   <- NEGATIVE: the restricted beats the free one,"
                                     " so one of the two did not converge" : "");
         }
+        else if (gz_on && lr_free_ok) {
+            int df = gz_df, i_, j_;
+            int dfa = global_alpha ? (nser - alpha_sa) * global_r : 0;
+            real lr = 2.0 * (lr_free - vp->logelf);
+            real pv = (df > 0 && lr > 0.0) ? gsl_cdf_chisq_Q(lr, df) : 1.0;
+            fprintf(outputv, "\n--- Gamma(k) held by -gzero%s, against the free VEC ---\n",
+                    global_alpha ? " and alpha = A*psi" : "");
+            for (i_ = 1; i_ <= nser; i_++)
+                for (j_ = 1; j_ <= nser; j_++)
+                    if (gz[i_][j_])
+                        fprintf(outputv, "D.%s <- D.%s held at 0 for k = 1..%d\n",
+                                sname(i_), sname(j_), global_p - 1);
+            fprintf(outputv, "logL VEC free          : %15.10f\n", lr_free);
+            fprintf(outputv, "logL restricted        : %15.10f\n", vp->logelf);
+            fprintf(outputv, "LR = 2(free - restr.)  : %15.10f\n", lr);
+            fprintf(outputv, "degrees of freedom     : %d   (p-1)*(entries held) = %d\n",
+                    df, df - dfa);
+            if (dfa)
+                fprintf(outputv, "                             + (M - sa)*r = %d\n", dfa);
+            fprintf(outputv, "p-value (chi2)         : %15.10f\n", pv);
+            printf("  restricted         : logL = %15.10f\n", vp->logelf);
+            printf("  LR (Gamma%s) = %.6f, %d df, p = %.6f%s\n",
+                   global_alpha ? " and alpha" : "", lr, df, pv,
+                   (lr < -1.0e-6) ? "   <- NEGATIVE: the restricted beats the free one,"
+                                    " so one of the two did not converge" : "");
+        }
         else if (global_alpha && lr_free_ok) {
             int df = (nser - alpha_sa) * global_r;
             real lr = 2.0 * (lr_free - vp->logelf);
@@ -9908,6 +9968,7 @@ enum opt_arg {
     A_REAL,      /* real, obligatorio                                        */
     A_REAL_OPT,  /* OPTIONAL real: consumed if it parses whole (-fixb2)      */
     A_INT_REAL,  /* an integer >= 1 and a real, both mandatory (-fixb2row)   */
+    A_INT_INT,   /* two integers >= 1, both mandatory (-gzero)               */
     A_TOL_OPT    /* OPTIONAL real > 0, if it does not start with '-' (-rankadm) */
 };
 
@@ -9931,6 +9992,7 @@ static const struct opt_spec {
     { "-xpre",        A_STR,      "FILE" },
     { "-xlink",       A_STR,      "FILE" },
     { "-xsys",        A_INT_POS,  "i"    },
+    { "-gzero",       A_INT_INT,  "i j"  },
     { "-lrtest",      A_NONE,     NULL   },
     { "-bootstrap",   A_INT_POS,  "N"    },
     { "-irfboot",     A_INT_POS,  "N"    },
@@ -10057,6 +10119,12 @@ static void usage(FILE *o)
     fprintf(o, "                 is fitted too and the LR of strong exogeneity is\n");
     fprintf(o, "                 reported.  The transfer is read in the outputs'\n");
     fprintf(o, "                 rows: beta (gain), Gamma (lags), Q (omega_0).  q = 0\n\n");
+    fprintf(o, "  -gzero i j     Gamma_k[i][j] = 0 for every k: series j (position in\n");
+    fprintf(o, "                 the input) is not in the short run of equation i;\n");
+    fprintf(o, "                 repeatable, i != j, p >= 2.  With -weakex/-alpha it\n");
+    fprintf(o, "                 is the conditional model's restriction (weak\n");
+    fprintf(o, "                 exogeneity and no feedback).  The free VEC is fitted\n");
+    fprintf(o, "                 too and the LR reported.  A single fit, q = 0\n\n");
     fprintf(o, "  -irfboot N     bands for the level responses and the FEVD by\n");
     fprintf(o, "                 parametric bootstrap: N samples simulated from the\n");
     fprintf(o, "                 fit and REFITTED as the data were (same rank and\n");
@@ -10268,6 +10336,14 @@ static void validate_cli(int argc, char *argv[], int first)
             if (!arg_real(argv[i+1], &rv))
                 bad_cli("%s needs a number, got `%s'", o->name, argv[i+1]);
             i++;
+            break;
+        case A_INT_INT:
+            if (i + 2 >= argc) bad_cli("%s needs %s", o->name, o->val);
+            if (!arg_int(argv[i+1], &iv) || iv < 1 || iv > GZ_MAX)
+                bad_cli("%s needs an equation 1..%d, got `%s'", o->name, GZ_MAX, argv[i+1]);
+            if (!arg_int(argv[i+2], &iv) || iv < 1 || iv > GZ_MAX)
+                bad_cli("%s needs a regressor 1..%d, got `%s'", o->name, GZ_MAX, argv[i+2]);
+            i += 2;
             break;
         case A_INT_REAL:
             if (i + 2 >= argc) bad_cli("%s needs %s", o->name, o->val);
@@ -10547,6 +10623,19 @@ static int parse_cli(int argc, char *argv[])
             xs_inp[ix] = 1;
             xs_on = 1;
         }
+        else if (strcmp(argv[i], "-gzero") == 0 && i + 2 < argc) {
+            int ig = atoi(argv[i+1]), jg = atoi(argv[i+2]);   /* range: validate_cli */
+            i += 2;
+            if (ig == jg) {
+                fprintf(stderr, "ERROR: -gzero %d %d: the diagonal of Gamma is the "
+                                "series' own model\n       (the ladder's rung), and is "
+                                "never held.\n", ig, jg);
+                exit(2);
+            }
+            if (!gz[ig][jg]) gz_n++;
+            gz[ig][jg] = 1;
+            gz_on = 1;
+        }
         else if (strcmp(argv[i], "-fixb2row") == 0 && i + 2 < argc) {
             int ir = atoi(argv[i+1]);
             b2row_fix[ir] = 1;                   /* range checked by validate_cli */
@@ -10734,6 +10823,20 @@ static int parse_cli(int argc, char *argv[])
             "       alpha itself), -xlink, -warma, a moving average (q > 0, not\n"
             "       yet), or the modes -lrtest, -specs, -rungs, -matest, -artest\n"
             "       and -eval.\n");
+        exit(2);
+    }
+    /*  -gzero: one restricted fit against the free VEC, like -xsys; -alpha and
+     *  -weakex are welcome (the joint restriction), the other masks are not. */
+    if (gz_on && (global_warma || global_lrtest || global_specs || global_rungs
+                  || global_matest || global_artest || global_eval || xl_on
+                  || xs_on || b2row_on || global_fixb2 || global_diag_ar
+                  || global_q > 0 || global_p < 2)) {
+        fprintf(stderr,
+            "ERROR: -gzero holds entries of Gamma(k) for a single fit with q = 0\n"
+            "       and p >= 2 (at p = 1 there is no Gamma).  It combines with\n"
+            "       -alpha/-weakex, not with -xsys, -fixb2row, -fixb2, -xlink,\n"
+            "       -diagar, -warma, a moving average, or the modes -lrtest,\n"
+            "       -specs, -rungs, -matest, -artest and -eval.\n");
         exit(2);
     }
     if (b2row_on && (global_fixb2 || global_warma || global_lrtest
@@ -10962,6 +11065,21 @@ int main(int argc, char *argv[])
                 exit(2);
             }
     }
+    if (gz_on) {
+        int i_, j_;
+        for (i_ = 1; i_ <= GZ_MAX; i_++)
+            for (j_ = 1; j_ <= GZ_MAX; j_++)
+                if (gz[i_][j_] && (i_ > nser || j_ > nser)) {
+                    fprintf(stderr, "ERROR: -gzero %d %d: the system has %d series\n",
+                            i_, j_, nser);
+                    exit(2);
+                }
+        printf("Gamma(k) held at 0 for k = 1..%d (-gzero):\n", global_p - 1);
+        for (i_ = 1; i_ <= nser; i_++)
+            for (j_ = 1; j_ <= nser; j_++)
+                if (gz[i_][j_])
+                    printf("  D.%s <- D.%s\n", series_names[i_], series_names[j_]);
+    }
     if (xs_on) {
         int i_, c_;
         if (xs_nx >= nser) {
@@ -11118,7 +11236,8 @@ int main(int argc, char *argv[])
      *  than this does, and the MA class -- which is what actually moved on
      *  2026-08-20 -- gets named rather than deduced.                         */
     fprintf(outputv, "Structure        : F %s, Theta %s, Sigma %s\n",
-            global_diag_ar ? "diagonal" : "free",
+            global_diag_ar ? "diagonal"
+          : gz_on ? "with entries held at 0 (-gzero, below)" : "free",
             global_q == 0 ? "absent (q = 0)"
           : global_warma  ? "diagonal in the W block (-warma)"
           : mawarma_on()  ? "= [T11  T11*B2' ; 0  0] (-mawarma)"
@@ -11417,6 +11536,39 @@ int main(int argc, char *argv[])
             free_vector(xf, 1, npf);
         }
         xs_on = 1; global_alpha = sa_;
+    }
+    else if (gz_on) {
+        /*  -gzero (and -alpha/-weakex if given): the FREE VEC -- no mask on F,
+         *  alpha free -- with the same search, as -xsys's.                   */
+        int sa_ = global_alpha, npr = calc_nparametrs();
+        gz_on = 0; global_alpha = 0;
+        {
+            int npf = calc_nparametrs(), iff;
+            real *xf = vector(1, npf), *devf = vector(1, npf);
+            real **covf = matrix(1, npf, 1, npf);
+            real llf = 0.0, s2f = 0.0;
+            FILE *o_save = outputv, *nul = tmpfile();
+            int q_save = quiet_mode;
+            gz_df = npf - npr;
+            if (nul) outputv = nul;
+            quiet_mode = 1;
+            init_guess(xf, npf);
+            if (ladder_wanted() && global_r > 0) gate_profile_seed(xf, npf);
+            else if (ladder_wanted() && global_r == 0) ladder_seed_r0(xf, npf);
+            iff = fit_search(xf, npf, devf, covf, &llf, &s2f, 1, 0, NULL);
+            outputv = o_save; quiet_mode = q_save;
+            if (nul) fclose(nul);
+            lr_free_ok = (iff == 0);
+            lr_free    = llf;
+            gate_seed_ok = 0;            /* that profile was the free model's */
+            printf("  VEC free (no -gzero%s): logL = %15.10f%s\n",
+                   sa_ ? ", alpha free" : "", lr_free,
+                   lr_free_ok ? "" : "  (the estimation failed)");
+            free_matrix(covf, 1, npf, 1, npf);
+            free_vector(devf, 1, npf);
+            free_vector(xf, 1, npf);
+        }
+        gz_on = 1; global_alpha = sa_;
     }
     else if (global_alpha) {
         int save = global_alpha;

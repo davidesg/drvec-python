@@ -42,6 +42,7 @@ class FitResult:
     drift_how: str = None   # "pre" (-case pre) or "nodrift" when drifts are held
     lr_free: float = None   # -fixb2row, -xsys: logL of the free model
     xs_df: int = None       # -xsys: the parameters the embedding removes
+    gz_df: int = None       # -gzero: the parameters the restriction removes (alpha's too)
     xl_base_ll: float = None    # -xlink: logL of the VEC without the inputs
     xl_base_info: object = None  # its ladder and profile (written to the .out)
     xl_bridge_ll: float = None  # logL at that optimum with omega = 0
@@ -487,11 +488,18 @@ def _drift_mask(data, case, nodrift):
     return case, None, None
 
 
+MSG_GZERO = ("-gzero holds entries of Gamma(k) for a single fit with q = 0\n"
+             "       and p >= 2 (at p = 1 there is no Gamma).  It combines with\n"
+             "       -alpha/-weakex, not with -xsys, -fixb2row, -fixb2, -xlink,\n"
+             "       -diagar, -warma, a moving average, or the modes -lrtest,\n"
+             "       -specs, -rungs, -matest, -artest and -eval.")
+
+
 def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         fixb2row=None, nodrift=None, trend=False, irfboot=0, xsys=None,
         xpre=None, xlink=None, forecast=0, fdhess=False, alpha=None, weakex=None,
         fixb2=None, estwin=0, multistart=0, log=None, seed=None, workers=None,
-        engine=None, folder=None, progress=None):
+        engine=None, folder=None, progress=None, gzero=None):
     """Estimate the VARMA-VEC of rank r on the `.pre` files (the C's
     `drvec f1.pre ... p q r -case <case>`), with the C's ladder and search.
 
@@ -509,6 +517,10 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     section and FitResult.forecast_text). estwin: -estwin E, the fit on rows
     1..E and, with -f H, the rolling-origin evaluation (recursive_text).
     multistart: -multistart n, n - 1 jittered starts added to the search.
+    gzero: -gzero i j, pairs (i, j) (1-based, the input's order): Gamma_k[i][j]
+    = 0 for every k, series j out of equation i's short run; with alpha/weakex
+    the conditional model's joint restriction. The free VEC (no mask, alpha
+    free) is fitted too, for the LR.
 
     The -irfboot bootstrap: seed (None: the C's 987654321), workers (the
     process pool for the refits; None: DRVEC_WORKERS or the cores less one;
@@ -571,8 +583,20 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
             "       layout: it cannot be combined with -differenced, -xlink, -trend,\n"
             "       -warma, -estwin, -writeinp, -writeres or the modes -lrtest,\n"
             "       -specs, -rungs, -matest, -artest and -eval (not yet).")
+    if gzero and (xsys or xlink or fixb2row or diag_ar or q > 0 or p < 2
+                  or (fixb2 is not None and fixb2 is not False)):
+        raise ValueError(MSG_GZERO)
     case0 = case
     data = _data(pre_files)
+    gz = ()
+    if gzero:
+        for i, j in gzero:
+            if int(i) == int(j):
+                raise ValueError(f"-gzero {i} {j}: the diagonal of Gamma is the series' own "
+                                 "model\n       (the ladder's rung), and is never held.")
+            if not (1 <= int(i) <= data.M and 1 <= int(j) <= data.M):
+                raise ValueError(f"-gzero {i} {j}: the system has {data.M} series")
+        gz = tuple(sorted(set((int(i) - 1, int(j) - 1) for i, j in gzero)))
     if estwin:
         # P5.2: the fit on rows 1..E of nabla Y, the rest kept for the
         # rolling evaluation (drvec.c:740-747)
@@ -631,7 +655,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
             raise ValueError("alpha = A*psi means nothing with r = 0 (there is no "
                              "error-correction term)")
     spec = Spec(data.M, p, q, r, case, ma, diag_ar, diag_cov, drift, trend, hold, xsys=xs,
-                alpha=A, weakex=wx)
+                alpha=A, weakex=wx, gzero=gz)
     if fixb2 is not None and fixb2 is not False and r > 0:
         if fixb2 is True:
             # -fixb2 alone: B2 at the static-OLS estimate init_guess computes
@@ -658,7 +682,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         rdf = data.at(r)
         rf = fit_search(sf, rdf, init_guess(sf, rdf))
         lr_free = rf.ll if rf.ifault == 0 else None
-    elif spec.alpha:
+    elif spec.alpha and not gz:
         # H(r) for the LR of alpha = A psi: ONE est() from init_guess, no
         # search and no ladder, its banner written to the .out
         # (drvec.c:11415-11439)
@@ -694,6 +718,14 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
         rf, _ = fit_rank(sf, data)
         lr_free = rf.ll if rf.ifault == 0 else None
         xs_df = sf.npar() - spec.npar()
+    gz_df = None
+    if gz:
+        # -gzero (with -alpha/-weakex if given): the free VEC, no mask and alpha
+        # free, with the ladder start and the search, as -xsys's
+        sf = spec.but(gzero=(), alpha=(), weakex=0)
+        rf, _ = fit_rank(sf, data)
+        lr_free = rf.ll if rf.ifault == 0 else None
+        gz_df = sf.npar() - spec.npar()
     if not links:
         res, info = fit_rank(spec, data, log, njitter=multistart if multistart > 1 else 1)
     if res.ifault != 0:
@@ -719,6 +751,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
     out.alpha_free = alpha_free
     out.lr_free = lr_free
     out.xs_df = xs_df
+    out.gz_df = gz_df
     if links:
         out.xl_base_ll, out.xl_base_info = xl_base
         out.xl_bridge_ll = xl_bridge
@@ -739,7 +772,7 @@ def fit(pre_files, p, q, r, case=2, ma="free", diag_ar=False, diag_cov=False,
                 binary, note, files, spec, data, out.x, irfboot, K, folder, progress,
                 dict(p=p, q=q, r=r, case=case0, ma=ma, diag_ar=diag_ar, diag_cov=diag_cov, fixb2row=fixb2row,
                      nodrift=nodrift, xsys=xsys, alpha=alpha, weakex=weakex, fixb2=fixb2,
-                     multistart=multistart))
+                     multistart=multistart, gzero=gzero))
         else:
             from .irfboot import irf_bootstrap
             from .parallel import resolve_workers
