@@ -80,6 +80,11 @@ ILL = {"ddet211", "dstep"}
 # criterion 3, beats the oracle's `cold' (gradient), at the same point to
 # 1e-9 in logL, and the report adds the criterion-3 caveat line.
 TIED = {"xmon"}
+# not a tie: the oracle's best start (xdet's `cold', BUG-64) stops on criterion 3,
+# and off the oracle's platform the same start at the same point (logL to 1e-9,
+# the estimates to the printed digits) can stop on the gradient instead: on
+# Windows (CI run 40227711398) it does, and the report loses the caveat line.
+STOP3 = {"xdet"}
 _CAVEAT_3 = "  ! " + "the estimates are a stationary-ish point"
 _DONE = {}
 
@@ -237,6 +242,9 @@ def test_products(label):
         if label in TIED:
             best = _search_rows(theirs)
             assert len(set(best.values())) == 1          # the tie, in the oracle
+            mine, theirs = _no_caveat_3(mine), _no_caveat_3(theirs)
+        if label in STOP3:
+            assert _CAVEAT_3 in theirs                   # criterion 3, in the oracle
             mine, theirs = _no_caveat_3(mine), _no_caveat_3(theirs)
         if len(mine.splitlines()) != len(theirs.splitlines()):
             print(_diff(theirs, mine))       # in full: pytest truncates the message
