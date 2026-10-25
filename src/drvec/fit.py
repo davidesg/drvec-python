@@ -154,12 +154,16 @@ def est_run(spec, rd, x0):
 # --------------------------------------------------------------------------- #
 
 _SHRINK = (1.0, 0.8, 0.5, 0.3, 0.1, 0.0)
+# c of the BUG-64 Lambda: the relations it seeds are nearly I(1); 0.02 and 0.05
+# reach the same optimum, 0.2 and 0.5 lower ones (drvec.c, make_admissible)
+_LAMBDA_FALLBACK = 0.05
 
 
 def make_admissible(spec, rd, x):
     """drvec.c:4919. F and Theta shrunk towards zero, and Lambda halved twice if
-    that is not enough, until elf accepts the start. -> (x, step): step 0 when
-    accepted as given, -1 when nothing worked (x returned as given)."""
+    that is not enough, until elf accepts the start; then Lambda = c [I; 0]
+    (BUG-64). -> (x, step): step 0 when accepted as given, -1 when nothing
+    worked (x returned as given)."""
     nmean, nlam, nmid, _ntail = spec.blocks()
     lo, hi = nmean + nlam, nmean + nlam + nmid - spec.nsig()
     x0 = list(x)
@@ -174,6 +178,21 @@ def make_admissible(spec, rd, x):
             _f1, _f2, _a, ifa = elf(spec, rd, xt, XITOL, True)
             if ifa == 0:
                 return xt, ps * 6 + mi
+    # BUG-64 (drvec.c:5117): scaling cannot fix a Lambda that points the wrong
+    # way. The last resort is one admissible by construction: the Y1 rows c I,
+    # the Y2 rows zero, so B'Lambda = c I whatever B2 is. Not under -alpha.
+    if not spec.alpha and spec.r > 0:
+        r = spec.r
+        for mi in range(6):
+            xt = list(x0)
+            for i in range(lo, hi):
+                xt[i] = _SHRINK[mi] * x0[i]
+            for ii in range(spec.M):
+                for jj in range(r):
+                    xt[nmean + ii * r + jj] = _LAMBDA_FALLBACK if ii == jj else 0.0
+            _f1, _f2, _a, ifa = elf(spec, rd, xt, XITOL, True)
+            if ifa == 0:
+                return xt, 18 + mi
     return x0, -1
 
 

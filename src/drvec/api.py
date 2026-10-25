@@ -879,7 +879,7 @@ def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
         out.provenance = python_provenance(nw, seed, note)
         return out
     from . import c_engine
-    from .rank import summarise
+    from .rank import Bootstrap, not_i1r, summarise
     base = "drvecjob"
     with c_engine.Folder(folder) as d:
         argv = c_engine.rank_argv(files, p, q, case=case0, ma=ma, bootstrap=bootstrap,
@@ -898,14 +898,20 @@ def rank_test(pre_files, p, q, case=2, ma="free", bootstrap=0, boot_path=None,
                 if job.proc.poll() is None:
                     job.proc.kill()
             reps = c_engine.read_boot(job.path(".boot"))
-            want = [rr for rr in range(t.spec.M - 1)
-                    if not (t.fits[rr].ifault or t.fits[rr + 1].ifault)]
+            pairs_ok = [rr for rr in range(t.spec.M - 1)
+                        if not (t.fits[rr].ifault or t.fits[rr + 1].ifault)]
+            # the C draws nothing for a model that is not I(1, r): no lines
+            noti1 = not_i1r(t.spec, ds, t.fits, pairs_ok)
+            want = [rr for rr in pairs_ok if rr not in noti1]
             if sorted(reps) != want:
                 raise c_engine.CEngineError(
                     "drvec C bootstrapped the comparisons %s and the port's fits allow %s: "
                     "the two fits disagree (%s)" % (sorted(reps), want, d))
             bs = []
-            for rr in want:
+            for rr in pairs_ok:
+                if rr in noti1:
+                    bs.append(Bootstrap(rr, t.lr(rr), [], i1r=noti1[rr]))
+                    continue
                 if len(reps[rr]) != bootstrap:
                     raise c_engine.CEngineError(
                         f"drvec C wrote {len(reps[rr])} replications for H0: r = {rr}, "

@@ -121,3 +121,53 @@ def test_the_boot_file_bytes(test_result):
     theirs = golden_filter(out_text("rankboot.boot"))
     if EXACT and GSL:
         assert mine == theirs
+
+
+# --------------------------------------------------------------------------- #
+#  the I(1, r) check before simulating (drvec.c:i1r_check, atsw-gui #93)       #
+# --------------------------------------------------------------------------- #
+
+def test_the_h0_model_is_i1r(test_result):
+    """rankboot's model under r = 0 passes the check: the C bootstrapped it."""
+    from drvec.rank import i1r_check
+    t, _ = test_result
+    fails, ar_min, lr_sv = i1r_check(t.spec.but(r=0), t.data, t.fits[0].x)
+    assert not fails and ar_min > 1.0 and lr_sv > 1.0e-6
+
+
+def test_i1r_measure_conditions():
+    """Its two conditions on Ybar's VARMA: a root on the circle fails the first,
+    an MA root at 1 in the nabla Y2 block (a lost trend) the second."""
+    import numpy as np
+    from drvec.rank import i1r_measure
+    S = np.array([[1.0, 0.3], [0.3, 2.0]])
+    none = np.zeros((0, 2, 2))
+    assert i1r_measure(np.array([[[0.5, 0.0], [0.0, 0.5]]]), none, S, 1) == (False, 2.0, 1.0)
+    fails, ar_min, _ = i1r_measure(np.array([[[1.0, 0.0], [0.0, 0.5]]]), none, S, 1)
+    assert fails and ar_min <= 1.0 + 1.0e-6
+    th = np.zeros((1, 2, 2))
+    th[0, 0, 0] = 1.0                              # Theta(1) loses nabla Y2's row
+    assert i1r_measure(np.array([[[0.5, 0.0], [0.0, 0.5]]]), th, S, 1) == (True, 2.0, 0.0)
+    # two trends, perfectly correlated: one is lost
+    S3 = np.array([[1.0, 1.0, 0.0], [1.0, 1.0, 0.0], [0.0, 0.0, 1.0]]) + 1.0e-14 * np.eye(3)
+    fails, _, lr_sv = i1r_measure(np.zeros((1, 3, 3)), np.zeros((0, 3, 3)), S3, 1)
+    assert fails and lr_sv < 1.0e-6
+
+
+def test_a_model_that_is_not_i1r_is_said_and_not_simulated(monkeypatch, tmp_path):
+    """The C's failure path: no replication drawn, no .boot line, the .out says
+    which condition failed (drvec.c:run_lrtest's fprintf, transcribed)."""
+    import drvec.rank as rank
+    monkeypatch.setattr(rank, "i1r_check", lambda spec, data, x: (True, 1.2345, 3.0e-9))
+    drawn = []
+    monkeypatch.setattr(rank, "simulate_h0", lambda *a, **k: drawn.append(1))
+    path = tmp_path / "noi1.boot"
+    t = drvec.rank_test(PRE, 2, 0, case=2, bootstrap=5, boot_path=str(path), engine="python")
+    assert drawn == []
+    b = t.bootstraps[0]
+    assert b.reps == [] and b.i1r == (1.2345, 3.0e-9) and b.cv is None
+    assert open(path).read().splitlines()[2:] == []
+    assert ("  0       2 %10.4f   the model under H0 is not I(1, 0): not reported\n"
+            "             smallest AR root of Ybar 1.234500 (> 1 is stationary); nabla Y2's long-run\n"
+            "             rank measure 3.00e-09 (0 = a trend lost; Cavaliere, Rahbek and Taylor 2012)\n"
+            % t.lr(0)) in t.out_text("noi1")

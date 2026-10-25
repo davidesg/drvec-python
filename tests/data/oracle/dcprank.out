@@ -74,10 +74,10 @@ Search: 2 starting points, 2 converged; logL from -29.494183 to -29.494183.  The
 
 --- rank r = 1 ---
 
-Search: 3 starting points, 2 converged; logL from -26.643996 to -25.728214.  The best is `johansen'.
+Search: 3 starting points, 3 converged; logL from -26.643996 to -25.728214.  The best is `johansen'.
   start        logL            stop  iters  admissible start
   seed            -26.643996     grad     29  as given
-  cold         (failed)            -       -  not found
+  cold            -26.643996     grad     54  shrunk
   johansen        -25.728214     grad     55  as given
   The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.
 

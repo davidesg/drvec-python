@@ -1,7 +1,7 @@
 {
   "what": "drvec C, the oracle of this port, and the lib/ pieces it links, copied byte for byte from atsw-gui by tools/vendor_drvec_c.py",
   "repository": "https://github.com/davidesg/atsw-gui",
-  "commit": "abe6602fa3bfadc7c2ad5ed568dfa1ae8594335c",
+  "commit": "800a540ffc509008b9a6642b13038ba1efddc4cf",
   "files": {
     "engines/drvec/LICENSE": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
     "engines/drvec/Makefile": "5797f82d2e6a872500b2fef8e4570c64318f9e5869bfabcd1a897a9539de0fff",
@@ -11,7 +11,7 @@
     "engines/drvec/include/main.h": "36c6329fe85f1cb323c0fe0a2a26250410d18b0681ab30466f9427f35b0c59da",
     "engines/drvec/include/optimhost.h": "80842bb44674f1806aecd020369312a966841b84f8d4ab969b2bd35e0c675bb4",
     "engines/drvec/src/diagnose.c": "113bc9f4efd4aa716731da96679b6ed40acbb8375ddee7790e1537858e428494",
-    "engines/drvec/src/drvec.c": "0630b83e23c19ae74a43e4be1ac3c6deba7cd792af59365ddbfd31cc2592f0ed",
+    "engines/drvec/src/drvec.c": "a567bb43cfe6f2754064cb8eaf475e2aa43c77c05c6c8ce37808aa6b1abd2056",
     "engines/drvec/src/drvmlest.c": "231206f0d6c452a84a8b9f152f107b897a562a093b110ba629547465869d6e1b",
     "engines/drvec/src/elfvarma.c": "bce5e718b0ad87eca01a519b43c190c24f59df0b4de81bcdb13049353d1523a7",
     "engines/drvec/src/fue_bridge.c": "3d9ce58825174c6b69aeeeea1228f20a625882749870d43affca8a4fd75db073",

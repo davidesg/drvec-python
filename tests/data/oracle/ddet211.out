@@ -55,10 +55,10 @@ so the joint fit must equal the sum of the univariate fits exactly.
          -1.155872
     mean block (1):      -4.879564
 
-Search: 4 starting points, 3 converged; logL from -17.051915 to -15.658683.  The best is `nested'.
+Search: 4 starting points, 4 converged; logL from -20.126940 to -15.658683.  The best is `nested'.
   start        logL            stop  iters  admissible start
   seed            -17.051915     step     58  as given
-  cold         (failed)            -       -  not found
+  cold            -20.126940      tc3     37  shrunk
   johansen        -16.205663      tc3     99  as given
   nested          -15.658683      tc3     72  as given
   The SPREAD is the diagnostic: on a well-behaved surface every start lands in the same place.

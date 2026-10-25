@@ -119,6 +119,62 @@ def simulate_h0(spec, data, x, rng):
     return np.array(out, float)
 
 
+GRANGER_ZERO = 1.0e-6          # report.GRANGER_ZERO, the rank condition's threshold
+
+
+def i1r_check(spec, data, x):
+    """drvec.c:i1r_check -- is the model under H0 I(1) with rank r? Cavaliere,
+    Rahbek and Taylor (2012, Algorithm 1, step ii) check it before simulating.
+    The model is x at rank spec.r on the observed data. -> (fails, ar_min, lr_sv)."""
+    M, p, q = spec.M, spec.p, spec.q
+    rd = data.at(spec.r)
+    mu, phi, theta, qq, w, _ = shootx(spec, rd, x)
+    _lg, f1, _f2, _a, _ifa = elf_c(M, rd.n, p, q, mu, phi, theta, qq, w, 1.0, XITOL, True)
+    return i1r_measure(phi, theta, (f1 / (rd.n * M)) * np.asarray(qq, float), spec.r)
+
+
+def i1r_measure(phi, theta, sigma, r):
+    """The two conditions of i1r_check on Ybar = [nabla Y2 ; W], Phi(B) Ybar =
+    Theta(B) a with Var(a) = sigma (elf's signs; phi, theta (k, M, M)):
+    every AR root outside the circle, and nabla Y2's long-run covariance (the
+    first s = M - r rows of K = Phi(1)^-1 Theta(1), times sigma) non-singular,
+    measured scale-free as the smallest singular value of D^-1/2 K_s L (1 for
+    unrelated trends, 0 for a lost one). -> (fails, ar_min, lr_sv)."""
+    from .report import report_operator_roots
+    phi = np.asarray(phi, float)
+    theta = np.asarray(theta, float)
+    M = sigma.shape[0]
+    s = M - r
+    ar_min = 1.0e12
+    if phi.shape[0] > 0:
+        ar_min = report_operator_roots("", phi, M, phi.shape[0])[1]
+    if ar_min <= 1.0 + 1.0e-6:
+        return True, ar_min, 1.0
+    if s <= 0:
+        return False, ar_min, 1.0
+    P1 = np.eye(M) - phi.sum(axis=0) if phi.shape[0] else np.eye(M)
+    T1 = np.eye(M) - theta.sum(axis=0) if theta.shape[0] else np.eye(M)
+    K = np.linalg.solve(P1, T1)
+    L, ifc = choldcp([[float(sigma[i, j]) for j in range(M)] for i in range(M)])
+    if ifc:
+        return True, ar_min, 0.0
+    G = K[:s, :] @ np.asarray(L, float)
+    nrm = np.sqrt((G * G).sum(axis=1))
+    G = np.divide(G, nrm[:, None], out=np.zeros_like(G), where=nrm[:, None] > 0.0)
+    lr_sv = float(np.linalg.svd(G, compute_uv=False)[-1])
+    return lr_sv < GRANGER_ZERO, ar_min, lr_sv
+
+
+def not_i1r(spec, data, fits, ranks):
+    """{r: (ar_min, lr_sv)} for the H0 ranks whose fitted model fails i1r_check."""
+    out = {}
+    for rr in ranks:
+        fails, ar_min, lr_sv = i1r_check(spec.but(r=rr), data, fits[rr].x)
+        if fails:
+            out[rr] = (ar_min, lr_sv)
+    return out
+
+
 @dataclass
 class Replication:
     h0: int
@@ -138,6 +194,7 @@ class Bootstrap:
     reps: list
     cv: tuple = None
     pvalue: float = None
+    i1r: tuple = None        # (ar_min, lr_sv) when the H0 model is not I(1, r): no samples
 
     @property
     def nok(self):
@@ -311,7 +368,10 @@ def rank_test(data, spec, bootstrap=0, boot_path=None, progress=None, njitter=1,
         out.bootstraps = boot_hook(out, ds)
     elif bootstrap > 0:
         rng = Rng() if seed is None else Rng(seed)
-        todo = [rr for rr in range(M - 1) if not (fits[rr].ifault or fits[rr + 1].ifault)]
+        pairs_ok = [rr for rr in range(M - 1) if not (fits[rr].ifault or fits[rr + 1].ifault)]
+        # no sample is drawn from a model that is not I(1, r) (drvec.c, step ii)
+        noti1 = not_i1r(spec, ds, fits, pairs_ok)
+        todo = [rr for rr in pairs_ok if rr not in noti1]
         pairs = None
         if workers > 1:
             # every comparison's samples drawn first, in the generator's order
@@ -326,7 +386,10 @@ def rank_test(data, spec, bootstrap=0, boot_path=None, progress=None, njitter=1,
                     sim = simulate_h0(sr, ds, fits[rr].x, rng)
                     tasks.append(None if sim is None else (sr, sim))
             pairs = map_refits(_refit_pair, ds, tasks, workers)
-        for rr in todo:
+        for rr in pairs_ok:
+            if rr in noti1:
+                out.bootstraps.append(Bootstrap(rr, out.lr(rr), [], i1r=noti1[rr]))
+                continue
             out.bootstraps.append(bootstrap_rank(spec.but(r=rr), ds, fits[rr].x,
                                                  bootstrap, out.lr(rr), rng, progress,
                                                  workers=workers, pairs=pairs))

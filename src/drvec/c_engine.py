@@ -46,7 +46,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 
-C_VERSION = "0.13"          # the oracle the port mirrors (atsw-gui ae95446; csrc/ is abe6602: + BUG-61, 62, 63, + -gzero)
+C_VERSION = "0.13"          # the oracle the port mirrors (atsw-gui ae95446; csrc/ is 800a540: + BUG-61 to 64, -gzero, the I(1, r) check)
 _EXE = "drvec.exe" if sys.platform == "win32" else "drvec"
 
 
