@@ -2,6 +2,25 @@
 
 ## 0.1.0 — unreleased
 
+- **`csrc/` from atsw-gui 800a540**, its main after PRs #93–#94: drvec C 0.13
+  with BUG-64 fixed, the I(1, r) check before the rank bootstrap and the
+  bootstrap block's text measured on Cavaliere, Rahbek and Taylor's (2012)
+  design. The port follows the three:
+  - **BUG-64** (`fit.make_admissible`): when no scaling of Lambda gives an
+    admissible start, the last resort is Lambda = 0.05 [I_r; 0], with F and
+    Theta shrunk as before. Ten oracles whose `cold` start found no admissible
+    point now fit it (dboot, dcpfc, ddet201, ddet211, dfdh, dcpre, drank,
+    dcprank, dfc, e1sfc): the search table changes, the optimum does not. In
+    xdet the `cold` start reaches a better optimum, logL -17.7259 against
+    -20.9312 (alpha error-correcting and significant), which `-multistart 30`
+    did not find before; xdet.out is the new fit.
+  - **The I(1, r) check** (`rank.i1r_check`, `rank.i1r_measure`): no sample
+    is drawn from a model under H0 that is not I(1, r) (an AR root on the
+    circle, or nabla Y2's long-run covariance singular); the `.out` says which
+    and the `.boot` has no line for it. The C engine's hook expects the same
+    comparisons to be skipped.
+  - **The bootstrap block** no longer quotes HOMOLOGATION's "six times /
+    four": rankboot, e1boot, cprboot and dboot carry the measured figures.
 - **`csrc/` from atsw-gui abe6602**, its main after PRs #84–#86: drvec C 0.13
   with BUG-61, BUG-62 and BUG-63 fixed and `-gzero`. BUG-63 flushes the rank
   bootstrap's `.boot` line by line, so the C engine's progress

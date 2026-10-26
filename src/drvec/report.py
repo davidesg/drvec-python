@@ -268,10 +268,11 @@ _LR_NOTE = """
 
 _BOOT_HEAD = """
   === Parametric bootstrap under H0 (%d replications) ===
-  The asymptotic values above are known to be optimistic at these
-  sample sizes: measured, the sequential test over-rejects about
-  SIX times its nominal level at n = 120, and these percentiles cut
-  that to four without closing it.  They are empirical
+  The asymptotic values above can be off in short samples:
+  measured on Cavaliere, Rahbek and Taylor's (2012) design (q = 0,
+  case 2), the test of the true rank rejects 11%% at T = 50 against
+  a nominal 5%%, and these percentiles bring it to 4%%; at T = 100
+  the tables are already close to nominal.  They are empirical
   percentiles of the statistic simulated FROM THE FITTED MODEL at
   rank r, so they carry the sample size, the deterministic case and
   the MA component that the tables cannot.
@@ -371,6 +372,13 @@ def rank_test_out(t, data, base):
                 out += "  %-4d  --   (a model in the pair failed)\n" % rr
                 continue
             lr = t.lr(rr)
+            if b.i1r is not None:
+                out += ("  %-4d %4d %10.4f   the model under H0 is not I(1, %d): not reported\n"
+                        "             smallest AR root of Ybar %.6f (> 1 is stationary); "
+                        "nabla Y2's long-run\n"
+                        "             rank measure %.2e (0 = a trend lost; Cavaliere, "
+                        "Rahbek and Taylor 2012)\n" % (rr, M - rr, lr, rr, b.i1r[0], b.i1r[1]))
+                continue
             if b.cv is None:
                 out += ("  %-4d %4d %10.4f   only %d usable replications: not reported\n"
                         % (rr, M - rr, lr, b.nok))

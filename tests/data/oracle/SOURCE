@@ -186,3 +186,26 @@ that tree (gcc 13.3, Ubuntu's GSL 2.7.1), sha256
 command lines as above: each gains BUG-62's line ("the columns: D.muskrat
 ec1"), and nothing else moves. BUG-63 flushes the .boot as it is written and
 changes no byte of any file.
+
+main after PRs #93-#94 (2026-10-25): atsw-gui 800a540, drvec C 0.13 with
+BUG-64 fixed (make_admissible's last resort, Lambda = 0.05 [I_r; 0]), the I(1, r)
+check before the rank bootstrap and the bootstrap block's text measured on
+Cavaliere, Rahbek and Taylor's (2012) design; the commit csrc/ is vendored from
+since. bin/drvec built from `git archive 800a540 engines/drvec lib` with its
+Makefile (gcc 13.3, Ubuntu's GSL 2.7.1), sha256
+f61c9097c37b8a7db299a96a9fa9674e9df548adf141f54dbc7db89bd4eb1f95. Every command
+above was run again with it: 14 .out files move, and nothing else (every .boot,
+.forecast, .recursive and .irfboot, and the other 53 .out, byte-identical but
+for the banner). The 14 were replaced by the new files with their stored first
+line, so their banners did not move:
+  rankboot, e1boot, cprboot   the bootstrap block's text (five lines)
+  dboot                       that text, and BUG-64's search line (below)
+  ddet201, ddet211, drank, dfc, e1sfc, dcpfc, dfdh, dcpre, dcprank
+                              BUG-64: the `cold' start, "not found" before,
+                              now converges; the best start and the optimum
+                              do not change
+  xdet                        BUG-64: the `cold' start converges to a better
+                              optimum (criterion 3), logL -17.7259455996
+                              against -20.9312, which the old binary did not
+                              reach with -multistart 30 either; the whole fit
+                              moves

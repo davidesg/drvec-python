@@ -120,10 +120,11 @@ Search: 3 starting points, 3 converged; logL from -8.681458 to -8.681458.  The b
   trusting a statistic.
 
   === Parametric bootstrap under H0 (20 replications) ===
-  The asymptotic values above are known to be optimistic at these
-  sample sizes: measured, the sequential test over-rejects about
-  SIX times its nominal level at n = 120, and these percentiles cut
-  that to four without closing it.  They are empirical
+  The asymptotic values above can be off in short samples:
+  measured on Cavaliere, Rahbek and Taylor's (2012) design (q = 0,
+  case 2), the test of the true rank rejects 11% at T = 50 against
+  a nominal 5%, and these percentiles bring it to 4%; at T = 100
+  the tables are already close to nominal.  They are empirical
   percentiles of the statistic simulated FROM THE FITTED MODEL at
   rank r, so they carry the sample size, the deterministic case and
   the MA component that the tables cannot.

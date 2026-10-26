@@ -178,7 +178,7 @@ arm64 (14.0) and Windows AMD64. On Windows that needs atsw-gui's BUG-61 fix
 (`bugs/drvec-c-rng-long32`): built from ae95446, the bootstrap never ends
 there. The banner says 0.13 either way, so `c_engine.find()` cannot refuse
 the old build; the bundled one is the fixed one. It is built from `csrc/`,
-atsw-gui abe6602's
+atsw-gui 800a540's
 sources byte for byte (`csrc/VENDORED.json`, `tests/test_vendored.py`), by
 `csrc/build_drvec.py`: engines/drvec/Makefile's eleven units with `-O2
 -Wall`, GSL linked statically, so it needs only the C library. The wheel is

@@ -125,9 +125,9 @@ C's generator is fixed at its seed); the default is the C's.
 
 The port is homologated, case by case, against its oracle: the C program
 **drvec 0.13** ([atsw-gui](https://github.com/davidesg/atsw-gui) commit
-`ae95446`; the bundled build is `abe6602`, with BUG-61, BUG-62 and BUG-63 fixed
-and `-gzero`, which writes the same bytes on every older case but BUG-62's
-line in the residual block; its
+`ae95446`; the bundled build is `800a540`, with BUG-61 to BUG-64 fixed,
+`-gzero` and the I(1, r) check before the rank bootstrap, and the oracle files
+are that build's where it moves them (`tests/data/oracle/SOURCE`); its
 tag `drvec-v0.13` comes with the suite's release). On these
 cases it is not "within tolerance" of the C: it is the same computation.
 

@@ -2388,6 +2388,96 @@ static int cmp_real(const void *a, const void *b)
     return (x < y) ? -1 : ((x > y) ? 1 : 0);
 }
 
+/*  i1r_check -- is the model under H0 I(1) with rank r?  Cavaliere, Rahbek
+ *  and Taylor (2012, Algorithm 1, step ii) check it before simulating, since a
+ *  bootstrap sample that is not I(1, r) is not a draw under the null: theirs
+ *  checks that the levels VAR has p - r roots at 1 and the rest outside the
+ *  circle.  Here the sample is simulated on Ybar = [nabla Y2 ; W] and
+ *  integrated back (simulate_h0), so the same thing is two conditions on
+ *  Ybar's VARMA, Phi(B) Ybar = Theta(B) a:
+ *
+ *   1. Ybar is stationary: every root of |Phi(z)| outside the circle.  Then W
+ *      is stationary and the r relations hold.  The exact likelihood exists
+ *      only there, so a fit that converged meets it; it is checked anyway.
+ *   2. Y2 carries s = M - r stochastic trends: nabla Y2's long-run covariance,
+ *      the first s rows of K = Phi(1)^-1 Theta(1) times Sigma times their
+ *      transpose, is non-singular.  It is condition (d) of the Mauricio study,
+ *      rank(Lambda_perp' Theta(1)) = s, read where the sample is made.  With
+ *      q = 0 it follows from 1; with an MA root at z = 1 in the nabla Y2
+ *      block it fails, and the sample would carry fewer trends than H0 says.
+ *
+ *  2 is measured scale-free: the smallest singular value of D^-1/2 K_s L,
+ *  with L the Cholesky factor of Sigma and D the long-run variances, which is
+ *  1 for unrelated trends and 0 for a lost one.  Below GRANGER_ZERO the model
+ *  is taken to deny the rank, the threshold the rank condition already uses.
+ *  Returns 0 when both hold.                                                 */
+static real i1r_ar_min = 0.0, i1r_lr_sv = 0.0;
+
+static int i1r_check(struct Tvarma *v, int r)
+{
+    int M = v->m, s = M - r, i, j, k, sgn = 0, ifc = 0;
+    real d1, d2;
+    gsl_matrix *P1, *T1, *K, *G;
+    gsl_permutation *perm;
+    real **L;
+
+    i1r_ar_min = 1.0e12;
+    if (v->p > 0) report_operator_roots("", v->phi, M, v->p, &i1r_ar_min, 1);
+    i1r_lr_sv = 1.0;
+    if (i1r_ar_min <= 1.0 + 1.0e-6) return 1;
+    if (s <= 0) return 0;
+
+    /*  K = Phi(1)^-1 Theta(1), with elf's signs: Phi(1) = I - sum phi_j,
+     *  Theta(1) = I - sum theta_j.                                          */
+    P1 = gsl_matrix_alloc(M, M); T1 = gsl_matrix_alloc(M, M);
+    K  = gsl_matrix_alloc(M, M);
+    for (i = 0; i < M; i++)
+        for (j = 0; j < M; j++) {
+            real a = (i == j) ? 1.0 : 0.0, b = a;
+            for (k = 1; k <= v->p; k++) a -= v->phi[k][i+1][j+1];
+            for (k = 1; k <= v->q; k++) b -= v->theta[k][i+1][j+1];
+            gsl_matrix_set(P1, i, j, a);
+            gsl_matrix_set(T1, i, j, b);
+        }
+    perm = gsl_permutation_alloc(M);
+    gsl_linalg_LU_decomp(P1, perm, &sgn);
+    for (j = 0; j < M; j++) {
+        gsl_vector_view c = gsl_matrix_column(T1, j);
+        gsl_vector_view o = gsl_matrix_column(K, j);
+        gsl_linalg_LU_solve(P1, perm, &c.vector, &o.vector);
+    }
+
+    /*  G' = (D^-1/2 K_s L)', M x s for GSL's SVD (rows >= columns).        */
+    L = matrix(1, M, 1, M);
+    for (i = 1; i <= M; i++)
+        for (j = 1; j <= M; j++) L[i][j] = v->sigma2 * v->qq[i][j];
+    choldcp(L, M, &d1, &d2, &ifc);
+    G = gsl_matrix_alloc(M, s);
+    i1r_lr_sv = 0.0;
+    if (ifc == 0) {
+        gsl_matrix *V  = gsl_matrix_alloc(s, s);
+        gsl_vector *sv = gsl_vector_alloc(s), *wk = gsl_vector_alloc(s);
+        for (i = 1; i <= M; i++) for (j = i+1; j <= M; j++) L[i][j] = 0.0;
+        for (i = 0; i < s; i++) {
+            real dd = 0.0;
+            for (j = 0; j < M; j++) {
+                real acc = 0.0;
+                for (k = j; k < M; k++) acc += gsl_matrix_get(K, i, k) * L[k+1][j+1];
+                gsl_matrix_set(G, j, i, acc);
+                dd += acc * acc;
+            }
+            dd = (dd > 0.0) ? 1.0 / sqrt(dd) : 0.0;
+            for (j = 0; j < M; j++) gsl_matrix_set(G, j, i, gsl_matrix_get(G, j, i) * dd);
+        }
+        if (gsl_linalg_SV_decomp(G, V, sv, wk) == 0) i1r_lr_sv = gsl_vector_get(sv, s-1);
+        gsl_vector_free(wk); gsl_vector_free(sv); gsl_matrix_free(V);
+    }
+    free_matrix(L, 1, M, 1, M);
+    gsl_matrix_free(G); gsl_permutation_free(perm);
+    gsl_matrix_free(K); gsl_matrix_free(T1); gsl_matrix_free(P1);
+    return (i1r_lr_sv < GRANGER_ZERO);
+}
+
 /*  boot_dump -- <base>.boot, EVERY REPLICATION OF THE RANK BOOTSTRAP.
  *
  *  The .out gives three percentiles, a p-value and a count.  Homologating a
@@ -2438,6 +2528,18 @@ static int bootstrap_rank(int rr, real *x, int npar, int N, real *cv, real *pval
         vh.sigma2 = pi1 / (vh.n * vh.m);
         vh.logelf = -0.5*vh.m*vh.n*(LOG2PI - log((real)vh.m) - log((real)vh.n) + 1.0)
                     - 0.5*vh.n*(vh.m*log(pi1) + log(pi2));
+    }
+
+    /*  Cavaliere, Rahbek and Taylor's step (ii): no sample is drawn from a
+     *  model that is not I(1, rr).  -1 tells the caller why nothing came back. */
+    if (i1r_check(&vh, rr) != 0) {
+        vec_shootx(x, &vh, &ifr, 0, 1);
+        free_vector(stat, 1, N);
+        free_matrix(saved, 1, nobs_raw, 1, M);
+        free_matrix(sim, 1, nobs_raw, 1, M);
+        free_matrix(B2, 1, (s > 0 ? s : 1), 1, (rr > 0 ? rr : 1));
+        global_r = save_r;
+        return -1;
     }
 
     for (i = 1; i <= nobs_raw; i++)
@@ -5010,6 +5112,38 @@ static int make_admissible(real *x, int npar)
             elf(vt.m, vt.n, vt.p, vt.q, vt.mu, vt.phi, vt.theta, vt.qq, vt.w,
                 1.0, vt.xitol, TRUE, vt.a, &pi1, &pi2, &pi3, &ifev);
             if (ifev == 0) { res = pass * 6 + mi; break; }
+        }
+    }
+    /*  Scaling cannot fix a Lambda that points the wrong way: if I + B'Lambda
+     *  has a root outside the unit circle, every multiple of it keeps W
+     *  explosive, and the fit was reported as failed although admissible
+     *  points exist (BUG-64: the rank above the true one, whose spare
+     *  relations are I(1) and get a small adjustment of the wrong sign).
+     *  The last resort is a Lambda that is admissible by construction: the
+     *  Y1 rows c I, the Y2 rows zero (internal order), so B'Lambda = c I
+     *  whatever B2 is and, with nabla Y_t = -Lambda W_{t-1} + ... (PhBar[1]
+     *  carries -LamBar), W_t = (1 - c) W_{t-1} + ... once F and Theta are
+     *  shrunk.  Not under -alpha (Lambda is A psi) or -warma.  c is small
+     *  because the relations a scaled Lambda could not seed are nearly I(1):
+     *  on the two replications of BUG-64, c = 0.02 and 0.05 brought both
+     *  starts to the same optimum on the gradient, c = 0.2 up to 2
+     *  log-likelihood points below it, c = 0.5 up to 155, by criterion 3.  */
+    if (res < 0 && !global_warma && !global_alpha && global_r > 0) {
+        static const real cfb = 0.05;
+        int r = global_r;
+        for (mi = 0; mi < 6 && res < 0; mi++) {
+            real pi1, pi2, pi3;
+            int ifev = 0, ifc = 0;
+            for (i = 1; i <= npar; i++) x[i] = x0[i];
+            for (i = lo; i <= hi; i++) x[i] = shr[mi] * x0[i];
+            for (int ii = 1; ii <= M; ii++)
+                for (int jj = 1; jj <= r; jj++)
+                    x[nmean + (ii - 1) * r + jj] = (ii == jj) ? cfb : 0.0;
+            vec_shootx(x, &vt, &ifc, 0, 0);
+            if (ifc != 0) continue;
+            elf(vt.m, vt.n, vt.p, vt.q, vt.mu, vt.phi, vt.theta, vt.qq, vt.w,
+                1.0, vt.xitol, TRUE, vt.a, &pi1, &pi2, &pi3, &ifev);
+            if (ifev == 0) res = 18 + mi;
         }
     }
     if (res < 0) for (i = 1; i <= npar; i++) x[i] = x0[i];
@@ -9850,10 +9984,11 @@ static int run_lrtest(void)
         if (global_boot > 0) {
             fprintf(outputv,
                 "\n  === Parametric bootstrap under H0 (%d replications) ===\n"
-                "  The asymptotic values above are known to be optimistic at these\n"
-                "  sample sizes: measured, the sequential test over-rejects about\n"
-                "  SIX times its nominal level at n = 120, and these percentiles cut\n"
-                "  that to four without closing it.  They are empirical\n"
+                "  The asymptotic values above can be off in short samples:\n"
+                "  measured on Cavaliere, Rahbek and Taylor's (2012) design (q = 0,\n"
+                "  case 2), the test of the true rank rejects 11%% at T = 50 against\n"
+                "  a nominal 5%%, and these percentiles bring it to 4%%; at T = 100\n"
+                "  the tables are already close to nominal.  They are empirical\n"
                 "  percentiles of the statistic simulated FROM THE FITTED MODEL at\n"
                 "  rank r, so they carry the sample size, the deterministic case and\n"
                 "  the MA component that the tables cannot.\n", global_boot);
@@ -9884,6 +10019,17 @@ static int run_lrtest(void)
                 printf("  r = %d -> %d ...", rr, rr+1); fflush(stdout);
                 reps = bootstrap_rank(rr, xkeep[rr], npkeep[rr], global_boot,
                                       cv, &pv, lr);
+                if (reps < 0) {
+                    fprintf(outputv, "  %-4d %4d %10.4f   the model under H0 is not "
+                                     "I(1, %d): not reported\n", rr, M - rr, lr, rr);
+                    fprintf(outputv, "             smallest AR root of Ybar %.6f "
+                                     "(> 1 is stationary); nabla Y2's long-run\n"
+                                     "             rank measure %.2e (0 = a trend "
+                                     "lost; Cavaliere, Rahbek and Taylor 2012)\n",
+                            i1r_ar_min, i1r_lr_sv);
+                    printf(" the model under H0 is not I(1, %d)\n", rr);
+                    continue;
+                }
                 if (reps < 10) {
                     fprintf(outputv, "  %-4d %4d %10.4f   only %d usable "
                                      "replications: not reported\n",
