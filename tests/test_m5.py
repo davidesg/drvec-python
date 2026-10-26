@@ -82,8 +82,9 @@ ILL = {"ddet211", "dstep"}
 TIED = {"xmon"}
 # not a tie: the oracle's best start (xdet's `cold', BUG-64) stops on criterion 3,
 # and off the oracle's platform the same start at the same point (logL to 1e-9,
-# the estimates to the printed digits) can stop on the gradient instead: on
-# Windows (CI run 40227711398) it does, and the report loses the caveat line.
+# the estimates to the printed digits) can stop by another rule, with another
+# caveat or none: on the gradient on Windows (CI run 40227711398), on steptol
+# on macOS (run 40239280389).
 STOP3 = {"xdet"}
 _CAVEAT_3 = "  ! " + "the estimates are a stationary-ish point"
 _DONE = {}
@@ -146,6 +147,14 @@ def _search_rows(text):
             break
         rows[tok[0]] = tok[1]
     return rows
+
+
+def _no_stop_caveat(text):
+    """The .out without the caveat line, if any, under the convergence verdict."""
+    lines = text.split("\n")
+    return "\n".join(l for i, l in enumerate(lines)
+                     if not (l.startswith("  ! ") and i > 0
+                             and lines[i - 1].startswith("Convergence      :")))
 
 
 def _no_caveat_3(text):
@@ -245,7 +254,7 @@ def test_products(label):
             mine, theirs = _no_caveat_3(mine), _no_caveat_3(theirs)
         if label in STOP3:
             assert _CAVEAT_3 in theirs                   # criterion 3, in the oracle
-            mine, theirs = _no_caveat_3(mine), _no_caveat_3(theirs)
+            mine, theirs = _no_stop_caveat(mine), _no_stop_caveat(theirs)
         if len(mine.splitlines()) != len(theirs.splitlines()):
             print(_diff(theirs, mine))       # in full: pytest truncates the message
         assert len(mine.splitlines()) == len(theirs.splitlines())
