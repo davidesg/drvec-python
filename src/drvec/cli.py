@@ -39,6 +39,7 @@ OPT_TABLE = [
     ("-xpre", "str", "FILE", True),
     ("-xlink", "str", "FILE", True),
     ("-xsys", "int", "i", True),
+    ("-gzero", "int_int", "i j", True),
     ("-lrtest", "none", None, True),
     ("-bootstrap", "int", "N", True),
     ("-irfboot", "int", "N", True),
@@ -73,6 +74,7 @@ OPT_TABLE = [
 ]
 _OPTS = {o[0]: o for o in OPT_TABLE}
 B2ROW_MAX = 64
+GZ_MAX = 16
 
 
 # the C's words for the combinations it refuses (parse_cli, drvec.c:10634-10741)
@@ -155,6 +157,7 @@ Restrictions (each but -fixb2 with its LR against the free model):
   -alpha FILE    alpha = A*psi, A read from FILE (`M sa', then M rows)
   -weakex i      series i weakly exogenous (A = I without column i)
   -xsys i        series i an input embedded in the system (q = 0)
+  -gzero i j     Gamma_k[i][j] = 0 for every k: j out of i's short run (q = 0)
   -xpre FILE -xlink FILE   exogenous transfer-function inputs
 
 Modes and products:
@@ -239,6 +242,14 @@ def validate(argv, first):
             if _real(nxt) is None:
                 raise CliError(f"{a} needs a number, got `{nxt}'")
             i += 1
+        elif kind == "int_int":
+            if i + 2 >= len(argv):
+                raise CliError(f"{a} needs {val}")
+            if _int(argv[i + 1]) is None or not 1 <= _int(argv[i + 1]) <= GZ_MAX:
+                raise CliError(f"{a} needs an equation 1..{GZ_MAX}, got `{argv[i + 1]}'")
+            if _int(argv[i + 2]) is None or not 1 <= _int(argv[i + 2]) <= GZ_MAX:
+                raise CliError(f"{a} needs a regressor 1..{GZ_MAX}, got `{argv[i + 2]}'")
+            i += 2
         elif kind == "int_real":
             if i + 2 >= len(argv):
                 raise CliError(f"{a} needs {val}")
@@ -288,7 +299,7 @@ def parse(argv):
     validate(argv, first)
     o = dict(files=files, p=p, q=q, r=r, case=1, case_given=False, mean=False,
              nodrift=[], diag_ar=False, diag_cov=False, ma=None, fixb2=None, fixb2row={},
-             xpre=[], xlink=None, xsys=[], lrtest=False, bootstrap=0, irfboot=0,
+             xpre=[], xlink=None, xsys=[], gzero=[], lrtest=False, bootstrap=0, irfboot=0,
              forecast=0, estwin=0, csv=None, alpha=None, weakex=0, fdhess=False,
              name=None, method=1, multistart=0, rungs=False, differenced=False, interv=False, unported=[])
     i = first
@@ -337,6 +348,9 @@ def parse(argv):
                 o["fixb2"] = True
         elif a == "-fixb2row":
             o["fixb2row"][int(argv[i + 1])] = float(argv[i + 2])
+            i += 2
+        elif a == "-gzero":
+            o["gzero"].append((int(argv[i + 1]), int(argv[i + 2])))
             i += 2
         elif a == "-xpre":
             o["xpre"].append(nxt)
@@ -413,6 +427,15 @@ def _refusals(o):
     if o["method"] == 2:
         raise CliError("ERROR: -m 2 (the xi sequence not truncated) is not ported to "
                        "drvec-py yet.", code=2)
+    for i, j in o["gzero"]:
+        if i == j:
+            raise CliError(f"ERROR: -gzero {i} {j}: the diagonal of Gamma is the series' own "
+                           "model\n       (the ladder's rung), and is never held.", code=2)
+    if o["gzero"] and (o["lrtest"] or o["rungs"] or o["xsys"] or o["xlink"] or o["xpre"]
+                       or o["fixb2row"] or o["fixb2"] is not None or o["diag_ar"]
+                       or o["q"] > 0 or o["p"] < 2):
+        from .api import MSG_GZERO
+        raise CliError("ERROR: " + MSG_GZERO, code=2)
     if o["lrtest"] and o["rungs"]:
         raise CliError("ERROR: one mode per run: -lrtest, -specs, -rungs, -matest/-artest "
                        "and -eval\n       cannot be combined.", code=2)
@@ -522,7 +545,7 @@ def _execute(o, out, err):
                         xpre=o["xpre"] or None, xlink=o["xlink"],
                         forecast=o["forecast"], fdhess=o["fdhess"], alpha=o["alpha"],
                         weakex=o["weakex"] or None, fixb2=o["fixb2"], estwin=o["estwin"],
-                        multistart=o["multistart"])
+                        multistart=o["multistart"], gzero=o["gzero"] or None)
     except (ValueError, NotImplementedError) as e:
         msg = str(e)
         err.write((msg if msg.startswith("ERROR") else "ERROR: " + msg) + "\n")
@@ -538,8 +561,11 @@ def _execute(o, out, err):
     _write(base + ".out", res.out_text(base))
     out.write("  logL = %.10f   npar = %d   %s\n" % (res.loglik, res.npar,
                                                      res.search.best.label))
-    if res.irfboot is not None:
-        _write(base + ".irfboot", res.irfboot_text(base))
+    ib = res.irfboot_text(base) if res.irfboot is not None else None
+    if ib is not None:
+        # too few replications for bands: the C writes no .irfboot, and its
+        # .out says so (bugs/py-cli-irfboot-few)
+        _write(base + ".irfboot", ib)
         out.write(f"Bands written to {base}.irfboot\n")
     if res.forecast_h:
         _write(base + ".forecast", res.forecast_text(base))

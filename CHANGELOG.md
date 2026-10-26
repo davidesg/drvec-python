@@ -2,6 +2,36 @@
 
 ## 0.1.0 — unreleased
 
+- **`csrc/` from atsw-gui abe6602**, its main after PRs #84–#86: drvec C 0.13
+  with BUG-61, BUG-62 and BUG-63 fixed and `-gzero`. BUG-63 flushes the rank
+  bootstrap's `.boot` line by line, so the C engine's progress
+  (`c_engine.Job.wait`) now moves at every replication instead of every ~4 KB.
+  `gzero.out` and `gzeroa.out` regenerated with it: each gains BUG-62's line,
+  and nothing else moves (tests/data/oracle/SOURCE).
+- **The residual block names its columns** (atsw-gui BUG-62,
+  bugs/drvec-c-residual-labels). With r >= 1 the residuals drvec diagnoses
+  are those of (nabla Y2, W): the last r columns are the innovations of
+  beta'Y, not of the Y1 series, and the block printed them with no names. One
+  line before "residual sd" names them, in the port as in the C; `csrc/` is
+  vendored from atsw-gui e9304c6, and the 44 oracle `.out` files with r >= 1
+  carry the line (tests/data/oracle/SOURCE).
+- **The CLI with -irfboot and too few replications for bands** ends as the C
+  does (`bugs/py-cli-irfboot-few`): exit 0, no `.irfboot` (the `.out` says
+  "Too few replications for bands"), and the `.forecast`/`.recursive` after
+  it written. It died writing None, left an empty `.irfboot` and skipped
+  them. The library was not affected.
+- **`-gzero i j`, entries of Gamma(k) held at zero** (`drvec.fit(...,
+  gzero=[(i, j), ...])`, the CLI's `-gzero i j`): series j out of equation i's
+  short run, every lag; with `alpha`/`weakex` the conditional model's joint
+  restriction, its LR against the free VEC in the `.out` and in
+  `report.restriction_lr` (kind "gzero" or "gzero+alpha", `FitResult.gz_df`).
+  The port of drvec C's new option (atsw-gui 8626a2d, branch drvec-gamma-zero;
+  csrc/ re-vendored from it, only drvec.c moves); the
+  oracle's `gzero.out` and `gzeroa.out` are byte-identical, and in two series
+  `-gzero 1 2 -weakex 1` is `-xsys 1` (tests/test_options.py). For sima's
+  `test_restriction(gamma=...)`: the shakedown of sima 0.2.0, Martín Manjón
+  and Treadway (1997), the conditional model R0T | (R30, R3).
+
 - `drvec.to_levels_varma(fit)` (PLAN-vec A4): the fitted VEC as a VARMA in
   levels, forecast by drvarma's `forecast_given` (drvarma >= 0.3.0); it
   agrees with drvec's own `-f` to 1e-12 relative on every golden `.forecast`

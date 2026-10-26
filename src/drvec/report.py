@@ -53,7 +53,8 @@ def header(data, spec, out_name, lrtest=False, how=None):
           else "= [T11 T12 ; 0 0] (-marow)" if (spec.ma == "marow" and r > 0)
           else "free (the default; -mafree)")
     L.append("Structure        : F %s, Theta %s, Sigma %s" % (
-        "diagonal" if spec.diag_ar else "free", th,
+        "diagonal" if spec.diag_ar else
+        "with entries held at 0 (-gzero, below)" if spec.gzero else "free", th,
         "diagonal" if spec.diag_cov else "free"))
     L.append("Series           :" + "".join(" " + n for n in data.names)
              + f"   ({M - r} in the nabla Y2 block, {r} in Y1)")
@@ -487,8 +488,8 @@ def fit_out(res, base):
 
 def restriction_lr(res):
     """The LR the .out prints for a restricted fit, as numbers: None when the
-    fit carries none. Otherwise a dict: kind ("xlink", "fixb2row", "xsys" or
-    "alpha"), ll_free (the unrestricted logL; for -xlink the VEC WITHOUT the
+    fit carries none. Otherwise a dict: kind ("xlink", "fixb2row", "xsys",
+    "gzero", "gzero+alpha" or "alpha"), ll_free (the unrestricted logL; for -xlink the VEC WITHOUT the
     inputs, i.e. the restricted one), ll_restricted, lr, df and pvalue (chi2,
     1.0 when lr <= 0 or df = 0, as the C prints it). The branches and their
     order are _report_fit's."""
@@ -509,6 +510,9 @@ def restriction_lr(res):
     elif spec.xsys and getattr(res, "lr_free", None) is not None:
         df = res.xs_df
         kind = "xsys"
+    elif spec.gzero and getattr(res, "lr_free", None) is not None:
+        df = res.gz_df
+        kind = "gzero+alpha" if spec.alpha else "gzero"
     elif spec.alpha and getattr(res, "lr_free", None) is not None:
         df = (M - spec.alpha_sa) * r
         kind = "alpha"
@@ -596,6 +600,20 @@ def _report_fit(res, sofar):
         o += ("  Not rejecting is what licenses reading the rows of the outputs as a\n"
               "  transfer from the inputs: their entry in beta (the gain), their lags\n"
               "  in Gamma and the covariance Q (omega_0, the SVAR identity).\n")
+    elif spec.gzero and getattr(res, "lr_free", None) is not None:
+        df, lr, pv = rlr["df"], rlr["lr"], rlr["pvalue"]
+        dfa = (M - spec.alpha_sa) * r if spec.alpha else 0
+        o += "\n--- Gamma(k) held by -gzero%s, against the free VEC ---\n" % (
+            " and alpha = A*psi" if spec.alpha else "")
+        for i, j in sorted(spec.gzero):
+            o += "D.%s <- D.%s held at 0 for k = 1..%d\n" % (names[i], names[j], spec.p - 1)
+        o += "logL VEC free          : %15.10f\n" % res.lr_free
+        o += "logL restricted        : %15.10f\n" % res.loglik
+        o += "LR = 2(free - restr.)  : %15.10f\n" % lr
+        o += "degrees of freedom     : %d   (p-1)*(entries held) = %d\n" % (df, df - dfa)
+        if dfa:
+            o += "                             + (M - sa)*r = %d\n" % dfa
+        o += "p-value (chi2)         : %15.10f\n" % pv
     elif spec.alpha and getattr(res, "lr_free", None) is not None:
         df, lr, pv = rlr["df"], rlr["lr"], rlr["pvalue"]
         o += "\n--- H1(r): alpha = A*psi, against H(r) ---\n"
@@ -1547,7 +1565,16 @@ def residual_diagnostics(res, fv):
                 Ck[i][j] = sm / n
         C.append(Ck)
     o = multivariate_diagnostics(a, n, M, res.data.freq, diag_k(spec))
-    o += "\n  residual sd:" + "".join(" %10.6f" % math.sqrt(C[0][i][i]) for i in range(M))
+    o += "\n"
+    # BUG-62 (drvec.c residual_diagnostics): with r >= 1 the last r columns are
+    # the innovations of beta'Y, not of the Y1 series; the line names them.
+    names = res.data.names
+    if spec.r > 0 and len(names) == M:
+        s = M - spec.r
+        o += ("  the columns:" + "".join(" D.%s" % names[i] for i in range(s))
+              + "".join(" ec%d" % (j + 1) for j in range(spec.r))
+              + "  (ec = the innovation of beta'Y, not of the Y1 series)\n")
+    o += "  residual sd:" + "".join(" %10.6f" % math.sqrt(C[0][i][i]) for i in range(M))
     o += "\n  band = 2/sqrt(n) = %.4f;  * marks |r| > band\n" % band
     o += "\nResidual cross-correlation matrices, R(k)[i][j] = corr(a_i(t), a_j(t-k)):\n"
 

@@ -26,6 +26,19 @@ there (bugs/drvec-c-rng-long32). Built the same way (gcc 13.3, `git archive
 in the same way, its 83 files are byte-identical to ae95446's (cmp, no
 filter). Nothing below was regenerated.
 
+The same oracle with BUG-62 fixed (2026-10-24): atsw-gui commit e9304c6
+(branch drvec-bug62-residual-labels; still 0.13), the commit csrc/ is
+vendored from. With r >= 1 the residual block of a fit report gains one line
+before "residual sd", naming its columns (`the columns: D.<series> ... ec<j>`:
+the last r are the innovations of beta'Y, not of the Y1 series;
+bugs/drvec-c-residual-labels). Every command below was run again with that
+binary (engines/drvec/bin/drvec of the branch, gcc 13.3, GSL 2.7.1): 44 .out
+files gain that line and nothing else (each, without it, is byte-identical to
+the stored one after golden.sh's filter), the other 21 .out and every .boot,
+.forecast, .recursive and .irfboot are unchanged but for the banner of the
+files that still name DRVEC 0.12. The 44 were updated by inserting the line
+into the stored file, so their banners did not move.
+
 Milestones 1 to 4 were cut with drvec-v0.12 (4a89c00), bin/drvec sha256
 9cf9d8ea01c3fd373cf781429dea7894465d7fbecd178980f421b2689aea5d76
 (~/.local/share/atsw/drvec-ref/bin/drvec); rerun with 0.13 on 2026-10-17,
@@ -152,3 +165,24 @@ deterministic variables or a rational one. Unchanged: dstep (one step, no
 delta), xarma, xarma1, xar0 (no deterministic variable), and e1sfc.out and
 e1sfc.forecast (several variables, but the rounding does not reach what they
 print; its .recursive moved). Every one of the 83 files is now byte-identical to the port.
+
+-gzero (2026-10-24): drvec C 0.13 with the option -gzero i j (Gamma_k[i][j]
+held at 0 for every k), atsw-gui commit 8626a2d (branch drvec-gamma-zero, the
+commit csrc/ is vendored from since), built in place with
+its Makefile (gcc 13.3, Ubuntu's GSL 2.7.1, libgsl.so.27), bin/drvec sha256
+431a8fce5c75e4ca3e308c59c7200e45ad9110783c2b5dc521f18d9a90ef9e7a, run in a
+directory holding the two fixtures:
+  gzero    mmpre.muskrat.pre mmpre.mink.pre 3 0 1 -case 2 -gzero 2 1
+  gzeroa   mmpre.muskrat.pre mmpre.mink.pre 3 0 1 -case 2 -gzero 1 2 -weakex 1
+Golden hashes: gzero, gzeroa. No other file of this oracle was regenerated:
+the option touches no fit that does not ask for it (the 34 golden hashes
+before it do not move).
+
+main after PRs #84-#86 (2026-10-24): atsw-gui abe6602, drvec C 0.13 with
+BUG-61, BUG-62 and BUG-63 fixed and -gzero, the commit csrc/ is vendored from
+since. gzero.out and gzeroa.out regenerated with bin/drvec built in place from
+that tree (gcc 13.3, Ubuntu's GSL 2.7.1), sha256
+30f72355bdf7246dc4b580f1b0b91bf4358d17a1998d8fb25e0d3fa19d15f56c, the same
+command lines as above: each gains BUG-62's line ("the columns: D.muskrat
+ec1"), and nothing else moves. BUG-63 flushes the .boot as it is written and
+changes no byte of any file.

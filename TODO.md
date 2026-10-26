@@ -167,6 +167,14 @@ article's inputs (private: nothing of them in this repo).
 
 ## Next
 
+- [x] **The CLI dies when -irfboot has too few replications for bands**
+      (port defect, 2026-10-24, fixed the same day; `bugs/py-cli-irfboot-few`, `repro.py` exits 1
+      while open). The C prints "Too few replications for bands (N)." and
+      writes no .irfboot; the port's `cli._execute` writes
+      `res.irfboot_text(base)`, which is None then: TypeError, exit 1, an empty
+      .irfboot left behind, and the .forecast/.recursive that follow never
+      written. The library is fine. Fix: write the .irfboot (and say so) only
+      when the text is not None, as the C does.
 - [ ] `-specs`: it fits -warma and -mawarma, neither of which is ported (the
       -warma branch of vec_shootx and init_guess, the -mawarma MA class).
 - [ ] The rank test with `-alpha`/`-weakex`/`-fixb2`, `-diagar`/`-diagcov` (the C
@@ -329,7 +337,7 @@ PLAN-vec (sima-python, branch estudio-vec) phases A1-A5 and B.
   improves. STUDY-vec's "3-4x on this machine's 4 cores" assumed 4 real
   cores. The C stays 8-12x faster than one Python core, so `engine="auto"`
   takes it when present (PLAN-vec decision E2).
-- [ ] The C engine reports progress as the C's stdio buffer flushes the .boot
+- [x] (done 2026-10-24: atsw-gui BUG-63, PR #86; csrc/ from abe6602) The C engine reports progress as the C's stdio buffer flushes the .boot
       (about every 4 KB, ~130 replications); -irfboot through the C reports
       only at the end. A `setvbuf` line-buffered .boot in the C would give
       per-replication progress: a C change, for atsw-gui.
