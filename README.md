@@ -9,8 +9,8 @@ and standard errors, the long run (alpha, beta, Pi), restrictions on alpha and
 beta with their LR tests, diagnostics, forecasts and impulse responses.
 
 It is the Python port of the C program **drvec** of the ATSW suite
-([atsw-gui](https://github.com/davidesg/atsw-gui), `engines/drvec`), and its
-fourth rung: [fue](https://pypi.org/project/fue/) and
+([atsw-gui](https://github.com/davidesg/atsw-gui), `engines/drvec`), and the
+engine of its cointegrated systems: [fue](https://pypi.org/project/fue/) and
 [art](https://pypi.org/project/art-tseries/) build each series' univariate
 model, drtran the transfer functions, drvarma and sima the stationary VARMA,
 and drvec the cointegrated system. The assistant that drives it is **sima**

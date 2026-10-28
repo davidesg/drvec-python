@@ -46,6 +46,13 @@ has `ll[r]`, `npar[r]`, `lr(r)`, `critical_values(r)` (the asymptotic table,
 cases 1 and 2), `verdict(r)`, and `bootstraps`, one per comparison r -> r + 1
 with `cv` (the 90/95/99 % percentiles of LR*), `pvalue`, `nok` and `reps`
 (every replication: `h0`, `rep`, `status` ok/simfail/fitfail, `lr`).
+`i1r` is `None`, or `(ar_min, lr_sv)` when the model fitted under H0 is not
+I(1, r) and no sample is drawn from it (Cavaliere, Rahbek and Taylor 2012,
+Algorithm 1 step ii; `rank.i1r_check`): `ar_min` is the smallest AR root of
+[nabla Y2 ; W] (at most 1: a root on or inside the unit circle) and `lr_sv`
+the scale-free rank measure of nabla Y2's long-run covariance (below 1e-6: a
+common trend lost). Such a comparison has `reps == []` and no `cv`; it is a
+finding about the model, and a larger `bootstrap` does not change it.
 `out_text(base)` and `boot_text()` are the C's `.out` and `.boot`.
 `progress(b, replication)` is called after each replication, failed ones
 included; `replication.h0` is the comparison.
