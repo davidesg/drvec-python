@@ -404,7 +404,7 @@ The transfer functions of an -xlink input (`xlink.compute`, the link's own
 nu_k(B)) keep the exact filter, untruncated, as in the C: they are a
 parameter of the VEC fit, not a .pre's deterministic component.
 
-On the article's 211 runs (TODO.md; private inputs) no input has a delta
+On a set of 211 real runs (their inputs are not distributed) no input has a delta
 term, but every run but two has a file with two or more variables. With fue
 0.1.17, which subtracted them one at a time, 209 of the 211 .out files
 differed from the C's by the ulps of that order. With fue 0.1.18 and drvec C

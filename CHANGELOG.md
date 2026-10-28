@@ -2,6 +2,17 @@
 
 ## 0.1.0 — unreleased
 
+**The first release: the Python port of drvec C 0.13**, the VARMA-VEC of the
+ATSW suite by exact maximum likelihood. `drvec.fit` (the VEC at a given rank:
+alpha, beta, the short run, the restrictions on alpha, beta and Gamma with
+their LR tests, forecasts and level responses), `drvec.rank_test` (the
+sequential exact LR and its parametric bootstrap) and the `drvec-py` command,
+which takes drvec C's arguments. On Linux x86_64 its files equal the C's byte
+for byte on the oracle's commands; elsewhere to tolerance. The platform
+wheels carry drvec C itself (`drvec/_bin`), on which the bootstraps run; the
+pure wheel runs them in Python. The entries below are the port's development
+diary, newest first.
+
 - **`csrc/` from atsw-gui 800a540**, its main after PRs #93–#94: drvec C 0.13
   with BUG-64 fixed, the I(1, r) check before the rank bootstrap and the
   bootstrap block's text measured on Cavaliere, Rahbek and Taylor's (2012)
@@ -82,8 +93,8 @@
   found by the Windows wheel's smoke test). Fixed in the C as atsw-gui
   BUG-61 (7ec4bf7, `uint64_t`), before drvec-v0.13's tag, and re-vendored. On
   Linux x86_64 the fixed oracle writes ae95446's 83 files byte for byte
-  (`tests/data/oracle/SOURCE`). The Windows wheel is published again with its
-  smoke job, `c_engine.find()` no longer refuses drvec C on Windows (the
+  (`tests/data/oracle/SOURCE`). The Windows wheel is built again by publish.yml with
+  its smoke job, `c_engine.find()` no longer refuses drvec C on Windows (the
   banner cannot tell the fixed build from the old one, so a hand-built
   `DRVEC_BIN` from before the fix would still hang there), and tests.yml
   builds the C on Windows (MinGW-w64, MSYS2's GSL).
