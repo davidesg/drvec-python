@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-10-28
 
 **The first release: the Python port of drvec C 0.13**, the VARMA-VEC of the
 ATSW suite by exact maximum likelihood. `drvec.fit` (the VEC at a given rank:
