@@ -14,7 +14,11 @@ This repro fits mink-muskrat, 2 1 1 -case 2, with the port and, when one is
 found, with drvec C (c_engine.find()), and looks for the line that names the
 columns: `the columns: D.muskrat ec1`.
 
-    python3 bugs/drvec-c-residual-labels/repro.py   # exits 1 while the defect is open
+    python3 bugs/drvec-c-residual-labels/repro.py   # exits 1 while open, 2 without drvec C
+
+Without a binary the C half is not checked, and the exit is 2, not 0: a pass
+would say the C was checked (found on 2026-10-30, run from a checkout with no
+_bin/ and no DRVEC_BIN).
 """
 import os
 import subprocess
@@ -49,5 +53,6 @@ if binary:
     if WANT not in c:
         open_.append("C")
 else:
-    print("C   : no drvec C found (c_engine.find())")
+    print("C   : no drvec C found (c_engine.find(); DRVEC_BIN names one)")
+    sys.exit(1 if open_ else 2)
 sys.exit(1 if open_ else 0)
