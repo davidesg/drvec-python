@@ -208,14 +208,19 @@ article's inputs (private: nothing of them in this repo).
       passes, psi's seed divides by zero, the .out carries logL = nan and the
       program dies with SIGSEGV. The port refuses it with the C's own message
       (a rank check added, docs/PORT.md §11).
-- [ ] **-estwin dates its header wrong** (cosmetic): `Sample : 50 observations
+- [ ] **-estwin dates its header wrong** (atsw-gui BUG-66) (`bugs/drvec-c-estwin-date`,
+      `repro.py` exits 1 while open): `Sample : 50 observations
       from 1862` for a fit on 1851..1900 -- ObsToDate(nobs_raw - nobs + 1)
       assumes the trim is the first difference; the per-series diagnosis is
       offset the same way (nobs_raw - nobs). The port reproduces it.
-- [ ] **-fdhess's step is below the objective's noise**: eta = macheps assumes an
+- [ ] **-fdhess's step is below the objective's noise** (atsw-gui BUG-67)
+      (`bugs/drvec-c-fdhess-step`, `repro.py` exits 1 while open): eta = macheps assumes an
       objective exact to an ulp, and AS 311's is ~1e-14 relative (E1, |Sigma| ~
       1e-11), so the printed s.e. carry ~0.1-0.5 % of numerical noise (fourth
       significant digit). Not a crash; a matter for the article's quoted s.e.
+      Measured 2026-10-30: a larger eta is not the fix -- the forward
+      differences' O(h) bias moves an s.e. by 1.9 % (mink-muskrat) and 5.1 %
+      (E1) when the step is multiplied by 3.6 (eta = 1e-14).
 
 ## C defects found in milestone 4 (not patched; for the lead)
 
