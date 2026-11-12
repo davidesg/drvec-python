@@ -54,9 +54,16 @@ PLATFORM = sys.platform == "linux" and platform.machine() in ("x86_64", "AMD64")
 # move in the 12th digit: 60 byte comparisons failed, every decision and every
 # tolerance held (bugs/py-tests-exact-gsl-v3). So EXACT is measured, not
 # assumed: the port must write the oracle's e1fit.out byte for byte (one fit,
-# about a second; e1fit is among the files that move with that GSL), and a
+# about a second; e1fit is among the files that move with that GSL; and two
+# more for the libc, below), and a
 # drvec C must write the oracle's proute.out (c_exact below). Where it does
 # not, the suite runs its tolerance tier, as off Linux x86_64.
+#
+# The libc moves them too (bugs/py-tests-exact-libc): glibc 2.28 (AlmaLinux 8)
+# and musl (Alpine) move e1fit and the rest; glibc 2.34 (Rocky 9) writes e1fit
+# as the oracle does, but not the Pi eigenvalues e1fdh and e1seas print (the
+# two zero eigenvalues of a rank-1 Pi on three series come out as -0.000000,
+# or in another order). So the probe is those three fits, about 5 s more.
 #
 # DRVEC_REQUIRE_EXACT=1 turns the measurement off and asserts the oracle's
 # bytes on Linux x86_64, as before: CI's reference job (tests.yml,
@@ -65,12 +72,21 @@ PLATFORM = sys.platform == "linux" and platform.machine() in ("x86_64", "AMD64")
 REQUIRE_EXACT = os.environ.get("DRVEC_REQUIRE_EXACT", "").strip() == "1"
 
 
+E1S = [os.path.join(FIXTURES, f"e1seas.{n}.pre") for n in ("invest", "income", "cons")]
+_PROBES = {"e1fit": (E1, (2, 1, 1), {}),
+           "e1fdh": (E1, (2, 0, 1), dict(fdhess=True)),
+           "e1seas": (E1S, (2, 0, 1), {})}
+
+
 def _port_writes_the_oracle():
     from oracle import golden_filter, out_text      # needs DATA, defined above
     import drvec
     try:
-        r = drvec.fit(E1, 2, 1, 1, case=2, engine="python")
-        return golden_filter(r.out_text("e1fit")) == golden_filter(out_text("e1fit.out"))
+        for label, (files, (p, q, r), kw) in _PROBES.items():
+            res = drvec.fit(files, p, q, r, case=2, engine="python", **kw)
+            if golden_filter(res.out_text(label)) != golden_filter(out_text(label + ".out")):
+                return False
+        return True
     except Exception:                                # noqa: BLE001
         return False
 
