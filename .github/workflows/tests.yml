@@ -37,7 +37,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15, windows-latest]   # macos-14: retired 2-nov-2026
+        # ubuntu-24.04, not ubuntu-latest: it is the oracle's own Ubuntu (GSL
+        # 2.7.1, baseline x86-64), and the job that asserts the oracle's bytes
+        # (DRVEC_REQUIRE_EXACT below). ubuntu-latest moved to 26.04, whose GSL
+        # is built for x86-64-v3 and moves the 12th digit
+        # (bugs/py-tests-exact-gsl-v3). macos-14: retired 2-nov-2026.
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-latest]
         python: ["3.10", "3.13"]
     env:
       FUE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.fue_ref || '' }}
@@ -118,4 +123,7 @@ jobs:
         timeout-minutes: 60
         env:
           DRVEC_TEST_INSTALLED: "1"
+          # on the oracle's platform the bytes are asserted, not measured
+          # (tests/conftest.py): a regression there fails
+          DRVEC_REQUIRE_EXACT: ${{ matrix.os == 'ubuntu-24.04' && '1' || '' }}
         run: python -m pytest -q

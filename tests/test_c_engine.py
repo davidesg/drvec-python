@@ -20,7 +20,7 @@ import sys
 
 import pytest
 
-from conftest import E1, EXACT, FIXTURES, PRE, STRICT
+from conftest import E1, EXACT, FIXTURES, PRE, STRICT, c_exact
 from oracle import golden_filter, out_text
 
 import drvec
@@ -228,8 +228,9 @@ def test_rank_c_and_python_are_the_same_bytes(label, the_c, tmp_path):
     c_out = open(tmp_path / "drvecjob.out").read()
     c_boot = open(tmp_path / "drvecjob.boot").read()
     assert _tail(tc.boot_text()) == _tail(c_boot)
-    if not EXACT:
-        # another platform's C: the same decisions, its own bits
+    if not (EXACT and c_exact(the_c)):
+        # another platform's C, or the port's or the C's GSL is not the
+        # oracle's: the same decisions, their own bits
         assert [r.status for b in tc.bootstraps for r in b.reps] == \
             [r.status for b in tp.bootstraps for r in b.reps]
         return
@@ -256,7 +257,7 @@ def test_irfboot_c_and_python_are_the_same_bytes(the_c, tmp_path):
     assert rc.irfboot.nok == rp.irfboot.nok == 40
     bc, bp = rc.irf_bands(), rp.irf_bands()
     assert abs(bc.irf_pct[95.0] - bp.irf_pct[95.0]).max() < 1e-7
-    if not EXACT:
+    if not (EXACT and c_exact(the_c)):
         return
     assert rc.out_text("irfboot") == rp.out_text("irfboot")
     assert rc.irfboot_text("irfboot") == rp.irfboot_text("irfboot")

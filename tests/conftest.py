@@ -10,7 +10,8 @@ compiled AS 311 rounds differently, and Windows' libm moves the generator's
 Box-Muller in the last ulp -- and the optimiser's trajectory amplifies them on
 a flat likelihood (case 1 sits on the MA invertibility wall). So:
 
-* EXACT (Linux x86_64): every test as written, bit for bit and byte for byte.
+* EXACT (Linux x86_64, MEASURED to reproduce the oracle's bytes: below):
+  every test as written, bit for bit and byte for byte.
 * elsewhere, the same tests with the TOLERANCE TIER below, and the tests that
   replay single trajectories (start by start, call by call) skipped as fragile
   off the oracle's platform. What must still agree everywhere is every
@@ -44,7 +45,70 @@ FIXTURES = os.path.join(DATA, "fixtures")
 PRE = [os.path.join(FIXTURES, "mmpre.muskrat.pre"), os.path.join(FIXTURES, "mmpre.mink.pre")]
 E1 = [os.path.join(FIXTURES, f"e1{n}.pre") for n in ("invest", "income", "cons")]
 
-EXACT = sys.platform == "linux" and platform.machine() in ("x86_64", "AMD64")
+PLATFORM = sys.platform == "linux" and platform.machine() in ("x86_64", "AMD64")
+
+# Linux x86_64 is the oracle's platform, but not every Linux x86_64 reproduces
+# its bytes: they are also those of the GSL the oracle runs on (2.7.1, built
+# for baseline x86-64). Ubuntu 26.04's apt GSL is built for x86-64-v3 (FMA,
+# AVX2), and with it drvarma's eigensolver and a drvec C linked against it
+# move in the 12th digit: 60 byte comparisons failed, every decision and every
+# tolerance held (bugs/py-tests-exact-gsl-v3). So EXACT is measured, not
+# assumed: the port must write the oracle's e1fit.out byte for byte (one fit,
+# about a second; e1fit is among the files that move with that GSL), and a
+# drvec C must write the oracle's proute.out (c_exact below). Where it does
+# not, the suite runs its tolerance tier, as off Linux x86_64.
+#
+# DRVEC_REQUIRE_EXACT=1 turns the measurement off and asserts the oracle's
+# bytes on Linux x86_64, as before: CI's reference job (tests.yml,
+# ubuntu-24.04, the oracle's own Ubuntu) sets it, so a regression that moves
+# the bytes there fails instead of falling into the tolerance tier.
+REQUIRE_EXACT = os.environ.get("DRVEC_REQUIRE_EXACT", "").strip() == "1"
+
+
+def _port_writes_the_oracle():
+    from oracle import golden_filter, out_text      # needs DATA, defined above
+    import drvec
+    try:
+        r = drvec.fit(E1, 2, 1, 1, case=2, engine="python")
+        return golden_filter(r.out_text("e1fit")) == golden_filter(out_text("e1fit.out"))
+    except Exception:                                # noqa: BLE001
+        return False
+
+
+PORT_EXACT = PLATFORM and (REQUIRE_EXACT or _port_writes_the_oracle())
+EXACT = PORT_EXACT
+
+_C_EXACT = {}
+
+
+def c_exact(path):
+    """Does the drvec C at PATH write the oracle's bytes? Linux x86_64 and,
+    unless DRVEC_REQUIRE_EXACT=1, measured on proute (one fit, well under a
+    second). Cached per binary."""
+    if not PLATFORM or not path:
+        return False
+    if REQUIRE_EXACT:
+        return True
+    if path not in _C_EXACT:
+        import re
+        import shutil
+        import subprocess
+        import tempfile
+        from oracle import golden_filter, out_text
+        ver = re.compile(r"(?i)\bdrvec 0\.1[23]\b")
+        norm = lambda t: ver.sub("DRVEC <v>", golden_filter(t))     # noqa: E731
+        with tempfile.TemporaryDirectory() as d:
+            for f in ("mmpre.muskrat.pre", "mmpre.mink.pre"):
+                shutil.copy(os.path.join(FIXTURES, f), d)
+            try:
+                cp = subprocess.run([path, "mmpre.muskrat.pre", "mmpre.mink.pre", "2", "1",
+                                     "1", "-mean", "-case", "2", "-name", "proute"],
+                                    cwd=d, capture_output=True, text=True, timeout=120)
+                mine = open(os.path.join(d, "proute.out")).read() if cp.returncode == 0 else ""
+            except (OSError, subprocess.SubprocessError):
+                mine = ""
+        _C_EXACT[path] = bool(mine) and norm(mine) == norm(out_text("proute.out"))
+    return _C_EXACT[path]
 
 # The C solves Johansen's eigenproblem and the eigenvalues it PRINTS (Pi's, the
 # operator roots) with GSL; the port calls the same GSL from drvarma's compiled

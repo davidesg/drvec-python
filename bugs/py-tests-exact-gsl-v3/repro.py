@@ -1,5 +1,19 @@
-"""Test defect (drvec-python, found 2026-11-11 by publish.yml run 43101885358,
-confirmed on main by run 43114298968): GitHub's ubuntu-latest moved from
+"""Test defect, FIXED (drvec-python, branch bug-tests-exact-gsl-v3): EXACT is
+now MEASURED, not assumed (tests/conftest.py). On Linux x86_64 the port must
+write the oracle's e1fit.out byte for byte, and a drvec C the oracle's
+proute.out (conftest.c_exact); where they do not, the suite runs its
+tolerance tier, as off Linux x86_64. DRVEC_REQUIRE_EXACT=1 asserts the bytes
+instead of measuring them: tests.yml's reference job sets it, on ubuntu-24.04
+(the oracle's Ubuntu) instead of ubuntu-latest, so a regression there still
+fails. Measured after the fix, in podman: Ubuntu 26.04 with the amd64v3 GSL,
+the whole suite 405 passed, 37 skipped (60 failed before); Ubuntu 24.04 with
+DRVEC_REQUIRE_EXACT=1, 437 passed, 5 skipped; and on 24.04 the measurement
+says EXACT without the flag. This repro: A, B and C pass, exit 0.
+py-tests-exact-libc is a different case and stays open: the libc the repro
+mocks does not change the bytes measured on the machine that runs it.
+
+Found 2026-11-11 by publish.yml run 43101885358, confirmed on main by run
+43114298968. GitHub's ubuntu-latest moved from
 Ubuntu 24.04 to 26.04, whose apt installs GSL 2.8 built for x86-64-v3
 (`libgsl28_2.8+dfsg-6_amd64v3.deb`: FMA, AVX2). tests/conftest.py turns the
 byte-for-byte comparisons on with EXACT = Linux x86_64 (and STRICT = EXACT and
