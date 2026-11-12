@@ -21,7 +21,11 @@ name: Publish to PyPI
 # every Python (cibuildwheel builds it once, on cp312).
 #   Linux x86_64 and aarch64  manylinux_2_28, GSL 2.7.1 built from source
 #                             (tools/build_gsl.sh: the GSL the oracle runs on)
-#   macOS arm64               the same GSL 2.7.1 from source, for macOS 14
+#   macOS arm64 and x86_64    the same GSL 2.7.1 from source, for macOS 11
+#                             (macos-15 and macos-15-intel; as atsw-gui's
+#                             .dmg; tools/check_macos_minos.py stops the
+#                             workflow if a binary asks for a newer macOS.
+#                             Up to 0.1.0: arm64 only, for macOS 14)
 #   Windows AMD64             MinGW-w64 gcc and GSL from MSYS2 (UCRT64), the
 #                             toolchain ATSW builds drvec with, linked -static
 #                             (published again since atsw-gui BUG-61, 7ec4bf7:
@@ -81,9 +85,12 @@ jobs:
             archs: aarch64
           # macOS PINNED with its deployment target, as drvarma: a binary for
           # a newer macOS than the tag says is rejected by delocate.
-          - os: macos-14               # macOS arm64
+          - os: macos-15               # macOS arm64
             archs: arm64
-            macos_target: "14.0"
+            macos_target: "11.0"
+          - os: macos-15-intel         # macOS x86_64
+            archs: x86_64
+            macos_target: "11.0"
           - os: windows-latest         # Windows AMD64
             archs: AMD64
     steps:
@@ -125,6 +132,10 @@ jobs:
         run: |
           ls -la wheelhouse/
           python tools/check_wheel.py wheelhouse/*.whl
+
+      - name: No binary asks for a newer macOS than the tag (macOS)
+        if: runner.os == 'macOS'
+        run: python3 tools/check_macos_minos.py "${{ matrix.macos_target }}" wheelhouse/*.whl
 
       - uses: actions/upload-artifact@v4
         with:
@@ -194,7 +205,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-14, windows-latest]
+        # macos-15-intel asserts drvarma's C engine like the rest: on a tag,
+        # drvarma's macosx_11_0_x86_64 wheel has to be on PyPI first
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15, macos-15-intel, windows-latest]
         python: ["3.10", "3.13"]
     env:
       FUE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.fue_ref || '' }}
