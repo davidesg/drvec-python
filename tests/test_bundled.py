@@ -6,7 +6,8 @@ built from the vendored sources (csrc/, tests/test_vendored.py) by setup.py.
   it these tests skip when the package carries none (the pure wheel).
 * A small bootstrap goes through it: c_engine finds the bundled binary when
   DRVEC_BIN is unset, and the result's provenance says so.
-* On Linux x86_64, the oracle's platform, it IS the oracle: run on the oracle's
+* On Linux x86_64, the oracle's platform, and linked against the oracle's GSL
+  (conftest.c_exact), it IS the oracle: run on the oracle's
   commands (tests/data/oracle/SOURCE), its .out, .boot, .forecast, .recursive
   and .irfboot equal the oracle's files byte for byte, after golden.sh's filter
   (the version banners and /tmp paths) -- the binary built here and the one
@@ -19,7 +20,7 @@ import subprocess
 
 import pytest
 
-from conftest import E1, EXACT, FIXTURES, PRE
+from conftest import E1, FIXTURES, PRE, c_exact
 from oracle import golden_filter, out_text
 
 import drvec
@@ -107,7 +108,9 @@ def _norm(text):
 
 
 @needs_bundled
-@pytest.mark.skipif(not EXACT, reason="byte identity with the oracle is Linux x86_64's")
+@pytest.mark.skipif(not c_exact(BUNDLED), reason=(
+    "byte identity with the oracle is Linux x86_64's, with the oracle's GSL "
+    "(conftest.c_exact: this binary does not write proute.out's bytes)"))
 @pytest.mark.parametrize("label", [pytest.param(k, marks=pytest.mark.slow) if k == "e1boot"
                                    else k for k in ORACLE])
 def test_the_bundled_binary_is_the_oracle(label, tmp_path):
