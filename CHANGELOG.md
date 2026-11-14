@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.1.1 — 2026-11-14
+
+**macOS wheels for macOS 11, on Apple silicon and Intel.** The macOS wheels
+are `macosx_11_0`, for arm64 and now also x86_64, the same floor as
+atsw-gui's .dmg: GitHub retired the macos-14 runner on 2 November 2026, and
+they are built on macos-15 (arm64) and macos-15-intel with
+`MACOSX_DEPLOYMENT_TARGET=11.0`, with GSL 2.7.1 compiled from source for 11.0.
+`tools/check_macos_minos.py` stops the workflow if any binary in a wheel asks
+for a newer macOS than its tag. Until now the only macOS wheel was
+`macosx_14_0_arm64`: an Intel Mac, or one before macOS 14, got the pure wheel,
+and the bootstraps ran in Python instead of on drvec C. The code does not
+change.
+
+- **The tests measure whether they can demand the oracle's bytes**
+  (`bugs/py-tests-exact-gsl-v3`, `bugs/py-tests-exact-libc`). On Linux
+  x86_64 the suite compared byte for byte, assuming the oracle's trajectory;
+  with Ubuntu 26.04's amd64v3 GSL, another glibc (Rocky 9, AlmaLinux 8) or
+  musl (Alpine) it does not hold. `tests/conftest.py` now probes it (the port
+  must write e1fit, e1fdh and e1seas as the oracle does, and drvec C proute):
+  if the bytes match it compares bytes, otherwise it uses the tolerance it
+  uses off Linux. `DRVEC_REQUIRE_EXACT=1` demands the bytes instead of
+  measuring them, in tests.yml's reference job, now on ubuntu-24.04, the
+  oracle's Ubuntu. Outside the exact tier, cprq's r = 0 row only checks the
+  number of parameters: which start wins depends on the trajectory of drvec
+  C's optimiser, which the port reproduces.
+- **Repros for two drvec C defects the port inherits** (atsw-gui BUG-66,
+  `-estwin` dates the sample from the wrong observation, and BUG-67, the
+  `-fdhess` standard errors are not determined to the digits printed):
+  `bugs/drvec-c-estwin-date` and `bugs/drvec-c-fdhess-step`, which exit 1
+  while open.
+
 ## 0.1.0 — 2026-10-28
 
 **The first release: the Python port of drvec C 0.13**, the VARMA-VEC of the

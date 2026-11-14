@@ -115,7 +115,7 @@ Two things make it affordable, and neither changes a number:
 ```python
 rt = drvec.rank_test(pre, p=2, q=0, case=2, bootstrap=999, boot_path="mm.boot",
                      progress=lambda b, rep: print(rep.h0, b, rep.status))
-print(rt.provenance.engine, rt.provenance.version)   # c 0.13, or python 0.1.0
+print(rt.provenance.engine, rt.provenance.version)   # c 0.13, or python 0.1.1
 ```
 
 `seed=` gives another stream for a Monte Carlo check (always in Python: the
