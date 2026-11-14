@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.1 — unreleased
+## 0.1.1 — 2026-11-14
 
 **macOS wheels for macOS 11, on Apple silicon and Intel.** The macOS wheels
 are `macosx_11_0`, for arm64 and now also x86_64, the same floor as
