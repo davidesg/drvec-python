@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "drvec"
-version = "0.1.0"
+version = "0.1.1"
 description = "VARMA-VEC cointegration models by exact maximum likelihood (Mauricio 2006): rank tests with a parametric bootstrap, restrictions, forecasts and impulse responses. The Python port of the ATSW suite's drvec, on drvarma's exact VARMA likelihood and fue's univariate models"
 readme = "README.md"
 requires-python = ">=3.10"
