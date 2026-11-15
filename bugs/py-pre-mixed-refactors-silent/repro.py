@@ -9,15 +9,15 @@ drvec C, on the .pre route (drvec.c, after reading the files):
     z-unit value times refactor_i / refactor_(Y1 block). ...
 
 The port reads each file's factor (data.py) and uses it to take the forecasts
-back to levels, but neither `fit` nor the .out it writes mentions that they
-differ. The .out is the C's except for that paragraph, and it is the one that
+back to levels, but `fit` does not mention that they
+differ. That paragraph is the one that
 tells the reader that beta is not in the series' units: with Y at 100 and X at
 1, beta prints -0.009955 for a relation that is (1, -0.9955), and its
 standard errors are no longer comparable (HOMOLOGATION.md, "mixed factors").
 
 Two synthetic I(1) series in logs, cointegrated; Y's .pre with refactor 100,
-X's with 1. Exits 1 while the .out of the fit does not mention the factors;
-0 when it warns.
+X's with 1. Exits 1 while the fit does not warn (the C does, on stderr);
+0 when it does.
 """
 import os
 import re
@@ -30,7 +30,7 @@ import numpy as np
 import fue
 import drvec
 
-warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=UserWarning)
 N = 200
 
 
@@ -52,12 +52,14 @@ def main():
     d = tempfile.mkdtemp()
     files = [pre(os.path.join(d, "Y.pre"), 120 * np.exp(c + u), 100.0, "Y"),
              pre(os.path.join(d, "X.pre"), 100 * np.exp(c), 1.0, "X")]
-    r = drvec.fit(files, 1, 0, 1, case="pre")
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        r = drvec.fit(files, 1, 0, 1, case="pre")
     out = r.out_text("vec")
     b = re.search(r"Y in ec1\s+(-?[0-9.]+)", out)
-    warned = bool(re.search(r"do not share one refactor|refactor", out))
+    warned = any("do not share one refactor" in str(x.message) for x in w)
     print(f"beta as printed: {b.group(1) if b else '?'}  (the relation is (1, -1) in the series' units)")
-    print(f"the .out mentions the factors: {warned}")
+    print(f"drvec warned that the files do not share one factor: {warned}")
     return 0 if warned else 1
 
 

@@ -48,6 +48,14 @@ from dataclasses import dataclass, field
 import numpy as np
 
 
+#: The C's words (drvec.c), for .pre files that do not share one factor.
+MIXED_REFACTORS = (
+    "the .pre files do not share one refactor.  The system is built in "
+    "w = refactor*BoxCox(z) units, as in drtran, so each entry of B2 is its "
+    "z-unit value times refactor_i / refactor_(Y1 block).  Compare fits on Pi, "
+    "which the normalisation does not touch.")
+
+
 def abs_period(year, sub, freq):
     """drvec.c:6768: one index on a common calendar."""
     if freq <= 1:
@@ -287,6 +295,14 @@ def read_pre(files):
         _phi, _theta, _mu, z = levels_cast(model)
         dets.append((model, off) if model.interventions else None)
         raw[:, i] = z[off:off + n]
+    # As the C (drvec.c, after reading the files): the system is built in
+    # w = refactor*BoxCox(z) units, so files that do not share one factor
+    # leave B2 in units nobody reads. The C says it on stderr; here it is a
+    # warning (bugs/py-pre-mixed-refactors-silent).
+    r1 = refs[0] if refs[0] != 0.0 else 1.0
+    if any(abs((r if r != 0.0 else 1.0) - r1) > 1.0e-9 * abs(r1) for r in refs[1:]):
+        import warnings
+        warnings.warn(MIXED_REFACTORS, RuntimeWarning, stacklevel=2)
     if freq0 <= 1:
         start = (first, 1)
     else:
