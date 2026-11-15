@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.2 — 2026-11-15
+
+- **Files that do not share one rescaling factor are warned of, as in the C.**
+  The system is built in w = refactor·BoxCox(z) units, so with `.pre` files of
+  different factors each entry of B2 is its z-unit value times
+  refactor_i / refactor_(Y1 block): beta printed -0.009955 for a relation that
+  is (1, -0.9955). drvec C says so on stderr; the port said nothing
+  (`bugs/py-pre-mixed-refactors-silent`). `read_pre` now raises a
+  `RuntimeWarning` with the C's words (`drvec.data.MIXED_REFACTORS`).
+
 ## 0.1.1 — 2026-11-14
 
 **macOS wheels for macOS 11, on Apple silicon and Intel.** The macOS wheels
