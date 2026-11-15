@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.2 — unreleased
+## 0.1.2 — 2026-11-15
 
 - **Files that do not share one rescaling factor are warned of, as in the C.**
   The system is built in w = refactor·BoxCox(z) units, so with `.pre` files of
